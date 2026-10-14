@@ -55,7 +55,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
     setTheme,
     themeSchedule,
     setThemeSchedule,
-    logout
+    logout,
+    clearSampleData
   } = useApp();
 
   const [usdRate, setUsdRate] = useState((appSettings.exchangeRateUSDToAFN || 70.5).toString());
@@ -66,6 +67,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
   const [dbStatus, setDbStatus] = useState<{ checked: boolean; ok: boolean; message: string } | null>(null);
   const [backupStatus, setBackupStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [loggingOutAll, setLoggingOutAll] = useState(false);
+  const [dangerStatus, setDangerStatus] = useState<string | null>(null);
+
+  const handleClearTestData = () => {
+    const ok = confirm(tp(
+      'Delete ALL transactional data (expenses, materials, payroll, units, payments, documents)? Projects and users are kept. Take a JSON backup first! This cannot be undone.',
+      'تمام معلومات معاملاتی (مصارف، مواد، معاشات، واحدها، پرداخت‌ها، اسناد) حذف شود؟ پروژه‌ها و کاربران می‌مانند. اول بکاپ JSON بگیرید! این عمل برگشت‌ناپذیر است.',
+      'ټول معاملاتي معلومات (مصارف، مواد، مزدونه، واحدونه، تادیې، سندونه) ړنګ شي؟ پروژې او کاروونکي پاتې کېږي. لومړی JSON بکاپ واخلئ! دا عمل بېرته نه ګرځي.'
+    ));
+    if (!ok) return;
+    clearSampleData();
+    setDangerStatus(tp('Test data cleared. Projects and users were kept.', 'معلومات تست پاک شد. پروژه‌ها و کاربران باقی ماندند.', 'ټسټ معلومات پاک شول. پروژې او کاروونکي پاتې شول.'));
+    setTimeout(() => setDangerStatus(null), 6000);
+  };
 
   const handleTestDatabaseConnection = async () => {
     setTestingDb(true);
@@ -162,10 +176,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
         try {
           const json = JSON.parse(event.target?.result as string);
           importBackupJSON(json);
-          alert('Database restored successfully from local file!');
+          setBackupStatus({
+            ok: true,
+            message: tp('Database restored successfully from local file!', 'دیتابیس با موفقیت از فایل محلی بازیابی شد!', 'ډیټابېس له ځايي فایل څخه په بریالیتوب بېرته وګرځېد!')
+          });
         } catch (err: any) {
-          alert('Failed to parse backup file: ' + err.message);
+          setBackupStatus({
+            ok: false,
+            message: tp('Failed to parse backup file: ', 'خواندن فایل بکاپ ناموفق بود: ', 'د بکاپ فایل لوستل ناکام شول: ') + err.message
+          });
         }
+        setTimeout(() => setBackupStatus(null), 6000);
       };
       reader.readAsText(file);
     }
@@ -464,12 +485,40 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
 
         {dbStatus && (
           <div className={`p-3.5 rounded-2xl text-xs font-semibold flex items-center gap-2 ${
-            dbStatus.ok 
-              ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300' 
+            dbStatus.ok
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
               : 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
           }`}>
             <ShieldCheck className="w-4 h-4 shrink-0" />
             <span>{dbStatus.message}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Danger Zone: test/production separation */}
+      <div className="p-5 rounded-3xl bg-surface border border-red-200 dark:border-red-900 space-y-4">
+        <div>
+          <h2 className="text-sm font-black text-red-600 dark:text-red-400">
+            {tp('Danger Zone', 'ناحیه خطر', 'خطرناکه برخه')}
+          </h2>
+          <p className="text-[11px] text-ink-muted mt-1">
+            {tp('Before going live: download a JSON backup, then wipe test transactions to start production clean.',
+               'قبل از استفاده واقعی: اول بکاپ JSON بگیرید، بعد معلومات تست را پاک کنید تا با دیتای تمیز شروع کنید.',
+               'له واقعي کارولو مخکې: لومړی JSON بکاپ کښته کړئ، بیا ټسټ معلومات پاک کړئ.')}
+          </p>
+        </div>
+        <div>
+          <button
+            type="button"
+            onClick={handleClearTestData}
+            className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-950/70 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl text-xs font-bold transition"
+          >
+            <span>{tp('Clear Test Transactions', 'پاک‌سازی معلومات تست', 'د ټسټ معلوماتو پاکول')}</span>
+          </button>
+        </div>
+        {dangerStatus && (
+          <div className="p-3.5 rounded-2xl text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300">
+            {dangerStatus}
           </div>
         )}
       </div>

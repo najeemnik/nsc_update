@@ -465,7 +465,8 @@ export const LoginView: React.FC = () => {
               })()}
             </motion.div>
 
-            {/* Quick Demo Credentials Panel */}
+            {/* Quick Demo Credentials Panel (test/prod separation: hide in production via VITE_SHOW_DEMO_LOGINS=false) */}
+            {import.meta.env.VITE_SHOW_DEMO_LOGINS !== 'false' && (
             <motion.div 
               initial={{ opacity: 0, y: 30, scale: 0.98 }}
               whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -519,7 +520,7 @@ export const LoginView: React.FC = () => {
                   className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 rounded-xl border border-emerald-500/40 transition-all font-semibold flex items-center gap-1.5 shadow-xs"
                 >
                   <Home className="w-3.5 h-3.5" />
-                  <span>مسؤول فروشات (@sales)</span>
+                  <span>{tp('Sales Officer (@sales)', 'مسؤول فروشات (@sales)', 'د پلور مسئول (@sales)')}</span>
                 </button>
                 <button
                   type="button"
@@ -536,6 +537,7 @@ export const LoginView: React.FC = () => {
                 </button>
               </div>
             </motion.div>
+            )}
           </div>
 
           {/* Right Column: High-Contrast Auth Card */}

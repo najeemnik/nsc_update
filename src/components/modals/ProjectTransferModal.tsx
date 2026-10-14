@@ -35,7 +35,7 @@ export const ProjectTransferModal: React.FC<ProjectTransferModalProps> = ({
   project,
   onClose,
 }) => {
-  const { transferProject, formatCurrency, formatNumber, language, t } = useApp();
+  const { transferProject, formatCurrency, formatNumber, language, t, tp } = useApp();
   const isRtl = language === 'fa' || language === 'ps';
 
   const [activeTab, setActiveTab] = useState<'new_transfer' | 'history'>('new_transfer');
@@ -57,6 +57,7 @@ export const ProjectTransferModal: React.FC<ProjectTransferModalProps> = ({
   const [receiptDocumentName, setReceiptDocumentName] = useState('');
   const [notes, setNotes] = useState('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Sync previousOwner when project opens
   React.useEffect(() => {
@@ -116,8 +117,9 @@ export const ProjectTransferModal: React.FC<ProjectTransferModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     if (!newOwner.trim()) {
-      alert(isRtl ? 'لطفاً نام مالک یا مسئول جدید را وارد نمایید' : 'Please specify the New Owner / Responsible Person');
+      setFormError(tp('Please specify the new owner / responsible person.', 'لطفاً نام مالک یا مسئول جدید را وارد نمایید.', 'مهرباني وکړئ د نوي خاوند یا مسئول نوم ولیکئ.'));
       return;
     }
 
@@ -493,6 +495,12 @@ export const ProjectTransferModal: React.FC<ProjectTransferModalProps> = ({
                   className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
+
+              {formError && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-700 dark:text-rose-300 text-xs font-bold">
+                  {formError}
+                </div>
+              )}
 
               {/* Submit */}
               <div className="flex justify-end gap-2.5 pt-3 border-t border-line">

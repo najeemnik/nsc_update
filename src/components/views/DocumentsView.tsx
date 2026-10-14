@@ -31,14 +31,16 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     documents, 
     deleteDocument, 
     isGoogleDriveConnected, 
-    uploadDocumentToDrive, 
-    t, 
-    language 
+    uploadDocumentToDrive,
+    t,
+    language,
+    tp
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncNotice, setSyncNotice] = useState<{ ok: boolean; message: string } | null>(null);
 
   const projectDocs = documents.filter(d => d.projectId === currentProject?.id);
 
@@ -60,14 +62,16 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       return;
     }
     setSyncingId(doc.id);
+    setSyncNotice(null);
     try {
       await uploadDocumentToDrive(doc);
-      alert(t('fileUploadedToDriveSuccess') || `"${doc.title}" was backed up to Google Drive!`);
+      setSyncNotice({ ok: true, message: tp(`"${doc.title}" was backed up to Google Drive!`, `"${doc.title}" در گوگل درایو بکاپ شد!`, `"${doc.title}" په ګوګل ډرایو کې بکاپ شو!`) });
     } catch (e: any) {
-      alert(e.message || 'Failed to upload to Drive');
+      setSyncNotice({ ok: false, message: e.message || tp('Failed to upload to Drive', 'آپلود به درایو ناموفق بود', 'ډرایو ته آپلوډ ناکام شو') });
     } finally {
       setSyncingId(null);
     }
+    setTimeout(() => setSyncNotice(null), 6000);
   };
 
   const handleDelete = (id: string, title: string) => {
@@ -78,6 +82,15 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {syncNotice && (
+        <div className={`text-xs font-bold px-4 py-2.5 rounded-xl border ${
+          syncNotice.ok
+            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+            : 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'
+        }`}>
+          {syncNotice.message}
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

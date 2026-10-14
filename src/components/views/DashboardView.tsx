@@ -55,14 +55,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     suppliers,
     formatCurrency, 
     formatNumber, 
-    t, 
+    t,
     language,
+    tp,
     isGoogleDriveConnected,
     backupToGoogleDrive
   } = useApp();
 
   const [backingUp, setBackingUp] = useState(false);
   const [backupSuccess, setBackupSuccess] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
 
   // Financial calculations for current project
   const projectExpenses = expenses.filter(e => e.projectId === currentProject?.id);
@@ -92,12 +94,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       return;
     }
     setBackingUp(true);
+    setBackupError(null);
     try {
       const res = await backupToGoogleDrive();
-      setBackupSuccess(res.name);
-      setTimeout(() => setBackupSuccess(null), 4000);
+      if (!res.success) {
+        setBackupError(res.error || tp('Backup failed', 'بکاپ ناموفق بود', 'بکاپ ناکام شو'));
+        setTimeout(() => setBackupError(null), 6000);
+      } else {
+        setBackupSuccess(res.fileLink || 'done');
+        setTimeout(() => setBackupSuccess(null), 6000);
+      }
     } catch (e: any) {
-      alert(e.message || 'Backup failed');
+      setBackupError(e.message || tp('Backup failed', 'بکاپ ناموفق بود', 'بکاپ ناکام شو'));
+      setTimeout(() => setBackupError(null), 6000);
     } finally {
       setBackingUp(false);
     }
@@ -169,7 +178,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {backupSuccess && (
           <div className="mt-4 p-3 bg-emerald-500/20 backdrop-blur-md border border-emerald-400/40 rounded-xl text-xs text-emerald-100 flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-            <span>{t('googleDriveBackupSuccess') || 'Successfully backed up to Google Drive:'} <strong>{backupSuccess}</strong></span>
+            <span>{t('googleDriveBackupSuccess') || 'Successfully backed up to Google Drive'}</span>
+            {backupSuccess !== 'done' && (
+              <a href={backupSuccess} target="_blank" rel="noreferrer" className="underline hover:no-underline font-bold">
+                {tp('View file', 'مشاهده فایل', 'فایل کتل')}
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Backup Error Toast */}
+        {backupError && (
+          <div className="mt-4 p-3 bg-rose-500/20 backdrop-blur-md border border-rose-400/40 rounded-xl text-xs text-rose-100 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-300" />
+            <span>{backupError}</span>
           </div>
         )}
 

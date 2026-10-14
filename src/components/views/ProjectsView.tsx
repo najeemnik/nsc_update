@@ -44,6 +44,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   } = useApp();
 
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'on_hold'>('all');
+  const [notice, setNotice] = useState<string | null>(null);
 
   const filteredProjects = projects.filter(p => {
     if (filter === 'all') return true;
@@ -53,7 +54,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const handleDelete = (project: Project, e: React.MouseEvent) => {
     e.stopPropagation();
     if (projects.length <= 1) {
-      alert(t('cannotDeleteOnlyProject') || 'You cannot delete the only project in the system.');
+      setNotice(tp('You cannot delete the only project in the system.', 'نمی‌توانید تنها پروژه سیستم را حذف کنید.', 'تاسې د سیسټم یوازینۍ پروژه نشئ ړنګولی.'));
+      setTimeout(() => setNotice(null), 5000);
       return;
     }
     if (confirm(t('confirmDeleteProject') || `Are you sure you want to delete "${project.name}"?`)) {
@@ -63,6 +65,11 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {notice && (
+        <div className="text-xs font-bold px-4 py-2.5 rounded-xl border bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+          {notice}
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

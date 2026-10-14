@@ -13,7 +13,7 @@ import {
 import { User, UserRole } from '../../types';
 
 export const UsersView: React.FC = () => {
-  const { users, currentUser, addUser, deleteUser, t, language } = useApp();
+  const { users, currentUser, addUser, deleteUser, t, language, tp } = useApp();
 
   const [isAdding, setIsAdding] = useState(false);
   const [name, setName] = useState('');
@@ -22,11 +22,13 @@ export const UsersView: React.FC = () => {
   const [role, setRole] = useState<UserRole>('accountant');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     if (!name.trim() || !username.trim() || !password.trim()) {
-      alert('Please fill name, username and password');
+      setFormError(tp('Please fill name, username and password', 'لطفاً نام، نام کاربری و رمز را وارد کنید', 'مهرباني وکړئ نوم، کارن نوم او پټ نوم ولیکئ'));
       return;
     }
 
@@ -56,7 +58,8 @@ export const UsersView: React.FC = () => {
 
   const handleDelete = (id: string, userName: string) => {
     if (id === currentUser?.id) {
-      alert('You cannot delete your own account while logged in');
+      setFormError(tp('You cannot delete your own account while logged in', 'نمی‌توانید حساب خودتان را هنگام ورود حذف کنید', 'تاسې خپل حساب د ننوتلو پر مهال نشئ ړنګولی'));
+      setTimeout(() => setFormError(null), 5000);
       return;
     }
     if (confirm(`Are you sure you want to delete user "${userName}"?`)) {
@@ -66,6 +69,11 @@ export const UsersView: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {formError && (
+        <div className="text-xs font-bold px-4 py-2.5 rounded-xl border bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300">
+          {formError}
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
