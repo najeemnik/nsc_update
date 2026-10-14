@@ -1,0 +1,1675 @@
+import React, { useState, useMemo } from 'react';
+import { useApp } from '../../context/AppContext';
+import { Project, ProjectPartner, ProjectInvestment } from '../../types';
+import { 
+  Users, 
+  X, 
+  Plus, 
+  Edit3, 
+  Trash2, 
+  PieChart, 
+  Calendar, 
+  Phone, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Building2, 
+  Coins, 
+  Receipt,
+  FileText,
+  Printer,
+  Scale,
+  TrendingUp,
+  ArrowRightLeft,
+  LogOut,
+  UserMinus,
+  ShieldAlert,
+  History as HistoryIcon
+} from 'lucide-react';
+
+interface ProjectPartnersModalProps {
+  project: Project | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
+  project,
+  isOpen,
+  onClose,
+}) => {
+  const { 
+    projectPartners, 
+    projectInvestments, 
+    partnerEquityTransfers,
+    transferPartnerEquity,
+    addProjectPartner, 
+    updateProjectPartner, 
+    deleteProjectPartner, 
+    addProjectInvestment, 
+    updateProjectInvestment, 
+    deleteProjectInvestment,
+    formatNumber,
+    t,
+    currentUser
+  } = useApp();
+
+  const [activeTab, setActiveTab] = useState<'partners' | 'investments' | 'distribution' | 'transfers'>('partners');
+  const [distributableProfit, setDistributableProfit] = useState<string>('5000000');
+  const [profitCurrency, setProfitCurrency] = useState<'AFN' | 'USD'>('AFN');
+
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferringPartner, setTransferringPartner] = useState<ProjectPartner | null>(null);
+  const [transferType, setTransferType] = useState<'partner_to_partner' | 'new_partner' | 'company_buyout'>('partner_to_partner');
+  const [targetPartnerId, setTargetPartnerId] = useState('');
+  const [targetPartnerName, setTargetPartnerName] = useState('');
+  const [transferPercentage, setTransferPercentage] = useState('');
+  const [transferPrice, setTransferPrice] = useState('');
+  const [transferCurrency, setTransferCurrency] = useState<'AFN' | 'USD' | string>('AFN');
+  const [transferDate, setTransferDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [transferDeedNumber, setTransferDeedNumber] = useState('');
+  const [transferNotes, setTransferNotes] = useState('');
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [printedTransferDeed, setPrintedTransferDeed] = useState<PartnerEquityTransfer | null>(null);
+
+  const [isPartnerFormOpen, setIsPartnerFormOpen] = useState(false);
+  const [editingPartner, setEditingPartner] = useState<ProjectPartner | null>(null);
+  const [partnerName, setPartnerName] = useState('');
+  const [partnerPhone, setPartnerPhone] = useState('');
+  const [partnerNationalId, setPartnerNationalId] = useState('');
+  const [partnerShare, setPartnerShare] = useState('');
+  const [partnerInitialInv, setPartnerInitialInv] = useState('');
+  const [partnerCurrency, setPartnerCurrency] = useState<'AFN' | 'USD' | string>('AFN');
+  const [partnerDate, setPartnerDate] = useState('');
+  const [partnerNotes, setPartnerNotes] = useState('');
+  const [partnerFormError, setPartnerFormError] = useState<string | null>(null);
+
+  const [isInvestmentFormOpen, setIsInvestmentFormOpen] = useState(false);
+  const [editingInvestment, setEditingInvestment] = useState<ProjectInvestment | null>(null);
+  const [selectedPartnerId, setSelectedPartnerId] = useState('');
+  const [invAmount, setInvAmount] = useState('');
+  const [invCurrency, setInvCurrency] = useState<'AFN' | 'USD' | string>('AFN');
+  const [invDate, setInvDate] = useState(new Date().toISOString().split('T')[0]);
+  const [invType, setInvType] = useState<'initial' | 'additional'>('additional');
+  const [invMethod, setInvMethod] = useState('نقد');
+  const [invReceipt, setInvReceipt] = useState('');
+  const [invNotes, setInvNotes] = useState('');
+  const [invFormError, setInvFormError] = useState<string | null>(null);
+
+  const [partnerToDelete, setPartnerToDelete] = useState<ProjectPartner | null>(null);
+  const [investmentToDelete, setInvestmentToDelete] = useState<ProjectInvestment | null>(null);
+
+  const currentPartners = useMemo(() => {
+    if (!project) return [];
+    return projectPartners.filter(p => p.projectId === project.id);
+  }, [projectPartners, project]);
+
+  const currentInvestments = useMemo(() => {
+    if (!project) return [];
+    return projectInvestments.filter(i => i.projectId === project.id);
+  }, [projectInvestments, project]);
+
+  const currentTransfers = useMemo(() => {
+    if (!project) return [];
+    return (partnerEquityTransfers || []).filter(t => t.projectId === project.id);
+  }, [partnerEquityTransfers, project]);
+
+  const partnersSummary = useMemo(() => {
+    return currentPartners.map(partner => {
+      const pInvs = currentInvestments.filter(i => i.partnerId === partner.id);
+      
+      const totalInvAFN = pInvs
+        .filter(i => i.currency === 'AFN')
+        .reduce((sum, i) => sum + i.amount, 0);
+
+      const totalInvUSD = pInvs
+        .filter(i => i.currency === 'USD')
+        .reduce((sum, i) => sum + i.amount, 0);
+
+      return {
+        ...partner,
+        investmentsCount: pInvs.length,
+        totalInvAFN,
+        totalInvUSD,
+      };
+    });
+  }, [currentPartners, currentInvestments]);
+
+  const totalStats = useMemo(() => {
+    const totalShare = currentPartners.reduce((sum, p) => sum + (p.sharePercentage || 0), 0);
+    const totalAFN = currentInvestments
+      .filter(i => i.currency === 'AFN')
+      .reduce((sum, i) => sum + i.amount, 0);
+    const totalUSD = currentInvestments
+      .filter(i => i.currency === 'USD')
+      .reduce((sum, i) => sum + i.amount, 0);
+
+    return {
+      totalShare: parseFloat(totalShare.toFixed(2)),
+      totalAFN,
+      totalUSD,
+      partnerCount: currentPartners.length,
+      investmentCount: currentInvestments.length,
+    };
+  }, [currentPartners, currentInvestments]);
+
+  if (!isOpen || !project) return null;
+
+  const handleOpenPartnerForm = (partner?: ProjectPartner) => {
+    setPartnerFormError(null);
+    if (partner) {
+      setEditingPartner(partner);
+      setPartnerName(partner.name || '');
+      setPartnerPhone(partner.phone || '');
+      setPartnerNationalId(partner.nationalId || '');
+      setPartnerShare(partner.sharePercentage !== undefined ? String(partner.sharePercentage) : '');
+      setPartnerInitialInv(partner.initialInvestment !== undefined ? String(partner.initialInvestment) : '');
+      setPartnerCurrency(partner.currency || project.currency || 'AFN');
+      setPartnerDate(partner.investmentDate || '');
+      setPartnerNotes(partner.notes || '');
+    } else {
+      setEditingPartner(null);
+      setPartnerName('');
+      setPartnerPhone('');
+      setPartnerNationalId('');
+      setPartnerShare('');
+      setPartnerInitialInv('');
+      setPartnerCurrency(project.currency || 'AFN');
+      setPartnerDate(new Date().toISOString().split('T')[0]);
+      setPartnerNotes('');
+    }
+    setIsPartnerFormOpen(true);
+  };
+
+  const handlePartnerSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPartnerFormError(null);
+    const share = partnerShare.trim() ? parseFloat(partnerShare) : undefined;
+    const initialInv = partnerInitialInv.trim() ? parseFloat(partnerInitialInv) : undefined;
+
+    if (share !== undefined && (isNaN(share) || share < 0 || share > 100)) {
+      setPartnerFormError('فیصدی سهم باید بین ۰ تا ۱۰۰ باشد.');
+      return;
+    }
+    if (initialInv !== undefined && (isNaN(initialInv) || initialInv < 0)) {
+      setPartnerFormError('مبلغ سرمایه‌گذاری نامعتبر است.');
+      return;
+    }
+
+    if (editingPartner) {
+      updateProjectPartner(editingPartner.id, {
+        name: partnerName.trim() || 'شریک',
+        phone: partnerPhone.trim() || undefined,
+        nationalId: partnerNationalId.trim() || undefined,
+        sharePercentage: share,
+        currency: partnerCurrency,
+        investmentDate: partnerDate || undefined,
+        notes: partnerNotes.trim() || undefined,
+      });
+    } else {
+      addProjectPartner({
+        projectId: project.id,
+        name: partnerName.trim() || 'شریک جدید',
+        phone: partnerPhone.trim() || undefined,
+        nationalId: partnerNationalId.trim() || undefined,
+        sharePercentage: share,
+        initialInvestment: initialInv,
+        currency: partnerCurrency,
+        investmentDate: partnerDate || undefined,
+        notes: partnerNotes.trim() || undefined,
+      });
+    }
+    setIsPartnerFormOpen(false);
+  };
+
+  const handleOpenInvestmentForm = (partnerId?: string, inv?: ProjectInvestment) => {
+    setInvFormError(null);
+    if (inv) {
+      setEditingInvestment(inv);
+      setSelectedPartnerId(inv.partnerId);
+      setInvAmount(String(inv.amount));
+      setInvCurrency(inv.currency);
+      setInvDate(inv.date);
+      setInvType(inv.type);
+      setInvMethod(inv.paymentMethod || 'نقد');
+      setInvReceipt(inv.receiptNumber || '');
+      setInvNotes(inv.notes || '');
+    } else {
+      setEditingInvestment(null);
+      setSelectedPartnerId(partnerId || currentPartners[0]?.id || '');
+      setInvAmount('');
+      setInvCurrency(project.currency || 'AFN');
+      setInvDate(new Date().toISOString().split('T')[0]);
+      setInvType('additional');
+      setInvMethod('نقد');
+      setInvReceipt('');
+      setInvNotes('');
+    }
+    setIsInvestmentFormOpen(true);
+  };
+
+  const handleInvestmentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setInvFormError(null);
+    const parsedAmount = parseFloat(invAmount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      setInvFormError('مبلغ واریزی باید بزرگتر از صفر باشد.');
+      return;
+    }
+    const partner = currentPartners.find(p => p.id === selectedPartnerId);
+    const pName = partner ? partner.name : 'سرمایه عمومی';
+
+    if (editingInvestment) {
+      updateProjectInvestment(editingInvestment.id, {
+        partnerId: selectedPartnerId || editingInvestment.partnerId,
+        partnerName: pName,
+        amount: parsedAmount,
+        currency: invCurrency,
+        date: invDate,
+        type: invType,
+        paymentMethod: invMethod,
+        receiptNumber: invReceipt.trim() || undefined,
+        notes: invNotes.trim() || undefined,
+      });
+    } else {
+      addProjectInvestment({
+        projectId: project.id,
+        partnerId: selectedPartnerId || (currentPartners[0]?.id ?? 'general'),
+        partnerName: pName,
+        amount: parsedAmount,
+        currency: invCurrency,
+        date: invDate,
+        type: invType,
+        paymentMethod: invMethod,
+        receiptNumber: invReceipt.trim() || undefined,
+        notes: invNotes.trim() || undefined,
+      });
+    }
+    setIsInvestmentFormOpen(false);
+  };
+
+  const handleOpenTransferModal = (partner: ProjectPartner) => {
+    setTransferringPartner(partner);
+    setTransferType('partner_to_partner');
+    const otherPartner = currentPartners.find(p => p.id !== partner.id && p.status !== 'exited');
+    setTargetPartnerId(otherPartner?.id || '');
+    setTargetPartnerName(otherPartner?.name || '');
+    setTransferPercentage(String(partner.sharePercentage || ''));
+    setTransferPrice('');
+    setTransferCurrency(partner.currency || 'AFN');
+    setTransferDate(new Date().toISOString().split('T')[0]);
+    setTransferDeedNumber(`DEED-${Date.now().toString().slice(-4)}`);
+    setTransferNotes('');
+    setTransferError(null);
+    setIsTransferModalOpen(true);
+  };
+
+  const handleTransferSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferringPartner || !project) return;
+    setTransferError(null);
+
+    const pct = parseFloat(transferPercentage) || 0;
+    if (pct <= 0 || pct > (transferringPartner.sharePercentage || 0)) {
+      setTransferError(`درصد واگذاری باید بین ۰.۱٪ تا ${transferringPartner.sharePercentage}% باشد.`);
+      return;
+    }
+
+    const price = parseFloat(transferPrice) || 0;
+    if (price < 0) {
+      setTransferError('مبلغ معامله نمی‌تواند منفی باشد.');
+      return;
+    }
+
+    let buyerName = targetPartnerName.trim();
+    let buyerId: string | undefined = undefined;
+
+    if (transferType === 'partner_to_partner') {
+      const existingBuyer = currentPartners.find(p => p.id === targetPartnerId);
+      if (!existingBuyer) {
+        setTransferError('لطفاً شریک خریدار را از لیست انتخاب کنید.');
+        return;
+      }
+      buyerName = existingBuyer.name;
+      buyerId = existingBuyer.id;
+    } else if (transferType === 'company_buyout') {
+      buyerName = 'خزانه شرکت / بازخرید توسط پروژه';
+    } else {
+      if (!buyerName) {
+        setTransferError('لطفاً نام خریدار یا سرمایه‌گذار جدید را بنویسید.');
+        return;
+      }
+    }
+
+    const record = transferPartnerEquity({
+      projectId: project.id,
+      fromPartnerId: transferringPartner.id,
+      fromPartnerName: transferringPartner.name,
+      toPartnerId: buyerId,
+      toPartnerName: buyerName,
+      transferredPercentage: pct,
+      transferPrice: price,
+      currency: transferCurrency,
+      transferDate,
+      transferType,
+      deedNumber: transferDeedNumber.trim() || undefined,
+      notes: transferNotes.trim() || undefined,
+    });
+
+    setPrintedTransferDeed(record);
+    setIsTransferModalOpen(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-surface rounded-3xl shadow-2xl max-w-4xl w-full overflow-hidden border border-line my-auto animate-in fade-in zoom-in-95 flex flex-col max-h-[92dvh]">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-slate-900 text-white shrink-0">
+          <div className="flex items-center space-x-2.5 rtl:space-x-reverse">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center font-bold">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-sm sm:text-base">
+                  مدیریت شرکای پروژه و سهم سرمایه‌گذاری
+                </h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-amber-400 border border-slate-700">
+                  {project.code}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+                <Building2 className="w-3.5 h-3.5 text-amber-500" />
+                <span>{project.name}</span>
+                <span>•</span>
+                <span>سهم‌داری و دفتر روزنامچه واریزی‌ها</span>
+              </p>
+            </div>
+          </div>
+          <button 
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Top Summary Cards */}
+        <div className="p-4 sm:p-5 bg-slate-50 dark:bg-slate-800/60 border-b border-line shrink-0">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            
+            {/* Total Capital */}
+            <div className="p-3.5 rounded-2xl bg-surface border border-line shadow-xs">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-bold text-ink-muted">مجموع سرمایه واریز شده:</span>
+                <Coins className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="space-y-0.5">
+                {totalStats.totalAFN > 0 && (
+                  <div className="font-mono text-base font-black text-ink">
+                    {totalStats.totalAFN.toLocaleString()} <span className="text-xs font-sans font-bold text-emerald-700 dark:text-emerald-400">افغانی</span>
+                  </div>
+                )}
+                {totalStats.totalUSD > 0 && (
+                  <div className="font-mono text-base font-black text-ink">
+                    ${totalStats.totalUSD.toLocaleString()} <span className="text-xs font-sans font-bold text-blue-700 dark:text-blue-400">دالر</span>
+                  </div>
+                )}
+                {totalStats.totalAFN === 0 && totalStats.totalUSD === 0 && (
+                  <div className="text-xs text-slate-400 font-bold">بدون ثبت واریزی</div>
+                )}
+              </div>
+            </div>
+
+            {/* Total Allocated Share % */}
+            <div className="p-3.5 rounded-2xl bg-surface border border-line shadow-xs">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-bold text-ink-muted">مجموع سهام تعیین‌شده:</span>
+                <PieChart className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-2xl font-black text-ink">
+                  {totalStats.totalShare}%
+                </span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  totalStats.totalShare === 100 
+                    ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                    : totalStats.totalShare < 100 
+                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300' 
+                    : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
+                }`}>
+                  {totalStats.totalShare === 100 
+                    ? 'تکمیل (۱۰۰٪)' 
+                    : totalStats.totalShare < 100 
+                    ? `${(100 - totalStats.totalShare).toFixed(1)}% باقیمانده` 
+                    : 'فراتر از ۱۰۰٪'}
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full mt-2 overflow-hidden">
+                <div 
+                  className={`h-full transition-all ${
+                    totalStats.totalShare <= 100 ? 'bg-amber-500' : 'bg-rose-500'
+                  }`}
+                  style={{ width: `${Math.min(totalStats.totalShare, 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Partners Count & Quick Action */}
+            <div className="p-3.5 rounded-2xl bg-surface border border-line shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold text-ink-muted block mb-1">تعداد شرکا و تراکنش‌ها:</span>
+                <div className="font-extrabold text-sm text-ink flex items-center gap-2">
+                  <span>{totalStats.partnerCount} شریک</span>
+                  <span>•</span>
+                  <span>{totalStats.investmentCount} واریزی</span>
+                </div>
+              </div>
+              {currentUser?.role === 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenPartnerForm()}
+                  className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>افزودن شریک</span>
+                </button>
+              )}
+            </div>
+
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex border-b border-line bg-surface px-6 text-xs shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('partners')}
+            className={`py-3 px-4 font-bold border-b-2 flex items-center gap-2 transition-all ${
+              activeTab === 'partners'
+                ? 'border-amber-600 text-amber-900 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/20'
+                : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <Users className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <span>فهرست شرکا ({currentPartners.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('investments')}
+            className={`py-3 px-4 font-bold border-b-2 flex items-center gap-2 transition-all ${
+              activeTab === 'investments'
+                ? 'border-amber-600 text-amber-900 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/20'
+                : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <HistoryIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <span>دفتر واریزی‌ها و سرمایه ({currentInvestments.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('distribution')}
+            className={`py-3 px-4 font-bold border-b-2 flex items-center gap-2 transition-all ${
+              activeTab === 'distribution'
+                ? 'border-amber-600 text-amber-900 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/20'
+                : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <Scale className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <span>تسهیم سود و تسویه سهم‌الشرکه</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('transfers')}
+            className={`py-3 px-4 font-bold border-b-2 flex items-center gap-2 transition-all ${
+              activeTab === 'transfers'
+                ? 'border-amber-600 text-amber-900 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/20'
+                : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <ArrowRightLeft className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <span>واگذاری سهم و خروج شرکا ({currentTransfers.length})</span>
+          </button>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 text-xs space-y-4">
+          
+          {/* TAB 1: Partners List */}
+          {activeTab === 'partners' && (
+            <div className="space-y-4 animate-in fade-in">
+              {currentPartners.length === 0 ? (
+                <div className="p-8 text-center bg-surface-2/40 rounded-2xl border border-line space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-ink text-sm">هیچ شریکی برای این پروژه ثبت نشده است</h4>
+                    <p className="text-ink-muted text-xs mt-1">
+                      می‌توانید اشخاص و شرکا را به همراه درصد سهم و سرمایه‌گذاری اولیه در اینجا تعریف کنید.
+                    </p>
+                  </div>
+                  {currentUser?.role === 'admin' && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenPartnerForm()}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs inline-flex items-center gap-1.5"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>افزودن اولین شریک</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {partnersSummary.map((partner) => (
+                    <div 
+                      key={partner.id}
+                      className="bg-surface/80 p-4 rounded-2xl border border-line hover:border-amber-400/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* Top Name and Share Badge */}
+                        <div className="flex items-start justify-between gap-2 mb-2 pb-2 border-b border-slate-100 dark:border-slate-700">
+                          <div>
+                            <h4 className="font-extrabold text-ink text-sm flex items-center gap-2">
+                              <span>{partner.name}</span>
+                              {partner.status === 'exited' && (
+                                <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-700 dark:text-rose-300 font-black text-[10px] border border-rose-500/30">
+                                  خارج‌شده / تسویه کامل
+                                </span>
+                              )}
+                            </h4>
+                            <div className="flex items-center gap-3 text-ink-muted text-[11px] mt-0.5">
+                              {partner.phone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="w-3 h-3 text-slate-400" />
+                                  <span className="font-mono">{partner.phone}</span>
+                                </span>
+                              )}
+                              {partner.nationalId && (
+                                <span className="text-slate-400 font-mono">
+                                  تذکره: {partner.nationalId}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <span className={`px-2.5 py-1 rounded-xl border font-black font-mono text-xs ${
+                            partner.status === 'exited'
+                              ? 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-800 dark:text-slate-400'
+                              : 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30'
+                          }`}>
+                            {partner.sharePercentage !== undefined ? `${partner.sharePercentage}%` : 'بدون سهم مشخص'}
+                          </span>
+                        </div>
+
+                        {partner.status === 'exited' && (
+                          <div className="p-2 mb-2 bg-rose-50/60 dark:bg-rose-950/20 border border-rose-250 dark:border-rose-900/40 rounded-xl text-[11px] text-rose-700 dark:text-rose-300">
+                            <strong>نوت خروج:</strong> {partner.exitReason || `سهم به ${partner.transferredToPartnerName || 'خریدار جدید'} واگذار گردیده است.`}
+                            {partner.exitDate && <span className="block text-[10px] text-slate-400 font-mono mt-0.5">تاریخ خروج: {partner.exitDate}</span>}
+                          </div>
+                        )}
+
+                        {/* Financial Figures */}
+                        <div className="grid grid-cols-2 gap-2 p-2.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl mb-3 border border-slate-100 dark:border-slate-750 text-[11px]">
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">سرمایه تعهد شده اولیه:</span>
+                            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                              {partner.initialInvestment !== undefined ? (
+                                `${partner.initialInvestment.toLocaleString()} ${partner.currency}`
+                              ) : (
+                                'نامشخص'
+                              )}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">مجموع واریزی‌ها:</span>
+                            <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                              {partner.totalInvAFN > 0 && `${partner.totalInvAFN.toLocaleString()} AFN `}
+                              {partner.totalInvUSD > 0 && `$${partner.totalInvUSD.toLocaleString()}`}
+                              {partner.totalInvAFN === 0 && partner.totalInvUSD === 0 && '۰'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {partner.notes && (
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 mb-3 bg-amber-50/50 dark:bg-amber-950/30 p-2 rounded-lg border border-amber-200/50 dark:border-amber-800/40">
+                            {partner.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Bottom Actions */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700 text-[11px] gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          {partner.status !== 'exited' && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenInvestmentForm(partner.id)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-bold transition-colors flex items-center gap-1"
+                            >
+                              <Coins className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>+ واریزی</span>
+                            </button>
+                          )}
+
+                          {partner.status !== 'exited' && (partner.sharePercentage || 0) > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenTransferModal(partner)}
+                              className="px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-bold transition-colors flex items-center gap-1"
+                              title="فروش یا واگذاری سهم‌الشرکه و خروج از پروژه"
+                            >
+                              <ArrowRightLeft className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                              <span>واگذاری سهم / خروج</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {currentUser?.role === 'admin' && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPartnerForm(partner)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                              title="ویرایش شریک"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPartnerToDelete(partner)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                              title="حذف شریک"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: Investments Ledger */}
+          {activeTab === 'investments' && (
+            <div className="space-y-4 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-extrabold text-ink text-xs sm:text-sm">دفتر روزنامچه واریزی‌های سرمایه</h4>
+                  <p className="text-[11px] text-slate-500">تمامی مبالغ نقد، صرافی و بانکی واریز شده توسط شرکا به صورت تفکیک‌شده ثبت می‌شود.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenInvestmentForm()}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>ثبت واریزی جدید</span>
+                </button>
+              </div>
+
+              {currentInvestments.length === 0 ? (
+                <div className="p-8 text-center bg-surface-2/40 rounded-2xl border border-line space-y-2">
+                  <Receipt className="w-8 h-8 text-slate-400 mx-auto" />
+                  <p className="font-bold text-slate-700 dark:text-slate-300">هیچ واریزی سرمایه‌ای تا اکنون ثبت نشده است.</p>
+                </div>
+              ) : (
+                <div className="border border-line rounded-2xl overflow-hidden shadow-xs bg-surface">
+                  <div className="overflow-x-auto scroll-touch">
+                    <table className="w-full text-start text-xs">
+                      <thead className="bg-slate-100 dark:bg-slate-750 text-slate-700 dark:text-slate-200 font-bold border-b border-line">
+                        <tr>
+                          <th className="py-2.5 px-3 text-start">تاریخ</th>
+                          <th className="py-2.5 px-3 text-start">نام شریک / واریزکننده</th>
+                          <th className="py-2.5 px-3 text-start">مبلغ واریزی</th>
+                          <th className="py-2.5 px-3 text-start">نوعیت</th>
+                          <th className="py-2.5 px-3 text-start">روش پرداخت</th>
+                          <th className="py-2.5 px-3 text-start">شماره رسید</th>
+                          <th className="py-2.5 px-3 text-start">توضیحات</th>
+                          <th className="py-2.5 px-3 text-center">عملیات</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {currentInvestments.map(inv => (
+                          <tr key={inv.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/50 transition-colors">
+                            <td className="py-2 px-3 font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                              {inv.date}
+                            </td>
+                            <td className="py-2 px-3 font-bold text-ink whitespace-nowrap">
+                              {inv.partnerName}
+                            </td>
+                            <td className="py-2 px-3 font-mono font-black text-ink whitespace-nowrap">
+                              <span className="text-emerald-700 dark:text-emerald-400">{inv.amount.toLocaleString()}</span>{' '}
+                              <span className="text-[10px] text-slate-500 font-sans font-bold">{inv.currency}</span>
+                            </td>
+                            <td className="py-2 px-3 whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                inv.type === 'initial' 
+                                  ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300' 
+                                  : 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300'
+                              }`}>
+                                {inv.type === 'initial' ? 'سرمایه اولیه' : 'سهم دوره‌ای'}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                              {inv.paymentMethod || 'نقدی'}
+                            </td>
+                            <td className="py-2 px-3 font-mono text-slate-500 whitespace-nowrap">
+                              {inv.receiptNumber || '-'}
+                            </td>
+                            <td className="py-2 px-3 text-slate-600 dark:text-slate-300 max-w-xs truncate" title={inv.notes}>
+                              {inv.notes || '-'}
+                            </td>
+                            <td className="py-2 px-3 text-center whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenInvestmentForm(inv.partnerId, inv)}
+                                  className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                  title="ویرایش"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setInvestmentToDelete(inv)}
+                                  className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                  title="حذف"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: Profit & Loss Distribution */}
+          {activeTab === 'distribution' && (
+            <div className="space-y-4 animate-in fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl">
+                <div>
+                  <h4 className="font-extrabold text-ink text-xs sm:text-sm flex items-center gap-2">
+                    <Scale className="w-4 h-4 text-amber-600" />
+                    <span>تسهیم قانونی سود، زیان و بازگشت سرمایه شرکا (Equity & Dividend Distribution)</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    بر اساس درصد سهم‌الشرکه رسمی ثبت‌شده و کل سرمایه‌گذاری نقدی هر شریک.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shrink-0"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>چاپ صورت‌جلسه رسمی تقسیم سود</span>
+                </button>
+              </div>
+
+              {/* Profit Input Simulator */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-surface-2/50 rounded-2xl border border-line">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                    کل سود خالص قابل تقسیم پروژه:
+                  </label>
+                  <input
+                    type="number"
+                    value={distributableProfit}
+                    onChange={(e) => setDistributableProfit(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono font-bold focus:ring-2 focus:ring-amber-500/20"
+                    placeholder="مبلغ سود به عدد..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                    واحد پولی سود:
+                  </label>
+                  <select
+                    value={profitCurrency}
+                    onChange={(e) => setProfitCurrency(e.target.value as 'AFN' | 'USD')}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-bold focus:ring-2 focus:ring-amber-500/20"
+                  >
+                    <option value="AFN">افغانی (AFN)</option>
+                    <option value="USD">دالر آمریکایی (USD)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                    مجموع سهم تخصیص‌یافته:
+                  </label>
+                  <div className={`px-3 py-2 rounded-xl font-mono font-black text-sm border flex items-center justify-between ${
+                    totalStats.totalShare === 100 
+                      ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
+                      : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                  }`}>
+                    <span>{totalStats.totalShare}٪ از ۱۰۰٪</span>
+                    {totalStats.totalShare === 100 ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <span className="text-[10px] font-normal">
+                        ({100 - totalStats.totalShare}٪ آزاد)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Partners Profit Table */}
+              <div className="bg-surface rounded-2xl border border-line overflow-hidden shadow-xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-right border-collapse">
+                    <thead className="bg-surface-2/60 text-slate-500 font-bold border-b border-line">
+                      <tr>
+                        <th className="py-2.5 px-3">#</th>
+                        <th className="py-2.5 px-3">نام و مشخصات شریک</th>
+                        <th className="py-2.5 px-3 text-center">فیصدی سهم</th>
+                        <th className="py-2.5 px-3 text-left">مجموع سرمایه واریزی</th>
+                        <th className="py-2.5 px-3 text-left text-emerald-600">سود تخصیصی ({profitCurrency})</th>
+                        <th className="py-2.5 px-3 text-left font-black text-ink">مجموع قابل تسویه</th>
+                        <th className="py-2.5 px-3 text-center w-32">امضا و اثر انگشت شریک</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                      {partnersSummary.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-slate-400">
+                            هیچ شریکی برای محاسبه سهم سود ثبت نشده است.
+                          </td>
+                        </tr>
+                      ) : (
+                        partnersSummary.map((partner, idx) => {
+                          const profitNum = parseFloat(distributableProfit) || 0;
+                          const partnerProfit = ((partner.sharePercentage || 0) / 100) * profitNum;
+                          const partnerCap = profitCurrency === 'USD' ? partner.totalInvUSD : partner.totalInvAFN;
+                          const totalReturn = partnerCap + partnerProfit;
+
+                          return (
+                            <tr key={partner.id} className="hover:bg-surface-2/30">
+                              <td className="py-2.5 px-3 font-mono text-slate-400">{idx + 1}</td>
+                              <td className="py-2.5 px-3 font-bold text-ink">
+                                <div>{partner.name}</div>
+                                {partner.phone && <div className="text-[10px] text-slate-400 font-mono">{partner.phone}</div>}
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-mono font-black text-amber-600">
+                                {partner.sharePercentage || 0}٪
+                              </td>
+                              <td className="py-2.5 px-3 text-left font-mono">
+                                {profitCurrency === 'USD' 
+                                  ? `$${formatNumber(partner.totalInvUSD, 0)}`
+                                  : `${formatNumber(partner.totalInvAFN, 0)} AFN`}
+                              </td>
+                              <td className="py-2.5 px-3 text-left font-mono font-bold text-emerald-600">
+                                +{formatNumber(partnerProfit, 0)} {profitCurrency}
+                              </td>
+                              <td className="py-2.5 px-3 text-left font-mono font-black text-ink">
+                                {formatNumber(totalReturn, 0)} {profitCurrency}
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <div className="h-8 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg mx-auto w-24"></div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: Equity Transfers & Partner Exits */}
+          {activeTab === 'transfers' && (
+            <div className="space-y-4 animate-in fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl">
+                <div>
+                  <h4 className="font-extrabold text-ink text-xs sm:text-sm flex items-center gap-2">
+                    <ArrowRightLeft className="w-4 h-4 text-amber-600" />
+                    <span>دفتر ثبت نقل و انتقال سهام و خروج شرکا (Equity Transfers & Exits)</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    ثبت قانونی واگذاری سهام شرکا به شرکای موجود، سرمایه‌گذاران جدید یا بازخرید توسط پروژه.
+                  </p>
+                </div>
+              </div>
+
+              {currentTransfers.length === 0 ? (
+                <div className="p-8 text-center bg-surface-2/40 rounded-2xl border border-line space-y-2">
+                  <ArrowRightLeft className="w-8 h-8 text-slate-400 mx-auto" />
+                  <h5 className="font-bold text-ink">هیچ نقل و انتقال یا خروج سهمی ثبت نشده است</h5>
+                  <p className="text-[11px] text-slate-400">
+                    برای واگذاری سهم، از تب «فهرست شرکا» روی دکمه «واگذاری سهم / خروج» شریک مورد نظر کلیک کنید.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-surface rounded-2xl border border-line overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-right border-collapse">
+                      <thead className="bg-surface-2/60 text-slate-500 font-bold border-b border-line">
+                        <tr>
+                          <th className="py-2.5 px-3">تاریخ معامله</th>
+                          <th className="py-2.5 px-3">شریک فروشنده (خارج‌شده)</th>
+                          <th className="py-2.5 px-3">خریدار سهم (انتقال‌گیرنده)</th>
+                          <th className="py-2.5 px-3 text-center">سهم واگذارشده</th>
+                          <th className="py-2.5 px-3 text-left">مبلغ معامله</th>
+                          <th className="py-2.5 px-3 text-center">شماره سند صلح</th>
+                          <th className="py-2.5 px-3 text-center">عملیات</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-line">
+                        {currentTransfers.map((tr) => (
+                          <tr key={tr.id} className="hover:bg-surface-2/30">
+                            <td className="py-2.5 px-3 font-mono text-slate-500">{tr.transferDate}</td>
+                            <td className="py-2.5 px-3 font-bold text-rose-600 dark:text-rose-400">
+                              {tr.fromPartnerName}
+                            </td>
+                            <td className="py-2.5 px-3 font-bold text-emerald-600 dark:text-emerald-400">
+                              {tr.toPartnerName}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-black text-amber-600">
+                              {tr.transferredPercentage}%
+                            </td>
+                            <td className="py-2.5 px-3 text-left font-mono font-bold text-ink">
+                              {tr.currency === 'USD' ? `$${formatNumber(tr.transferPrice, 0)}` : `${formatNumber(tr.transferPrice, 0)} AFN`}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono text-slate-400">
+                              {tr.deedNumber || '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setPrintedTransferDeed(tr)}
+                                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-[10px] inline-flex items-center gap-1"
+                              >
+                                <Printer className="w-3 h-3" />
+                                <span>چاپ صلح‌نامه</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 bg-slate-50 dark:bg-slate-800 border-t border-line flex justify-end shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors"
+          >
+            بستن پنل شرکا
+          </button>
+        </div>
+      </div>
+
+      {/* SUB-MODAL 1: Add/Edit Partner */}
+      {isPartnerFormOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-lg w-full p-5 sm:p-6 space-y-4 border border-line shadow-2xl text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-line">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-amber-600" />
+                <h4 className="font-extrabold text-sm text-ink">
+                  {editingPartner ? 'ویرایش مشخصات شریک' : 'افزودن شریک جدید به پروژه'}
+                </h4>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsPartnerFormOpen(false)}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {partnerFormError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-xl text-rose-700 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{partnerFormError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handlePartnerSubmit} className="space-y-3">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">نام و تخلص شریک (اجباری)</label>
+                <input
+                  type="text"
+                  placeholder="مثلاً: حاجی محمد نادر"
+                  value={partnerName}
+                  onChange={(e) => setPartnerName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink focus:ring-2 focus:ring-amber-500/20 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">شماره تماس (اختیاری)</label>
+                  <input
+                    type="text"
+                    placeholder="مثال: 0799123456"
+                    value={partnerPhone}
+                    onChange={(e) => setPartnerPhone(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink focus:ring-2 focus:ring-amber-500/20 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">شماره تذکره / آی‌دی (اختیاری)</label>
+                  <input
+                    type="text"
+                    placeholder="مثال: 1402-8877"
+                    value={partnerNationalId}
+                    onChange={(e) => setPartnerNationalId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink focus:ring-2 focus:ring-amber-500/20 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">فیصدی سهم (%) (اختیاری)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    max="100"
+                    placeholder="مثلاً: 50"
+                    value={partnerShare}
+                    onChange={(e) => setPartnerShare(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink focus:ring-2 focus:ring-amber-500/20 font-mono font-bold"
+                  />
+                </div>
+
+                {!editingPartner && (
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">سرمایه اولیه تعهد شده (اختیاری)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="مثلاً: 100000"
+                      value={partnerInitialInv}
+                      onChange={(e) => setPartnerInitialInv(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink focus:ring-2 focus:ring-amber-500/20 font-mono font-bold"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">اسعار سرمایه‌گذاری</label>
+                  <select
+                    value={partnerCurrency}
+                    onChange={(e) => setPartnerCurrency(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl font-bold bg-surface text-ink"
+                  >
+                    <option value="AFN">افغانی (AFN)</option>
+                    <option value="USD">دالر (USD $)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">تاریخ ورود / قرارداد (اختیاری)</label>
+                  <input
+                    type="date"
+                    value={partnerDate}
+                    onChange={(e) => setPartnerDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">یادداشت و شرایط خاص (اختیاری)</label>
+                <textarea
+                  rows={2}
+                  placeholder="شرایط توافق یا یادداشت شراکت..."
+                  value={partnerNotes}
+                  onChange={(e) => setPartnerNotes(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-line">
+                <button
+                  type="button"
+                  onClick={() => setIsPartnerFormOpen(false)}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
+                >
+                  انصراف
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-xs"
+                >
+                  {editingPartner ? 'ثبت تغییرات' : 'افزودن شریک'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-MODAL 2: Add/Edit Investment */}
+      {isInvestmentFormOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-lg w-full p-5 sm:p-6 space-y-4 border border-line shadow-2xl text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-line">
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-emerald-600" />
+                <h4 className="font-extrabold text-sm text-ink">
+                  {editingInvestment ? 'ویرایش واریزی سرمایه' : 'ثبت واریزی جدید توسط شریک'}
+                </h4>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsInvestmentFormOpen(false)}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {invFormError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-xl text-rose-700 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{invFormError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleInvestmentSubmit} className="space-y-3">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">انتخاب شریک</label>
+                <select
+                  required
+                  value={selectedPartnerId}
+                  onChange={(e) => setSelectedPartnerId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl font-bold bg-surface text-ink"
+                >
+                  {currentPartners.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.sharePercentage !== undefined ? `(${p.sharePercentage}% سهم)` : ''}
+                    </option>
+                  ))}
+                  {currentPartners.length === 0 && (
+                    <option value="">سرمایه عمومی شرکت (بدون شریک اختصاصی)</option>
+                  )}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">مبلغ واریزی *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    min="1"
+                    placeholder="مثال: 50000"
+                    value={invAmount}
+                    onChange={(e) => setInvAmount(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">اسعار واریزی</label>
+                  <select
+                    value={invCurrency}
+                    onChange={(e) => setInvCurrency(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl font-bold bg-surface text-ink"
+                  >
+                    <option value="AFN">افغانی (AFN)</option>
+                    <option value="USD">دالر (USD $)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">تاریخ دریافت</label>
+                  <input
+                    type="date"
+                    required
+                    value={invDate}
+                    onChange={(e) => setInvDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">نوعیت پرداخت</label>
+                  <select
+                    value={invType}
+                    onChange={(e) => setInvType(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink"
+                  >
+                    <option value="additional">واریز سهم / مرحله جدید</option>
+                    <option value="initial">سرمایه اولیه</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">روش دریافت</label>
+                  <input
+                    type="text"
+                    placeholder="نقد، حساب بانکی، صرافی..."
+                    value={invMethod}
+                    onChange={(e) => setInvMethod(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">شماره رسید / سند</label>
+                  <input
+                    type="text"
+                    placeholder="مثال: REC-9920"
+                    value={invReceipt}
+                    onChange={(e) => setInvReceipt(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">شرح و یادداشت</label>
+                <textarea
+                  rows={2}
+                  placeholder="توضیحات واریزی..."
+                  value={invNotes}
+                  onChange={(e) => setInvNotes(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-line">
+                <button
+                  type="button"
+                  onClick={() => setIsInvestmentFormOpen(false)}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
+                >
+                  انصراف
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-xs"
+                >
+                  {editingInvestment ? 'ثبت تغییرات' : 'ثبت واریزی'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-MODAL 3: Delete Partner Confirmation */}
+      {partnerToDelete && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-sm w-full p-5 space-y-3 border border-line shadow-2xl text-xs">
+            <div className="flex items-center gap-2.5 text-rose-600">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <h4 className="font-extrabold text-sm text-ink">حذف شریک</h4>
+            </div>
+            <p className="text-slate-600 dark:text-slate-300">
+              آیا از حذف شریک <strong className="text-ink">"{partnerToDelete.name}"</strong> اطمینان دارید؟
+            </p>
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPartnerToDelete(null)}
+                className="px-3 py-1.5 border border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteProjectPartner(partnerToDelete.id);
+                  setPartnerToDelete(null);
+                }}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold"
+              >
+                حذف دایمی
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-MODAL 4: Delete Investment Confirmation */}
+      {investmentToDelete && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-sm w-full p-5 space-y-3 border border-line shadow-2xl text-xs">
+            <div className="flex items-center gap-2.5 text-rose-600">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <h4 className="font-extrabold text-sm text-ink">حذف تراکنش سرمایه</h4>
+            </div>
+            <p className="text-slate-600 dark:text-slate-300">
+              آیا از حذف واریزی <strong className="text-ink">{investmentToDelete.amount.toLocaleString()} {investmentToDelete.currency}</strong> از {investmentToDelete.partnerName} اطمینان دارید؟
+            </p>
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setInvestmentToDelete(null)}
+                className="px-3 py-1.5 border border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteProjectInvestment(investmentToDelete.id);
+                  setInvestmentToDelete(null);
+                }}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold"
+              >
+                حذف دایمی
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-MODAL 5: Partner Equity Transfer & Exit */}
+      {isTransferModalOpen && transferringPartner && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-3 animate-in fade-in overflow-y-auto">
+          <div className="bg-surface rounded-3xl max-w-lg w-full p-5 sm:p-6 space-y-4 border border-line shadow-2xl text-xs my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-line">
+              <div className="flex items-center gap-2">
+                <ArrowRightLeft className="w-5 h-5 text-amber-600" />
+                <div>
+                  <h4 className="font-extrabold text-sm text-ink">
+                    واگذاری سهم‌الشرکه و خروج شریک از پروژه
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    شریک واگذارکننده: <strong className="text-amber-600">{transferringPartner.name}</strong> (سهم فعلی: {transferringPartner.sharePercentage}٪)
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsTransferModalOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {transferError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-xl text-rose-700 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{transferError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleTransferSubmit} className="space-y-3.5">
+              {/* Transfer Type */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">نوعیت واگذاری و خروج:</label>
+                <select
+                  value={transferType}
+                  onChange={(e) => {
+                    setTransferType(e.target.value as any);
+                    if (e.target.value === 'partner_to_partner') {
+                      const other = currentPartners.find(p => p.id !== transferringPartner.id && p.status !== 'exited');
+                      setTargetPartnerId(other?.id || '');
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-bold"
+                >
+                  <option value="partner_to_partner">واگذاری به یکی از شرکای موجود در پروژه</option>
+                  <option value="new_partner">ورود شریک / سرمایه‌گذار جدید (جایگزین)</option>
+                  <option value="company_buyout">بازخرید سهم توسط خزانه شرکت / پروژه</option>
+                </select>
+              </div>
+
+              {/* Target Buyer */}
+              {transferType === 'partner_to_partner' && (
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">شریک خریدار (انتقال‌گیرنده سهم):</label>
+                  <select
+                    value={targetPartnerId}
+                    onChange={(e) => {
+                      setTargetPartnerId(e.target.value);
+                      const found = currentPartners.find(p => p.id === e.target.value);
+                      if (found) setTargetPartnerName(found.name);
+                    }}
+                    required
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-bold"
+                  >
+                    <option value="">-- انتخاب شریک خریدار --</option>
+                    {currentPartners
+                      .filter(p => p.id !== transferringPartner.id && p.status !== 'exited')
+                      .map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} (سهم فعلی: {p.sharePercentage || 0}٪)
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {transferType === 'new_partner' && (
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">نام و مشخصات شریک جدید (خریدار سهم):</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="مثلاً: انجنیر فرهاد رحیمی (سرمایه‌گذار جدید)"
+                    value={targetPartnerName}
+                    onChange={(e) => setTargetPartnerName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-bold"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    درصد سهم واگذارشده (٪):
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.1"
+                    max={transferringPartner.sharePercentage || 100}
+                    required
+                    value={transferPercentage}
+                    onChange={(e) => setTransferPercentage(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono font-bold"
+                    placeholder={`حداکثر ${transferringPartner.sharePercentage}%`}
+                  />
+                  <span className="block text-[10px] text-slate-400 mt-0.5">
+                    اگر تمام سهم واگذار شود، شریک از پروژه خارج می‌شود.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">مبلغ معامله / تسویه سهم:</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    min="0"
+                    value={transferPrice}
+                    onChange={(e) => setTransferPrice(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono font-bold"
+                    placeholder="مبلغ توافقی تسویه..."
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">واحد پولی:</label>
+                  <select
+                    value={transferCurrency}
+                    onChange={(e) => setTransferCurrency(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-bold"
+                  >
+                    <option value="AFN">افغانی (AFN)</option>
+                    <option value="USD">دالر (USD $)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">تاریخ واگذاری:</label>
+                  <input
+                    type="date"
+                    required
+                    value={transferDate}
+                    onChange={(e) => setTransferDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">شماره صلح‌نامه:</label>
+                  <input
+                    type="text"
+                    value={transferDeedNumber}
+                    onChange={(e) => setTransferDeedNumber(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono"
+                    placeholder="DEED-104"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">توضیحات و توافقات تسویه حساب:</label>
+                <textarea
+                  rows={2}
+                  value={transferNotes}
+                  onChange={(e) => setTransferNotes(e.target.value)}
+                  placeholder="مثلاً: کلیه مطالبات و سود حاصله تا مورخه مذکور تسویه گردید و مشارالیه هیچ‌گونه ادعای مالی دیگری در پروژه ندارد."
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-line">
+                <button
+                  type="button"
+                  onClick={() => setIsTransferModalOpen(false)}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
+                >
+                  انصراف
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-md shadow-amber-500/20"
+                >
+                  ثبت رسمی واگذاری و خروج
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-MODAL 6: Printable Legal Equity Transfer Deed */}
+      {printedTransferDeed && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-3 animate-in fade-in overflow-y-auto">
+          <div className="bg-surface rounded-3xl max-w-2xl w-full p-6 space-y-4 border border-line shadow-2xl text-xs my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-line print:hidden">
+              <h4 className="font-extrabold text-sm text-ink flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-600" />
+                <span>سند رسمی صلح‌نامه و واگذاری سهم‌الشرکه</span>
+              </h4>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-xl font-bold flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>چاپ سند رسمی</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintedTransferDeed(null)}
+                  className="text-slate-400 hover:text-white p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Legal Deed Printable Body */}
+            <div className="p-6 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 print:border-none print:p-0">
+              <div className="text-center border-b pb-3 space-y-1">
+                <h2 className="text-base font-black text-slate-900 dark:text-white">
+                  توافق‌نامه رسمی صلح و واگذاری قطعی سهم‌الشرکه
+                </h2>
+                <p className="text-[11px] text-slate-500 font-bold">
+                  پروژه ساختمانی: {project?.name} ({project?.code}) • شماره سند: {printedTransferDeed.deedNumber || 'DEED-OFFICIAL'}
+                </p>
+                <p className="text-[10px] text-slate-400 font-mono">
+                  تاریخ عقد صلح: {printedTransferDeed.transferDate}
+                </p>
+              </div>
+
+              <div className="space-y-3 leading-relaxed text-slate-700 dark:text-slate-200 text-[11px]">
+                <p>
+                  به موجب این سند رسمی، آقا/خانم <strong>{printedTransferDeed.fromPartnerName}</strong> (مصالح / واگذارکننده)، با اراده و رضایت کامل، تمامی حقوق مادی، معنوی و سهم‌الشرکه خود را به میزان <strong className="font-mono text-amber-700 dark:text-amber-400">{printedTransferDeed.transferredPercentage}٪</strong> از کل منافع و دارایی‌های پروژه موصوف را به آقا/خانم/نهاد <strong>{printedTransferDeed.toPartnerName}</strong> (متصالح / انتقال‌گیرنده) در ازای بهای قطعی و توافق‌شده به مبلغ:
+                </p>
+
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center font-mono font-black text-sm text-amber-800 dark:text-amber-300">
+                  {formatNumber(printedTransferDeed.transferPrice, 0)} {printedTransferDeed.currency}
+                </div>
+
+                <p>
+                  صلح قطعی نمود و واگذار کرد. طرفین اقرار نمودند که حساب‌های مالی، بدهی‌ها و بستانکاری‌های مربوط به این میزان سهم تا تاریخ فوق‌الذکر کلاً تسویه گردیده و واگذارکننده حق هرگونه ادعای بعدی را در این خصوص از خود سلب و ساقط نمود.
+                </p>
+
+                {printedTransferDeed.notes && (
+                  <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-[10px]">
+                    <strong>شروط و توضیحات تکمیلی:</strong> {printedTransferDeed.notes}
+                  </div>
+                )}
+              </div>
+
+              {/* Signatures Table */}
+              <div className="grid grid-cols-3 gap-3 pt-6 border-t border-slate-200 dark:border-slate-700 text-center text-[10px]">
+                <div className="p-2 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
+                  <span className="font-bold block mb-1">امضا و اثر انگشت واگذارکننده:</span>
+                  <span className="text-slate-500">{printedTransferDeed.fromPartnerName}</span>
+                  <div className="h-14 mt-2"></div>
+                </div>
+
+                <div className="p-2 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
+                  <span className="font-bold block mb-1">امضا و اثر انگشت انتقال‌گیرنده:</span>
+                  <span className="text-slate-500">{printedTransferDeed.toPartnerName}</span>
+                  <div className="h-14 mt-2"></div>
+                </div>
+
+                <div className="p-2 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
+                  <span className="font-bold block mb-1">تایید مدیریت و مهر شرکت:</span>
+                  <span className="text-slate-500">مدیریت عامل شرکت ساختمانی</span>
+                  <div className="h-14 mt-2"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
