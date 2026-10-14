@@ -281,7 +281,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                     <span className="text-lg font-black font-mono text-ink">
                       {formatCurrency(stats.totalSuppliedUSD, 'USD')}
                     </span>
-                    <span className="block text-[10px] text-slate-400 mt-0.5">{stats.billsCount} فاکتور خرید</span>
+                    <span className="block text-[10px] text-slate-400 mt-0.5">{stats.billsCount} بل خرید</span>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">

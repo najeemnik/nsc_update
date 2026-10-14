@@ -12,6 +12,7 @@ sendSecurityHeaders();
 $method = $_SERVER['REQUEST_METHOD'];
 $db = Database::getConnection();
 $user = authenticateUser(false);
+$tenantId = currentTenantId($user);
 
 if ($method === 'GET') {
     $projectId = $_GET['id'] ?? null;
@@ -87,13 +88,21 @@ if ($method === 'POST') {
             jsonResponse(false, null, 'نام پروژه الزامی است.', 400);
         }
 
+        // امنیت: رکورد موجود باید متعلق به همین شرکت باشد (جلوگیری از بازنویسی معلومات دیگران)
+        $chkStmt = $db->prepare("SELECT tenant_id FROM projects WHERE id = :id LIMIT 1");
+        $chkStmt->execute(['id' => $id]);
+        $existing = $chkStmt->fetch();
+        if ($existing && (string)$existing['tenant_id'] !== (string)$tenantId) {
+            jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404);
+        }
+
         $stmt = $db->prepare("
             INSERT INTO projects (
-                id, project_code, name, client_name, contract_value, 
+                id, tenant_id, project_code, name, client_name, contract_value, 
                 approved_budget, currency, location, start_date, expected_finish, 
                 status, project_manager, total_area_sqm, floors_count, notes, created_by
             ) VALUES (
-                :id, :code, :name, :client, :contract, 
+                :id, :tid, :code, :name, :client, :contract, 
                 :budget, :curr, :loc, :sdate, :edate, 
                 :status, :pm, :area, :floors, :notes, :created_by
             ) ON DUPLICATE KEY UPDATE 
@@ -112,6 +121,7 @@ if ($method === 'POST') {
 
         $stmt->execute([
             'id' => $id,
+            'tid' => $tenantId,
             'code' => $projectCode,
             'name' => $name,
             'client' => $input['clientName'] ?? null,
@@ -144,15 +154,27 @@ if ($method === 'POST') {
             jsonResponse(false, null, 'شناسه پروژه مشخص نیست.', 400);
         }
 
+        // امنیت: پروژه و سرفصل موجود باید متعلق به همین شرکت باشند
+        $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+        $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+        if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+        $chkStmt = $db->prepare("SELECT tenant_id FROM project_budgets WHERE id = :id LIMIT 1");
+        $chkStmt->execute(['id' => $id]);
+        $existing = $chkStmt->fetch();
+        if ($existing && (string)$existing['tenant_id'] !== (string)$tenantId) {
+            jsonResponse(false, null, 'سرفصل بودجه یافت نشد یا دسترسی ندارید.', 404);
+        }
+
         $stmt = $db->prepare("
-            INSERT INTO project_budgets (id, project_id, category_code, category_name, budgeted_amount, currency)
-            VALUES (:id, :pid, :cat, :cname, :amt, 'AFN')
+            INSERT INTO project_budgets (id, tenant_id, project_id, category_code, category_name, budgeted_amount, currency)
+            VALUES (:id, :tid, :pid, :cat, :cname, :amt, 'AFN')
             ON DUPLICATE KEY UPDATE 
                 budgeted_amount = VALUES(budgeted_amount),
                 category_name = VALUES(category_name)
         ");
         $stmt->execute([
             'id' => $id,
+            'tid' => $tenantId,
             'pid' => $projectId,
             'cat' => $categoryCode,
             'cname' => $categoryName,

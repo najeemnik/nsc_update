@@ -196,7 +196,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
               {debtorParties.length > 0 ? `-- ${t.selectDebtorParty} (${debtorParties.length}) --` : `-- ${t.noDebtorsFound} --`}
             </option>
             {debtorParties.filter(d => d.relatedType === 'expense').length > 0 && (
-              <optgroup label="خریدها / فاکتورهای قرضی (Purchases)">
+              <optgroup label="خریدها / بل‌های قرضی (Purchases)">
                 {debtorParties.filter(d => d.relatedType === 'expense').map((debtor) => (
                   <option 
                     key={`${debtor.relatedType}-${debtor.relatedId}`} 

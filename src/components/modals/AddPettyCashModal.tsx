@@ -11,7 +11,7 @@ export const AddPettyCashModal: React.FC<AddPettyCashModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { currentProject, projects, t, language } = useApp();
+  const { currentProject, projects, t, language, tp } = useApp();
   const [projectId, setProjectId] = useState<string>(currentProject?.id || (projects[0]?.id || ''));
   const [category, setCategory] = useState('چای، نان و مهمان‌داری ساحه');
   const [amount, setAmount] = useState('500');
@@ -49,7 +49,7 @@ export const AddPettyCashModal: React.FC<AddPettyCashModalProps> = ({
     setFormError(null);
     const numAmt = parseFloat(amount);
     if (isNaN(numAmt) || numAmt <= 0) {
-      setFormError(language === 'fa' ? 'لطفاً مبلغ معتبر وارد کنید.' : 'Please enter a valid amount.');
+      setFormError(tp('Please enter a valid amount.', 'لطفاً مبلغ معتبر وارد کنید.', 'مهرباني وکړئ سم مبلغ ولیکئ.'));
       return;
     }
 
@@ -78,10 +78,10 @@ export const AddPettyCashModal: React.FC<AddPettyCashModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-ink">
-                {language === 'fa' ? 'ثبت واچر تنخواه‌گردان کارگاه (Petty Cash)' : 'Petty Cash Voucher (PCV)'}
+                {tp('Petty Cash Voucher (PCV)', 'ثبت واچر تنخواه‌گردان کارگاه (Petty Cash)', 'د کارځای د پرچون نغدو واوچر ثبتول (Petty Cash)')}
               </h2>
               <p className="text-xs text-ink-muted">
-                {language === 'fa' ? 'ثبت مصارف خرد روزمره با کسر مستقیم از صندوق تنخواه ساحه' : 'Minor daily on-site operational expenses'}
+                {tp('Minor daily on-site operational expenses', 'ثبت مصارف خرد روزمره با کسر مستقیم از صندوق تنخواه ساحه', 'ورځني واړه ساحوي مصارف له پرچون صندوق څخه په مستقیم کسرولو سره ثبتول')}
               </p>
             </div>
           </div>
@@ -105,7 +105,7 @@ export const AddPettyCashModal: React.FC<AddPettyCashModalProps> = ({
           {successNotice && (
             <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
-              <span>{language === 'fa' ? 'واچر تنخواه با موفقیت ثبت و از صندوق کسر شد!' : 'Petty cash voucher recorded successfully!'}</span>
+              <span>{tp('Petty cash voucher recorded successfully!', 'واچر تنخواه با موفقیت ثبت و از صندوق کسر شد!', 'د پرچون نغدو واوچر په بریالیتوب ثبت او له صندوق څخه کسر شو!')}</span>
             </div>
           )}
 
@@ -129,18 +129,18 @@ export const AddPettyCashModal: React.FC<AddPettyCashModalProps> = ({
             {/* Category */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'بابت / موضوع هزینه' : 'Expense Category'}
+                {tp('Expense Category', 'بابت / موضوع هزینه', 'د لګښت بابت / موضوع')}
               </label>
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-surface-2 border border-line rounded-xl text-ink font-semibold"
               >
-                <option value="چای، نان و مهمان‌داری ساحه">{language === 'fa' ? 'چای، شکر، نان و مهمان‌داری ساحه' : 'Tea & Refreshments'}</option>
-                <option value="کرایه موتر و ترانسپورت بار">{language === 'fa' ? 'کرایه موتر و ترانسپورت شهری' : 'Transport & Logistics'}</option>
-                <option value="خرید ابزار خرد و سیمان فوری">{language === 'fa' ? 'خرید ابزار خرد و وسایل فوری' : 'Minor Hardware & Tools'}</option>
-                <option value="مصارف اداری، قرطاسیه و اینترنت">{language === 'fa' ? 'مصارف اداری، قرطاسیه و اینترنت ساحه' : 'Stationery & Site Admin'}</option>
-                <option value="ترمیمات فوری جنراتور یا پمپ">{language === 'fa' ? 'ترمیمات فوری وسایل ساحه' : 'Urgent Site Repairs'}</option>
+                <option value="چای، نان و مهمان‌داری ساحه">{tp('Tea & Refreshments', 'چای، شکر، نان و مهمان‌داری ساحه', 'چای، بوره، ډوډۍ او د ساحې مېلمه پالنه')}</option>
+                <option value="کرایه موتر و ترانسپورت بار">{tp('Transport & Logistics', 'کرایه موتر و ترانسپورت شهری', 'د موټر کرایه او ښاري ټرانسپورټ')}</option>
+                <option value="خرید ابزار خرد و سیمان فوری">{tp('Minor Hardware & Tools', 'خرید ابزار خرد و وسایل فوری', 'د وړو وسایلو او بېړنیو توکو پېر')}</option>
+                <option value="مصارف اداری، قرطاسیه و اینترنت">{tp('Stationery & Site Admin', 'مصارف اداری، قرطاسیه و اینترنت ساحه', 'اداري مصارف، قرطاسیه او د ساحې انټرنېټ')}</option>
+                <option value="ترمیمات فوری جنراتور یا پمپ">{tp('Urgent Site Repairs', 'ترمیمات فوری وسایل ساحه', 'د ساحې د وسایلو بېړني ترمیمونه')}</option>
               </select>
             </div>
           </div>
@@ -149,7 +149,7 @@ export const AddPettyCashModal: React.FC<AddPettyCashModalProps> = ({
             {/* Amount */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'مبلغ واچر (AFN)' : 'Voucher Amount (AFN)'}
+                {tp('Voucher Amount (AFN)', 'مبلغ واچر (AFN)', 'د واوچر مبلغ (AFN)')}
               </label>
               <input
                 type="number"
@@ -164,7 +164,7 @@ export const AddPettyCashModal: React.FC<AddPettyCashModalProps> = ({
             {/* Paid To */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'پرداخت شده در وجه' : 'Paid To (Person)'}
+                {tp('Paid To (Person)', 'پرداخت شده در وجه', 'چا ته تادیه شوي (شخص)')}
               </label>
               <input
                 type="text"
@@ -179,7 +179,7 @@ export const AddPettyCashModal: React.FC<AddPettyCashModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'شماره واچر' : 'Voucher No'}
+                {tp('Voucher No', 'شماره واچر', 'د واوچر نمبر')}
               </label>
               <input
                 type="text"
@@ -203,7 +203,7 @@ export const AddPettyCashModal: React.FC<AddPettyCashModalProps> = ({
 
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'تأییدکننده' : 'Approved By'}
+                {tp('Approved By', 'تأییدکننده', 'تائیدوونکی')}
               </label>
               <input
                 type="text"
@@ -217,7 +217,7 @@ export const AddPettyCashModal: React.FC<AddPettyCashModalProps> = ({
           {/* Purpose */}
           <div>
             <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              {language === 'fa' ? 'شرح و هدف دقیق مصرف' : 'Description'}
+              {tp('Description', 'شرح و هدف دقیق مصرف', 'د مصرف کره شرح او موخه')}
             </label>
             <textarea
               rows={2}

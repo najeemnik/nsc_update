@@ -12,9 +12,11 @@ sendSecurityHeaders();
 $method = $_SERVER['REQUEST_METHOD'];
 $db = Database::getConnection();
 $user = authenticateUser(false);
+$tenantId = currentTenantId($user);
 
 if ($method === 'GET') {
-    $stmt = $db->query("SELECT * FROM suppliers ORDER BY supplier_name ASC");
+    $stmt = $db->prepare("SELECT * FROM suppliers WHERE tenant_id = :tid ORDER BY supplier_name ASC");
+    $stmt->execute(['tid' => $tenantId]);
     jsonResponse(true, ['suppliers' => $stmt->fetchAll()]);
 }
 
@@ -35,12 +37,20 @@ if ($method === 'POST') {
         jsonResponse(false, null, 'نام عرضه‌کننده الزامی است.', 400);
     }
 
+    // امنیت: رکورد موجود باید متعلق به همین شرکت باشد
+    $chkStmt = $db->prepare("SELECT tenant_id FROM suppliers WHERE id = :id LIMIT 1");
+    $chkStmt->execute(['id' => $id]);
+    $existing = $chkStmt->fetch();
+    if ($existing && (string)$existing['tenant_id'] !== (string)$tenantId) {
+        jsonResponse(false, null, 'تأمین‌کننده یافت نشد یا دسترسی ندارید.', 404);
+    }
+
     $stmt = $db->prepare("
         INSERT INTO suppliers (
-            id, supplier_name, contact_person, phone, material_category,
+            id, tenant_id, supplier_name, contact_person, phone, material_category,
             opening_balance, total_purchases, total_paid, current_payable_balance
         ) VALUES (
-            :id, :name, :contact, :phone, :cat,
+            :id, :tid, :name, :contact, :phone, :cat,
             :open, :pur, :paid, :pay
         ) ON DUPLICATE KEY UPDATE 
             supplier_name = VALUES(supplier_name),
@@ -53,6 +63,7 @@ if ($method === 'POST') {
 
     $stmt->execute([
         'id' => $id,
+        'tid' => $tenantId,
         'name' => $name,
         'contact' => $input['contactPerson'] ?? null,
         'phone' => $phone,

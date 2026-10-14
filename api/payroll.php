@@ -12,15 +12,20 @@ sendSecurityHeaders();
 $method = $_SERVER['REQUEST_METHOD'];
 $db = Database::getConnection();
 $user = authenticateUser(false);
+$tenantId = currentTenantId($user);
 
 if ($method === 'GET') {
     $projectId = $_GET['projectId'] ?? null;
     $sql = "SELECT lp.*, p.name as project_name 
             FROM labor_payroll lp 
             LEFT JOIN projects p ON lp.project_id = p.id";
-    $params = [];
+    $params = ['tid' => $tenantId];
+    $sql .= " WHERE lp.tenant_id = :tid";
     if ($projectId) {
-        $sql .= " WHERE lp.project_id = :pid";
+        $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+        $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+        if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+        $sql .= " AND lp.project_id = :pid";
         $params['pid'] = $projectId;
     }
     $sql .= " ORDER BY lp.payroll_date DESC LIMIT 200";
@@ -51,6 +56,11 @@ if ($method === 'POST') {
         jsonResponse(false, null, 'پروژه، نام استادکار/کارگر، تعداد روز و نرخ روزانه الزامی هستند.', 400);
     }
 
+    // امنیت: پروژه باید متعلق به همین شرکت باشد
+    $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+    $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+    if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+
     $db->beginTransaction();
     try {
         // حل نقص شماره ۳ اکسل: ایجاد خودکار سند پرداخت جهت درج مستقیم در هزینه واقعی پروژه
@@ -59,12 +69,12 @@ if ($method === 'POST') {
 
         $pvStmt = $db->prepare("
             INSERT INTO payment_vouchers (
-                id, voucher_no, project_id, payee_type, payee_name,
+                id, tenant_id, voucher_no, project_id, payee_type, payee_name,
                 expense_category, amount, currency, exchange_rate, amount_in_base_afn,
                 payment_method, payment_date, payment_status, approved_by,
                 recorded_by_user_id, description
             ) VALUES (
-                :id, :vno, :pid, 'labor_wage', :wname,
+                :id, :tid, :vno, :pid, 'labor_wage', :wname,
                 'labor', :amt, 'AFN', 1.0, :amt,
                 'cash', :dt, 'paid', :appr,
                 :uid, :desc
@@ -72,6 +82,7 @@ if ($method === 'POST') {
         ");
         $pvStmt->execute([
             'id' => $paymentVoucherId,
+            'tid' => $tenantId,
             'vno' => $pvNo,
             'pid' => $projectId,
             'wname' => $workerName,
@@ -85,12 +96,12 @@ if ($method === 'POST') {
         // ثبت در جدول دستمزد کارگران
         $stmt = $db->prepare("
             INSERT INTO labor_payroll (
-                id, payroll_number, project_id, worker_or_team_leader,
+                id, tenant_id, payroll_number, project_id, worker_or_team_leader,
                 work_type_description, days_or_work_units, rate_per_unit,
                 gross_amount, advance_deduction, net_amount_paid, currency,
                 payment_voucher_id, payroll_date, approved_by, is_fully_settled, notes
             ) VALUES (
-                :id, :pno, :pid, :wname,
+                :id, :tid, :pno, :pid, :wname,
                 :wtype, :units, :rate,
                 :gross, :adv, :net, 'AFN',
                 :pvid, :dt, :appr, 1, :notes
@@ -98,6 +109,7 @@ if ($method === 'POST') {
         ");
         $stmt->execute([
             'id' => $id,
+            'tid' => $tenantId,
             'pno' => $payrollNo,
             'pid' => $projectId,
             'wname' => $workerName,

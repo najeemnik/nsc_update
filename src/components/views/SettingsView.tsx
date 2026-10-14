@@ -17,7 +17,8 @@ import {
   Palette,
   ShieldCheck, 
   HardDrive,
-  Globe 
+  Globe,
+  LogOut
 } from 'lucide-react';
 import { AppTheme } from '../../types';
 import { backendApi } from '../../services/backendApi';
@@ -49,11 +50,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
     exportBackupJSON, 
     importBackupJSON, 
     t, 
-    language,
+    language, tp,
     setLanguage,
     setTheme,
     themeSchedule,
-    setThemeSchedule
+    setThemeSchedule,
+    logout
   } = useApp();
 
   const [usdRate, setUsdRate] = useState((appSettings.exchangeRateUSDToAFN || 70.5).toString());
@@ -62,6 +64,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [testingDb, setTestingDb] = useState(false);
   const [dbStatus, setDbStatus] = useState<{ checked: boolean; ok: boolean; message: string } | null>(null);
+  const [backupStatus, setBackupStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [loggingOutAll, setLoggingOutAll] = useState(false);
 
   const handleTestDatabaseConnection = async () => {
     setTestingDb(true);
@@ -72,13 +76,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
         setDbStatus({
           checked: true,
           ok: true,
-          message: language === 'fa' ? 'ارتباط با هاست Shahhost و پایگاه داده MySQL برقرار است.' : 'Connected to Shahhost MySQL Server.'
+          message: tp('Connected to Shahhost MySQL Server.', 'ارتباط با هاست Shahhost و دیتابیس MySQL برقرار است.', 'له Shahhost هوسټ او MySQL ډیټابېس سره اړیکه ټینګه ده.')
         });
       } else {
         setDbStatus({
           checked: true,
           ok: false,
-          message: res.error || (language === 'fa' ? 'سرور هنوز کانفیگ نشده است یا برنامه در حالت لوکال کش کار می‌کند.' : 'Server offline, running in local cached mode.')
+          message: res.error || (tp('Server offline, running in local cached mode.', 'سرور هنوز کانفیگ نشده است یا برنامه در حالت لوکال کش کار می‌کند.', 'سرور لا نه دی برابر شوی یا پروګرام په ځايي زېرمه حالت کې کار کوي.'))
         });
       }
     } catch (e: any) {
@@ -105,7 +109,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
   };
 
   const handleExportLocal = () => {
-    exportBackupJSON();
+    const res = exportBackupJSON();
+    if (res.success) {
+      setBackupStatus({
+        ok: true,
+        message: tp('Backup file downloaded successfully.', 'فایل بکاپ با موفقیت دانلود شد.', 'د بکاپ فایل په بریالیتوب کښته شو.')
+      });
+    } else {
+      setBackupStatus({
+        ok: false,
+        message: res.error || (tp('Backup download failed.', 'دانلود بکاپ ناموفق بود.', 'د بکاپ کښته کول ناکام شول.'))
+      });
+    }
+    setTimeout(() => setBackupStatus(null), 5000);
+  };
+
+  const handleLogoutAllDevices = async () => {
+    setLoggingOutAll(true);
+    setDbStatus(null);
+    try {
+      const res = await backendApi.logoutAll();
+      if (res.success) {
+        setDbStatus({
+          checked: true,
+          ok: true,
+          message: tp('All sessions on every device were revoked. Signing you out here too.', 'تمام نشست‌های شما در همه دستگاه‌ها باطل شد. اکنون از این دستگاه نیز خارج می‌شوید.', 'ستاسې ټولې ناستې په ټولو دستګاوو کې باطلې شوې. اوس له دې دستګا څخه هم وځئ.')
+        });
+        setTimeout(() => logout(), 1800);
+      } else {
+        setDbStatus({
+          checked: true,
+          ok: false,
+          message: res.error || (tp('Failed to revoke sessions.', 'ابطال نشست‌ها ناموفق بود.', 'د ناستو باطلول ناکام شول.'))
+        });
+      }
+    } catch (err: any) {
+      setDbStatus({
+        checked: true,
+        ok: false,
+        message: err.message || (tp('Server connection error.', 'خطا در ارتباط با سرور.', 'له سرور سره په اړیکه کې تېروتنه.'))
+      });
+    } finally {
+      setLoggingOutAll(false);
+    }
   };
 
   const handleImportLocal = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -347,6 +393,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
             <input type="file" accept=".json" onChange={handleImportLocal} className="hidden" />
           </label>
         </div>
+        {backupStatus && (
+          <div className={`mt-3 text-xs font-bold px-4 py-2.5 rounded-xl border ${
+            backupStatus.ok
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+              : 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'
+          }`}>
+            {backupStatus.message}
+          </div>
+        )}
       </div>
 
       {/* Shahhost MySQL Database Integration Section */}
@@ -358,31 +413,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
             </div>
             <div>
               <h3 className="font-bold text-base text-ink">
-                {language === 'fa' ? 'پایگاه داده آنلاین Shahhost (SSD Silver)' : 'Shahhost MySQL Cloud Database'}
+                {tp('Shahhost MySQL Cloud Database', 'دیتابیس آنلاین Shahhost (SSD Silver)', 'د Shahhost آنلاین ډیټابېس (SSD Silver)')}
               </h3>
               <p className="text-xs text-ink-muted">
-                {language === 'fa' ? 'پایگاه داده ۲۸ جدولی MySQL با ظرفیت نامحدود و همگام‌سازی ابری' : '28-Table Relational MySQL Architecture with Unlimited Storage'}
+                {tp('28-Table Relational MySQL Architecture with Unlimited Storage', 'دیتابیس ۲۸ جدولی MySQL با ظرفیت نامحدود و همگام‌سازی ابری', '۲۸ جدولیز MySQL ډیټابېس له نامحدوده ظرفیت او ورېځ همغږۍ سره')}
               </p>
             </div>
           </div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-600 border border-emerald-500/30">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            {language === 'fa' ? 'پشتیبانی کامل MySQL & PHP' : 'MySQL & PHP Ready'}
+            {tp('MySQL & PHP Ready', 'پشتیبانی کامل MySQL & PHP', 'د MySQL او PHP بشپړ ملاتړ')}
           </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
           <div className="p-3.5 rounded-2xl bg-surface-2 border border-line">
-            <span className="text-slate-400 font-medium">{language === 'fa' ? 'نوع هاست و پکیج:' : 'Hosting Tier:'}</span>
+            <span className="text-slate-400 font-medium">{tp('Hosting Tier:', 'نوع هاست و پکیج:', 'د هوسټ او پکېج ډول:')}</span>
             <p className="font-bold text-ink mt-0.5">Shahhost NVMe SSD Silver</p>
           </div>
           <div className="p-3.5 rounded-2xl bg-surface-2 border border-line">
-            <span className="text-slate-400 font-medium">{language === 'fa' ? 'جداول فعال پایگاه‌داده:' : 'Database Tables:'}</span>
-            <p className="font-bold text-ink mt-0.5">{language === 'fa' ? '۲۸ جدول یکپارچه (پوشش ۲۳ شیت اکسل)' : '28 Tables (All 23 Sheets)'}</p>
+            <span className="text-slate-400 font-medium">{tp('Database Tables:', 'جداول فعال دیتابیس:', 'د ډیټابېس فعال جدولونه:')}</span>
+            <p className="font-bold text-ink mt-0.5">{tp('28 Tables (All 23 Sheets)', '۲۸ جدول یکپارچه (پوشش ۲۳ شیت اکسل)', '۲۸ یوځای جدولونه (د اکسل ۲۳ شېټونو پوښښ)')}</p>
           </div>
           <div className="p-3.5 rounded-2xl bg-surface-2 border border-line">
-            <span className="text-slate-400 font-medium">{language === 'fa' ? 'امنیت و کنترل:' : 'Security & Master Gate:'}</span>
-            <p className="font-bold text-ink mt-0.5">{language === 'fa' ? 'دفتر هفت (office_7) فعال' : 'Office 7 Master Active'}</p>
+            <span className="text-slate-400 font-medium">{tp('Security & Master Gate:', 'امنیت و کنترل:', 'امنیت او کنټرول:')}</span>
+            <p className="font-bold text-ink mt-0.5">{tp('Office 7 Master Active', 'دفتر هفت (office_7) فعال', 'دفتر اووه (office_7) فعال دی')}</p>
           </div>
         </div>
 
@@ -394,7 +449,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
             className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-md transition disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${testingDb ? 'animate-spin' : ''}`} />
-            <span>{language === 'fa' ? 'بررسی وضعیت اتصال سرور' : 'Test Server Connectivity'}</span>
+            <span>{tp('Test Server Connectivity', 'بررسی وضعیت اتصال سرور', 'د سرور د اړیکې وضعیت کتل')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleLogoutAllDevices}
+            disabled={loggingOutAll}
+            className="flex items-center gap-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-bold shadow-md transition disabled:opacity-50"
+          >
+            <LogOut className={`w-4 h-4 ${loggingOutAll ? 'animate-pulse' : ''}`} />
+            <span>{tp('Logout All Devices', 'خروج از همه دستگاه‌ها', 'له ټولو دستګاوو څخه وتل')}</span>
           </button>
         </div>
 

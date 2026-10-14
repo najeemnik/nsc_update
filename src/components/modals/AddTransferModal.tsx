@@ -14,7 +14,7 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
   onClose,
   defaultSourceProjectId,
 }) => {
-  const { currentProject, projects, formatCurrency, t, language } = useApp();
+  const { currentProject, projects, formatCurrency, t, language, tp } = useApp();
   const [fromProjectId, setFromProjectId] = useState<string>(defaultSourceProjectId || currentProject?.id || (projects[0]?.id || ''));
   const [toProjectId, setToProjectId] = useState<string>('');
   const [transferNature, setTransferNature] = useState<'funds' | 'materials' | 'equipment'>('funds');
@@ -55,17 +55,17 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
     setFormError(null);
     const numAmt = parseFloat(amount);
     if (isNaN(numAmt) || numAmt <= 0) {
-      setFormError(language === 'fa' ? 'لطفاً مبلغ معتبر وارد کنید.' : 'Please enter a valid transfer amount.');
+      setFormError(tp('Please enter a valid transfer amount.', 'لطفاً مبلغ معتبر وارد کنید.', 'مهرباني وکړئ د انتقال سم مبلغ ولیکئ.'));
       return;
     }
     if (!fromProjectId || !toProjectId || fromProjectId === toProjectId) {
-      setFormError(language === 'fa' ? 'پروژه مبدأ و مقصد نباید یکسان باشند.' : 'Source and destination projects must be different.');
+      setFormError(tp('Source and destination projects must be different.', 'پروژه مبدأ و مقصد نباید یکسان باشند.', 'سرچینه او منزل پروژه باید سره توپیر ولري.'));
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await backendApi.interProjectTransfer({
+      const res = await backendApi.interProjectTransfer({
         fromProjectId,
         toProjectId,
         transferNature,
@@ -74,6 +74,9 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
         approvedBy: approvedBy.trim(),
         description: description.trim() || undefined,
       });
+      if (!res.success) {
+        throw new Error(res.error || 'خطا در ثبت حواله بین پروژه‌ای');
+      }
 
       setSuccessNotice(true);
       setTimeout(() => {
@@ -101,10 +104,10 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-ink">
-                {language === 'fa' ? 'حواله و انتقال بین‌پروژه‌ای (Project Transfer)' : 'Inter-Project Transfer'}
+                {tp('Inter-Project Transfer', 'حواله و انتقال بین‌پروژه‌ای (Project Transfer)', 'بین پروژوي حواله او انتقال (Project Transfer)')}
               </h2>
               <p className="text-xs text-ink-muted">
-                {language === 'fa' ? 'انتقال پول، مصالح یا تجهیزات با اثر حسابداری دوطرفه در هر دو کارگاه' : 'Bilateral cost & treasury impact across both sites'}
+                {tp('Bilateral cost & treasury impact across both sites', 'انتقال پول، مصالح یا تجهیزات با اثر حسابداری دوطرفه در هر دو کارگاه', 'د دواړو کارځایونو په دوه اړخیزه محاسبه کې د اغېز سره د پیسو، مصالحو یا تجهیزاتو انتقال')}
               </p>
             </div>
           </div>
@@ -128,7 +131,7 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
           {successNotice && (
             <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
-              <span>{language === 'fa' ? 'حواله انتقال بین دو پروژه با موفقیت صادر و اعمال شد!' : 'Inter-project transfer recorded successfully!'}</span>
+              <span>{tp('Inter-project transfer recorded successfully!', 'حواله انتقال بین دو پروژه با موفقیت صادر و اعمال شد!', 'د دوو پروژو ترمنځ د انتقال حواله په بریالیتوب صادره او پلې شوه!')}</span>
             </div>
           )}
 
@@ -136,7 +139,7 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'از پروژه (مبدأ ارسال):' : 'From Project (Source):'}
+                {tp('From Project (Source):', 'از پروژه (مبدأ ارسال):', 'له پروژې څخه (لېږونکې سرچینه):')}
               </label>
               <select
                 value={fromProjectId}
@@ -151,7 +154,7 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
 
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'به پروژه (مقصد دریافت):' : 'To Project (Destination):'}
+                {tp('To Project (Destination):', 'به پروژه (مقصد دریافت):', 'پروژې ته (ترلاسه کوونکی ځای):')}
               </label>
               <select
                 value={toProjectId}
@@ -170,23 +173,23 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
             {/* Transfer Nature */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'ماهیت انتقال' : 'Transfer Type'}
+                {tp('Transfer Type', 'ماهیت انتقال', 'د انتقال ماهیت')}
               </label>
               <select
                 value={transferNature}
                 onChange={e => setTransferNature(e.target.value as any)}
                 className="w-full px-3.5 py-2.5 bg-surface-2 border border-line rounded-xl text-ink font-semibold"
               >
-                <option value="funds">{language === 'fa' ? 'وجوه نقدی و مالی (Funds)' : 'Cash / Funds'}</option>
-                <option value="materials">{language === 'fa' ? 'مصالح ساختمانی مازاد (Materials)' : 'Materials'}</option>
-                <option value="equipment">{language === 'fa' ? 'ماشین‌آلات و تجهیزات (Equipment)' : 'Machinery'}</option>
+                <option value="funds">{tp('Cash / Funds', 'وجوه نقدی و مالی (Funds)', 'نغدې او مالي پیسې (Funds)')}</option>
+                <option value="materials">{tp('Materials', 'مصالح ساختمانی مازاد (Materials)', 'اضافي ساختماني مصالح (Materials)')}</option>
+                <option value="equipment">{tp('Machinery', 'ماشین‌آلات و تجهیزات (Equipment)', 'ماشینونه او تجهیزات (Equipment)')}</option>
               </select>
             </div>
 
             {/* Amount / Value */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'مبلغ یا ارزش تخمینی (AFN)' : 'Amount / Value (AFN)'}
+                {tp('Amount / Value (AFN)', 'مبلغ یا ارزش تخمینی (AFN)', 'مبلغ یا تخمیني ارزښت (AFN)')}
               </label>
               <input
                 type="number"
@@ -202,7 +205,7 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'تأییدکننده انتقال' : 'Authorized By'}
+                {tp('Authorized By', 'تأییدکننده انتقال', 'د انتقال تائیدوونکی')}
               </label>
               <input
                 type="text"
@@ -228,7 +231,7 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
           {/* Description */}
           <div>
             <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              {language === 'fa' ? 'علت حواله و توضیحات' : 'Reason / Description'}
+              {tp('Reason / Description', 'علت حواله و توضیحات', 'د حوالې علت او توضیحات')}
             </label>
             <textarea
               rows={2}

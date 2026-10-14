@@ -53,7 +53,7 @@ export const AccountingView: React.FC = () => {
     formatCurrency,
     formatNumber,
     t,
-    language,
+    language, tp,
     getAccountDisplayName,
   } = useApp();
 
@@ -126,7 +126,7 @@ export const AccountingView: React.FC = () => {
     { id: 'balance', label: t('accTabBalance') || 'Balance Sheet', Icon: Landmark },
     { id: 'units', label: t('accTabUnits') || 'Per-Unit Profit', Icon: Home },
     { id: 'journal', label: t('accTabJournal') || 'Journal Ledger', Icon: ListOrdered },
-    { id: 'coa', label: language === 'en' ? 'Chart of Accounts (COA)' : 'درخت و کدینگ حساب‌ها (COA)', Icon: BookOpen },
+    { id: 'coa', label: tp('Chart of Accounts (COA)', 'درخت و کدینگ حساب‌ها (COA)', 'د حسابونو ونه او کوډونه (COA)'), Icon: BookOpen },
   ];
 
   const SectionHeader: React.FC<{ Icon: any; title: string; tint: string }> = ({ Icon, title, tint }) => (

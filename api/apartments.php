@@ -12,6 +12,7 @@ sendSecurityHeaders();
 $method = $_SERVER['REQUEST_METHOD'];
 $db = Database::getConnection();
 $user = authenticateUser(false);
+$tenantId = currentTenantId($user);
 
 if ($method === 'GET') {
     $projectId = $_GET['projectId'] ?? null;
@@ -19,9 +20,13 @@ if ($method === 'GET') {
             FROM apartment_units u 
             LEFT JOIN projects p ON u.project_id = p.id 
             LEFT JOIN clients c ON u.client_id = c.id";
-    $params = [];
+    $params = ['tid' => $tenantId];
+    $sql .= " WHERE u.tenant_id = :tid";
     if ($projectId) {
-        $sql .= " WHERE u.project_id = :pid";
+        $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+        $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+        if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+        $sql .= " AND u.project_id = :pid";
         $params['pid'] = $projectId;
     }
     $sql .= " ORDER BY u.floor_number ASC, u.unit_number ASC";
@@ -50,13 +55,24 @@ if ($method === 'POST') {
         jsonResponse(false, null, 'شناسه پروژه و شماره پلاک الزامی هستند.', 400);
     }
 
+    // امنیت: پروژه و پلاک موجود باید متعلق به همین شرکت باشند
+    $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+    $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+    if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+    $chkStmt = $db->prepare("SELECT tenant_id FROM apartment_units WHERE id = :id LIMIT 1");
+    $chkStmt->execute(['id' => $id]);
+    $existing = $chkStmt->fetch();
+    if ($existing && (string)$existing['tenant_id'] !== (string)$tenantId) {
+        jsonResponse(false, null, 'پلاک یافت نشد یا دسترسی ندارید.', 404);
+    }
+
     $stmt = $db->prepare("
         INSERT INTO apartment_units (
-            id, project_id, unit_number, floor_number, area_sqm,
+            id, tenant_id, project_id, unit_number, floor_number, area_sqm,
             unit_type, price_usd, price_afn, total_paid_afn,
             balance_receivable_afn, status, notes
         ) VALUES (
-            :id, :pid, :uno, :floor, :area,
+            :id, :tid, :pid, :uno, :floor, :area,
             :type, :pusd, :pafn, :paid,
             :bal, :status, :notes
         ) ON DUPLICATE KEY UPDATE 
@@ -73,6 +89,7 @@ if ($method === 'POST') {
 
     $stmt->execute([
         'id' => $id,
+        'tid' => $tenantId,
         'pid' => $projectId,
         'uno' => $unitNumber,
         'floor' => $floor,

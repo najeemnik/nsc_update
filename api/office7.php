@@ -29,17 +29,12 @@ if ($currentUser && (int)$currentUser['is_master'] === 1) {
 }
 
 if (!$isMasterAuthorized && !empty($masterGateKey)) {
-    // کلیدهای معتبر دفتر هفت
-    $validKeys = ['nik@master2026', '0093783788278', 'najeemnik@2026', 'password123'];
-    if (in_array(trim($masterGateKey), $validKeys, true)) {
+    // کلید دروازه فقط از هش ذخیره‌شده در دیتابیس بررسی می‌شود (هیچ کلید پیش‌فرضی وجود ندارد).
+    // راه‌اندازی اول: مدیر ارشد با توکن خود وارد شده و کلید را از change_gate_key ثبت می‌کند.
+    $stmt = $db->query("SELECT gate_key_hash FROM office7_tenant_configs LIMIT 1");
+    $cfg = $stmt->fetch();
+    if ($cfg && !empty($cfg['gate_key_hash']) && password_verify(trim($masterGateKey), (string)$cfg['gate_key_hash'])) {
         $isMasterAuthorized = true;
-    } else {
-        // بررسی هش کلید در دیتابیس
-        $stmt = $db->query("SELECT gate_key_hash FROM office7_tenant_configs LIMIT 1");
-        $cfg = $stmt->fetch();
-        if ($cfg && !empty($cfg['gate_key_hash']) && password_verify(trim($masterGateKey), $cfg['gate_key_hash'])) {
-            $isMasterAuthorized = true;
-        }
     }
 }
 
@@ -181,8 +176,8 @@ if ($method === 'POST') {
     // ۳. تغییر کلید امنیتی دروازه دفتر هفت
     if ($action === 'change_gate_key') {
         $newKey = trim($input['newKey'] ?? '');
-        if (strlen($newKey) < 6) {
-            jsonResponse(false, null, 'کلید دروازه امنیتی باید حداقل ۶ کاراکتر باشد.', 400);
+        if (strlen($newKey) < 10) {
+            jsonResponse(false, null, 'کلید دروازه امنیتی باید حداقل ۱۰ کاراکتر باشد.', 400);
         }
 
         $newHash = password_hash($newKey, PASSWORD_BCRYPT);

@@ -12,6 +12,7 @@ sendSecurityHeaders();
 $method = $_SERVER['REQUEST_METHOD'];
 $db = Database::getConnection();
 $user = authenticateUser(false);
+$tenantId = currentTenantId($user);
 
 if ($method === 'GET') {
     $action = $_GET['action'] ?? 'entries';
@@ -22,12 +23,14 @@ if ($method === 'GET') {
     }
 
     if ($action === 'entries') {
-        $stmt = $db->query("
+        $stmt = $db->prepare("
             SELECT j.*, p.name as project_name 
             FROM journal_entries j 
             LEFT JOIN projects p ON j.project_id = p.id 
+            WHERE j.tenant_id = :tid
             ORDER BY j.entry_date DESC LIMIT 100
         ");
+        $stmt->execute(['tid' => $tenantId]);
         $entries = $stmt->fetchAll();
 
         foreach ($entries as &$entry) {
@@ -72,19 +75,27 @@ if ($method === 'POST') {
         jsonResponse(false, null, "سند تراز نیست! مجموع بدهکار ($totalDebit) با بستانکار ($totalCredit) برابر نمی‌باشد.", 400);
     }
 
+    // امنیت: پروژه (در صورت انتخاب) باید متعلق به همین شرکت باشد
+    if (!empty($projectId)) {
+        $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+        $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+        if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+    }
+
     $db->beginTransaction();
     try {
         $stmt = $db->prepare("
             INSERT INTO journal_entries (
-                id, voucher_number, entry_date, project_id, narration,
+                id, tenant_id, voucher_number, entry_date, project_id, narration,
                 total_debit, total_credit, is_balanced, is_posted, created_by_user_id
             ) VALUES (
-                :id, :vno, :dt, :pid, :nar,
+                :id, :tid, :vno, :dt, :pid, :nar,
                 :deb, :cred, 1, 1, :uid
             )
         ");
         $stmt->execute([
             'id' => $id,
+            'tid' => $tenantId,
             'vno' => $voucherNo,
             'dt' => $date,
             'pid' => $projectId,

@@ -13,7 +13,7 @@ sendSecurityHeaders();
 $method = $_SERVER['REQUEST_METHOD'];
 $db = Database::getConnection();
 $user = authenticateUser(false);
-$tenantId = $user ? getTenantId($user) : 'default';
+$tenantId = currentTenantId($user);
 
 $reportType = $_GET['type'] ?? 'dashboard';
 $projectId = $_GET['projectId'] ?? null;
@@ -144,6 +144,11 @@ if ($reportType === 'budget_vs_actual') {
     if (empty($projectId)) {
         jsonResponse(false, null, 'شناسه پروژه مشخص نشده است.', 400);
     }
+
+    // امنیت: پروژه باید متعلق به همین شرکت باشد
+    $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+    $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+    if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
 
     // بودجه‌های سرفصل
     $bStmt = $db->prepare("SELECT * FROM project_budgets WHERE project_id = :pid AND tenant_id = :tid");

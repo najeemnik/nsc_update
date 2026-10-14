@@ -12,6 +12,7 @@ sendSecurityHeaders();
 $method = $_SERVER['REQUEST_METHOD'];
 $db = Database::getConnection();
 $user = authenticateUser(false);
+$tenantId = currentTenantId($user);
 
 if ($method === 'GET') {
     $projectId = $_GET['projectId'] ?? null;
@@ -19,9 +20,13 @@ if ($method === 'GET') {
             FROM material_procurements m 
             LEFT JOIN projects p ON m.project_id = p.id 
             LEFT JOIN suppliers s ON m.supplier_id = s.id";
-    $params = [];
+    $params = ['tid' => $tenantId];
+    $sql .= " WHERE m.tenant_id = :tid";
     if ($projectId) {
-        $sql .= " WHERE m.project_id = :pid";
+        $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+        $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+        if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+        $sql .= " AND m.project_id = :pid";
         $params['pid'] = $projectId;
     }
     $sql .= " ORDER BY m.purchase_date DESC LIMIT 200";
@@ -52,6 +57,16 @@ if ($method === 'POST') {
         jsonResponse(false, null, 'پروژه، نام جنس، تعداد و قیمت واحد الزامی هستند.', 400);
     }
 
+    // امنیت: پروژه و تأمین‌کننده باید متعلق به همین شرکت باشند
+    $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+    $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+    if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+    if (!empty($supplierId)) {
+        $supStmt = $db->prepare("SELECT id FROM suppliers WHERE id = :sid AND tenant_id = :tid LIMIT 1");
+        $supStmt->execute(['sid' => $supplierId, 'tid' => $tenantId]);
+        if (!$supStmt->fetch()) { jsonResponse(false, null, 'تأمین‌کننده یافت نشد یا دسترسی ندارید.', 404); }
+    }
+
     $db->beginTransaction();
     try {
         $paymentVoucherId = null;
@@ -62,12 +77,12 @@ if ($method === 'POST') {
             $pvNo = 'PV-MAT-' . date('ymd') . '-' . rand(100, 999);
             $pvStmt = $db->prepare("
                 INSERT INTO payment_vouchers (
-                    id, voucher_no, project_id, payee_type, payee_id, payee_name,
+                    id, tenant_id, voucher_no, project_id, payee_type, payee_id, payee_name,
                     expense_category, amount, currency, exchange_rate, amount_in_base_afn,
                     payment_method, payment_date, payment_status, approved_by,
                     recorded_by_user_id, description
                 ) VALUES (
-                    :id, :vno, :pid, 'supplier', :sid, :sname,
+                    :id, :tid, :vno, :pid, 'supplier', :sid, :sname,
                     'materials', :amt, 'AFN', 1.0, :amt,
                     'cash', :dt, 'paid', 'مدیر تدارکات',
                     :uid, :desc
@@ -75,6 +90,7 @@ if ($method === 'POST') {
             ");
             $pvStmt->execute([
                 'id' => $paymentVoucherId,
+                'tid' => $tenantId,
                 'vno' => $pvNo,
                 'pid' => $projectId,
                 'sid' => $supplierId,
@@ -89,12 +105,12 @@ if ($method === 'POST') {
         // درج در جدول تدارکات مواد
         $stmt = $db->prepare("
             INSERT INTO material_procurements (
-                id, procurement_code, project_id, supplier_id, supplier_name,
+                id, tenant_id, procurement_code, project_id, supplier_id, supplier_name,
                 material_category, item_description, quantity, unit_of_measure,
                 unit_price, total_cost, currency, is_paid, payment_voucher_id,
                 purchase_date, received_by, notes
             ) VALUES (
-                :id, :code, :pid, :sid, :sname,
+                :id, :tid, :code, :pid, :sid, :sname,
                 :cat, :item, :qty, :unit,
                 :uprice, :total, 'AFN', :paid, :pvid,
                 :pdate, :rec, :notes
@@ -102,6 +118,7 @@ if ($method === 'POST') {
         ");
         $stmt->execute([
             'id' => $id,
+            'tid' => $tenantId,
             'code' => $procCode,
             'pid' => $projectId,
             'sid' => $supplierId,

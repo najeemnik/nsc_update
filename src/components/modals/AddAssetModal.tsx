@@ -12,7 +12,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { currentProject, projects, formatCurrency, t, language, addAsset } = useApp();
+  const { currentProject, projects, formatCurrency, t, language, tp, addAsset } = useApp();
   const [projectId, setProjectId] = useState<string>(currentProject?.id || (projects[0]?.id || ''));
   const [assetName, setAssetName] = useState('');
   const [assetCode, setAssetCode] = useState(`AST-${Date.now().toString().slice(-4)}`);
@@ -62,7 +62,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
     e.preventDefault();
     setFormError(null);
     if (!assetName.trim()) {
-      setFormError(language === 'fa' ? 'لطفاً نام دارایی یا تجهیز را وارد کنید.' : 'Please enter asset name.');
+      setFormError(tp('Please enter asset name.', 'لطفاً نام دارایی یا تجهیز را وارد کنید.', 'مهرباني وکړئ د شتمنۍ یا وسیلې نوم ولیکئ.'));
       return;
     }
 
@@ -93,7 +93,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
         notes: notes.trim() || undefined,
       });
 
-      await backendApi.recordAsset({
+      const res = await backendApi.recordAsset({
         projectId: projectId || undefined,
         assetCode: assetCode.trim(),
         name: assetName.trim(),
@@ -107,6 +107,9 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
         assignedTo: assignedTo.trim() || undefined,
         notes: notes.trim() || undefined,
       });
+      if (!res.success) {
+        throw new Error(res.error || 'خطا در ثبت دارایی ثابت');
+      }
 
       setSuccessNotice(true);
       setTimeout(() => {
@@ -134,10 +137,10 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-ink">
-                {language === 'fa' ? 'ثبت دارایی و تجهیزات کارگاه (Fixed Assets)' : 'Register Fixed Asset & Equipment'}
+                {tp('Register Fixed Asset & Equipment', 'ثبت دارایی و تجهیزات کارگاه (Fixed Assets)', 'د کارځای شتمنۍ او تجهیزات ثبتول (Fixed Assets)')}
               </h2>
               <p className="text-xs text-ink-muted">
-                {language === 'fa' ? 'محاسبه استهلاک ماهانه به روش خط مستقیم و انتساب به پروژه' : 'Straight-line monthly depreciation and site assignment'}
+                {tp('Straight-line monthly depreciation and site assignment', 'محاسبه استهلاک ماهانه به روش خط مستقیم و انتساب به پروژه', 'په مستقیمه طریقه د میاشتني استهلاک محاسبه او پروژې ته انتساب')}
               </p>
             </div>
           </div>
@@ -161,7 +164,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
           {successNotice && (
             <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
-              <span>{language === 'fa' ? 'دارایی جدید با جدول استهلاک خودکار با موفقیت ثبت شد!' : 'Asset registered successfully with auto depreciation schedule!'}</span>
+              <span>{tp('Asset registered successfully with auto depreciation schedule!', 'دارایی جدید با جدول استهلاک خودکار با موفقیت ثبت شد!', 'نوې شتمني د اوتومات استهلاک له جدول سره په بریالیتوب ثبت شوه!')}</span>
             </div>
           )}
 
@@ -169,7 +172,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
             {/* Asset Name */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'نام دستگاه یا دارایی *' : 'Asset / Equipment Name *'}
+                {tp('Asset / Equipment Name *', 'نام دستگاه یا دارایی *', 'د آلې یا شتمنۍ نوم *')}
               </label>
               <input
                 type="text"
@@ -184,18 +187,18 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
             {/* Category */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'دسته‌بندی دارایی' : 'Category'}
+                {tp('Category', 'دسته‌بندی دارایی', 'د شتمنۍ ډلبندي')}
               </label>
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value as any)}
                 className="w-full px-3.5 py-2.5 bg-surface-2 border border-line rounded-xl text-ink font-semibold"
               >
-                <option value="machinery">{language === 'fa' ? 'ماشین‌آلات سنگین کارگاهی' : 'Heavy Machinery'}</option>
-                <option value="vehicle">{language === 'fa' ? 'موتر و وسایل نقلیه' : 'Vehicles'}</option>
-                <option value="equipment">{language === 'fa' ? 'ابزارآلات و تجهیزات فنی' : 'Technical Equipment'}</option>
-                <option value="it">{language === 'fa' ? 'تجهیزات دفتری و IT' : 'Office & IT'}</option>
-                <option value="building">{language === 'fa' ? 'کانکس و ساختمان ساحوی' : 'Site Cabins & Structs'}</option>
+                <option value="machinery">{tp('Heavy Machinery', 'ماشین‌آلات سنگین کارگاهی', 'درانده ساختماني ماشینونه')}</option>
+                <option value="vehicle">{tp('Vehicles', 'موتر و وسایل نقلیه', 'موټر او نقلیه وسایل')}</option>
+                <option value="equipment">{tp('Technical Equipment', 'ابزارآلات و تجهیزات فنی', 'فني وسایل او تجهیزات')}</option>
+                <option value="it">{tp('Office & IT', 'تجهیزات دفتری و IT', 'دفتري تجهیزات او IT')}</option>
+                <option value="building">{tp('Site Cabins & Structs', 'کانکس و ساختمان ساحوی', 'کانټېنر او ساحوي ودانۍ')}</option>
               </select>
             </div>
           </div>
@@ -204,7 +207,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
             {/* Purchase Price */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'بهای تمام‌شده خرید (AFN)' : 'Purchase Cost (AFN)'}
+                {tp('Purchase Cost (AFN)', 'بهای تمام‌شده خرید (AFN)', 'د پېر ټولټال بیه (AFN)')}
               </label>
               <input
                 type="number"
@@ -219,7 +222,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
             {/* Useful Life */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'عمر مفید (سال)' : 'Useful Life (Years)'}
+                {tp('Useful Life (Years)', 'عمر مفید (سال)', 'ګټور عمر (کلونه)')}
               </label>
               <input
                 type="number"
@@ -234,7 +237,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
             {/* Salvage Value */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'ارزش اسقاطی پایانی' : 'Salvage Value'}
+                {tp('Salvage Value', 'ارزش اسقاطی پایانی', 'وروستی سکړپ ارزښت')}
               </label>
               <input
                 type="number"
@@ -252,7 +255,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
               <Calculator className="w-5 h-5 text-amber-500" />
               <div>
                 <span className="font-bold text-ink block">
-                  {language === 'fa' ? 'استهلاک ماهانه تخمینی (روش مستقیم):' : 'Estimated Monthly Depreciation:'}
+                  {tp('Estimated Monthly Depreciation:', 'استهلاک ماهانه تخمینی (روش مستقیم):', 'تخمیني میاشتنی استهلاک (مستقیمه طریقه):')}
                 </span>
                 <span className="text-[11px] text-ink-muted">
                   (ارزش خرید - اسقاط) تقسیم بر {parseFloat(usefulLifeYears) * 12 || 12} ماه
@@ -271,7 +274,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
             {/* Project Assigned */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'پروژه مستقر' : 'Assigned Project'}
+                {tp('Assigned Project', 'پروژه مستقر', 'ګمارل شوې پروژه')}
               </label>
               <select
                 value={projectId}
@@ -287,7 +290,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
             {/* Serial / Plate */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'شماره سریال / پلاک' : 'Serial / Plate No'}
+                {tp('Serial / Plate No', 'شماره سریال / پلاک', 'سریال نمبر / پلېټ')}
               </label>
               <input
                 type="text"
@@ -301,7 +304,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
             {/* Purchase Date */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'تاریخ خرید / بهره‌برداری' : 'Purchase Date'}
+                {tp('Purchase Date', 'تاریخ خرید / بهره‌برداری', 'د پېر / ګټې اخیستنې نېټه')}
               </label>
               <input
                 type="date"

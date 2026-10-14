@@ -13,6 +13,7 @@ sendSecurityHeaders();
 $method = $_SERVER['REQUEST_METHOD'];
 $db = Database::getConnection();
 $user = authenticateUser(false);
+$tenantId = currentTenantId($user);
 
 // -------------------------------------------------------------
 // GET: دریافت لیست دریافت‌ها، پرداخت‌ها، حساب‌ها و انتقالات
@@ -22,7 +23,8 @@ if ($method === 'GET') {
     $projectId = $_GET['projectId'] ?? null;
 
     if ($section === 'treasury_accounts') {
-        $stmt = $db->query("SELECT * FROM treasury_accounts ORDER BY account_type, account_name");
+        $stmt = $db->prepare("SELECT * FROM treasury_accounts WHERE tenant_id = :tid ORDER BY account_type, account_name");
+        $stmt->execute(['tid' => $tenantId]);
         jsonResponse(true, ['accounts' => $stmt->fetchAll()]);
     }
 
@@ -31,9 +33,13 @@ if ($method === 'GET') {
                 FROM revenue_entries r 
                 LEFT JOIN projects p ON r.project_id = p.id 
                 LEFT JOIN treasury_accounts a ON r.deposit_account_id = a.id";
-        $params = [];
+        $params = ['tid' => $tenantId];
+        $sql .= " WHERE r.tenant_id = :tid";
         if ($projectId) {
-            $sql .= " WHERE r.project_id = :pid";
+            $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+            $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+            if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+            $sql .= " AND r.project_id = :pid";
             $params['pid'] = $projectId;
         }
         $sql .= " ORDER BY r.received_date DESC LIMIT 200";
@@ -47,9 +53,13 @@ if ($method === 'GET') {
                 FROM payment_vouchers v 
                 LEFT JOIN projects p ON v.project_id = p.id 
                 LEFT JOIN treasury_accounts a ON v.source_account_id = a.id";
-        $params = [];
+        $params = ['tid' => $tenantId];
+        $sql .= " WHERE v.tenant_id = :tid";
         if ($projectId) {
-            $sql .= " WHERE v.project_id = :pid";
+            $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+            $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+            if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+            $sql .= " AND v.project_id = :pid";
             $params['pid'] = $projectId;
         }
         $sql .= " ORDER BY v.payment_date DESC LIMIT 200";
@@ -59,7 +69,7 @@ if ($method === 'GET') {
     }
 
     if ($section === 'transfers') {
-        $stmt = $db->query("
+        $stmt = $db->prepare("
             SELECT t.*, 
                    fp.name as from_project_name, 
                    tp.name as to_project_name,
@@ -70,8 +80,10 @@ if ($method === 'GET') {
             LEFT JOIN projects tp ON t.to_project_id = tp.id
             LEFT JOIN treasury_accounts fa ON t.from_treasury_account_id = fa.id
             LEFT JOIN treasury_accounts ta ON t.to_treasury_account_id = ta.id
+            WHERE t.tenant_id = :tid
             ORDER BY t.transfer_date DESC LIMIT 100
         ");
+        $stmt->execute(['tid' => $tenantId]);
         jsonResponse(true, ['transfers' => $stmt->fetchAll()]);
     }
 
@@ -80,9 +92,13 @@ if ($method === 'GET') {
                 FROM petty_cash_expenses pc 
                 LEFT JOIN projects p ON pc.project_id = p.id 
                 LEFT JOIN treasury_accounts a ON pc.petty_cash_account_id = a.id";
-        $params = [];
+        $params = ['tid' => $tenantId];
+        $sql .= " WHERE pc.tenant_id = :tid";
         if ($projectId) {
-            $sql .= " WHERE pc.project_id = :pid";
+            $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+            $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+            if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+            $sql .= " AND pc.project_id = :pid";
             $params['pid'] = $projectId;
         }
         $sql .= " ORDER BY pc.expense_date DESC LIMIT 200";
@@ -116,17 +132,25 @@ if ($method === 'POST') {
             jsonResponse(false, null, 'پروژه، مبلغ و حساب مقصد الزامی هستند.', 400);
         }
 
+        // امنیت: پروژه و حساب مقصد باید متعلق به همین شرکت باشند
+        $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+        $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+        if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+        $accStmt = $db->prepare("SELECT id FROM treasury_accounts WHERE id = :aid AND tenant_id = :tid LIMIT 1");
+        $accStmt->execute(['aid' => $accountId, 'tid' => $tenantId]);
+        if (!$accStmt->fetch()) { jsonResponse(false, null, 'حساب مقصد یافت نشد یا دسترسی ندارید.', 404); }
+
         $db->beginTransaction();
         try {
             // ثبت سند عواید
             $stmt = $db->prepare("
                 INSERT INTO revenue_entries (
-                    id, receipt_number, project_id, client_id, received_from,
+                    id, tenant_id, receipt_number, project_id, client_id, received_from,
                     income_type, amount, currency, exchange_rate, amount_in_base_afn,
                     payment_method, deposit_account_id, reference_document_no, received_date,
                     recorded_by_user_id, notes
                 ) VALUES (
-                    :id, :rec, :pid, :cid, :from,
+                    :id, :tid, :rec, :pid, :cid, :from,
                     :type, :amt, :curr, :rate, :base,
                     :method, :acc, :ref, :dt,
                     :user, :notes
@@ -134,6 +158,7 @@ if ($method === 'POST') {
             ");
             $stmt->execute([
                 'id' => $id,
+                'tid' => $tenantId,
                 'rec' => $receiptNo,
                 'pid' => $projectId,
                 'cid' => $input['clientId'] ?? null,
@@ -185,17 +210,27 @@ if ($method === 'POST') {
             jsonResponse(false, null, 'مشخصات پروژه و مبلغ پرداختی الزامی است.', 400);
         }
 
+        // امنیت: پروژه و حساب مبدأ باید متعلق به همین شرکت باشند
+        $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+        $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+        if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+        if (!empty($accountId)) {
+            $accStmt = $db->prepare("SELECT id FROM treasury_accounts WHERE id = :aid AND tenant_id = :tid LIMIT 1");
+            $accStmt->execute(['aid' => $accountId, 'tid' => $tenantId]);
+            if (!$accStmt->fetch()) { jsonResponse(false, null, 'حساب مبدأ یافت نشد یا دسترسی ندارید.', 404); }
+        }
+
         $db->beginTransaction();
         try {
             $stmt = $db->prepare("
                 INSERT INTO payment_vouchers (
-                    id, voucher_no, project_id, payee_type, payee_id, payee_name,
+                    id, tenant_id, voucher_no, project_id, payee_type, payee_id, payee_name,
                     expense_category, budget_category_id, amount, currency,
                     exchange_rate, amount_in_base_afn, payment_method, source_account_id,
                     invoice_or_bill_no, payment_date, payment_status, approved_by,
                     recorded_by_user_id, description, notes
                 ) VALUES (
-                    :id, :vno, :pid, :ptype, :pid_ref, :pname,
+                    :id, :tid, :vno, :pid, :ptype, :pid_ref, :pname,
                     :cat, :bcat, :amt, :curr,
                     :rate, :base, :pmeth, :acc,
                     :inv, :pdate, 'paid', :appr,
@@ -204,6 +239,7 @@ if ($method === 'POST') {
             ");
             $stmt->execute([
                 'id' => $id,
+                'tid' => $tenantId,
                 'vno' => $voucherNo,
                 'pid' => $projectId,
                 'ptype' => $input['payeeType'] ?? 'supplier',
@@ -258,6 +294,20 @@ if ($method === 'POST') {
 
         if (empty($fromProj) || empty($toProj) || $amount <= 0 || $fromProj === $toProj) {
             jsonResponse(false, null, 'اطلاعات پروژه‌های مبدأ و مقصد نامعتبر است.', 400);
+        }
+
+        // امنیت: هر دو پروژه و هر دو حساب باید متعلق به همین شرکت باشند
+        foreach (['from_p' => $fromProj, 'to_p' => $toProj] as $lbl => $prj) {
+            $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+            $ownStmt->execute(['pid' => $prj, 'tid' => $tenantId]);
+            if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه مبدأ/مقصد یافت نشد یا دسترسی ندارید.', 404); }
+        }
+        foreach (['from_a' => $fromAcc, 'to_a' => $toAcc] as $lbl => $acc) {
+            if (!empty($acc)) {
+                $accStmt = $db->prepare("SELECT id FROM treasury_accounts WHERE id = :aid AND tenant_id = :tid LIMIT 1");
+                $accStmt->execute(['aid' => $acc, 'tid' => $tenantId]);
+                if (!$accStmt->fetch()) { jsonResponse(false, null, 'حساب مبدأ/مقصد یافت نشد یا دسترسی ندارید.', 404); }
+            }
         }
 
         $db->beginTransaction();

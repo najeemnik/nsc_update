@@ -173,7 +173,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
       return;
     }
     if (rawPaid > parsedAmount) {
-      setFormError('مبلغ پرداختی نمی‌تواند بیشتر از کل فاکتور باشد.');
+      setFormError('مبلغ پرداختی نمی‌تواند بیشتر از کل بل باشد.');
       return;
     }
     if (!date || isNaN(new Date(date).getTime())) {
@@ -188,7 +188,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
                exp.billNumber.trim().toLowerCase() === billNumber.trim().toLowerCase()
       );
       if (isDuplicate) {
-        setFormError(`فاکتور با شماره "${billNumber.trim()}" قبلاً در این پروژه ثبت شده است.`);
+        setFormError(`بل با شماره "${billNumber.trim()}" قبلاً در این پروژه ثبت شده است.`);
         return;
       }
     }
@@ -402,7 +402,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
             onChangeCurrency={setCurrency}
             exchangeRate={exchangeRate}
             onChangeExchangeRate={setExchangeRate}
-            label="مجموع کل فاکتور (تعداد × قیمت فی واحد)"
+            label="مجموع کل بل (تعداد × قیمت فی واحد)"
             required={true}
             placeholder="0"
           />
@@ -437,7 +437,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
             </div>
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                {t.billNumber || 'شماره فاکتور / بل'}
+                {t.billNumber || 'شماره بل'}
               </label>
               <input
                 type="text"
@@ -533,7 +533,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
               </label>
               <input
                 type="text"
-                placeholder="توضیحات فاکتور..."
+                placeholder="توضیحات بل..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink focus:ring-2 focus:ring-amber-500/20"
@@ -545,7 +545,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
           <div className="space-y-2 p-3.5 rounded-2xl border border-amber-200/80 bg-amber-50/40 dark:bg-amber-950/20 dark:border-amber-800/40">
             <div className="flex items-center justify-between">
               <label className="block font-bold text-slate-800 dark:text-slate-200 text-xs">
-                وضعیت تسویه فاکتور با فروشنده
+                وضعیت تسویه بل با فروشنده
               </label>
               <span className="text-[10px] text-amber-800 dark:text-amber-300 font-bold">
                 پیش‌فرض: خرید قرضی (باقی‌داری کامل)
@@ -635,7 +635,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
-                <span>عکس فاکتور / بل فیزیکی</span>
+                <span>عکس بل فیزیکی</span>
                 {documentUrl && (
                   <button
                     type="button"
@@ -705,7 +705,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
                 className="flex-1 sm:flex-none px-5 py-2.5 bg-slate-900 dark:bg-amber-600 hover:bg-slate-800 text-amber-400 dark:text-white font-black rounded-xl shadow-md transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
-                <span>{isSubmitting ? t.loading : 'ثبت فاکتور در سیستم'}</span>
+                <span>{isSubmitting ? t.loading : 'ثبت بل در سیستم'}</span>
               </button>
             </div>
           </div>

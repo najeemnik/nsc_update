@@ -367,7 +367,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className={`hidden xl:flex items-center space-x-1.5 rtl:space-x-reverse ${colorClass} ${shapeClass} text-white px-3 py-1.5 text-xs font-bold shadow-xs transition-colors`}
                 >
                   <IconComponent className="w-3.5 h-3.5" />
-                  <span className="whitespace-nowrap">{language === 'en' ? (topButton.labelEn || topButton.label) : (topButton.labelFa || topButton.label)}</span>
+                  <span className="whitespace-nowrap">{language === 'ps' ? (topButton.labelPs || topButton.labelFa || topButton.label) : language === 'en' ? (topButton.labelEn || topButton.label) : (topButton.labelFa || topButton.label)}</span>
                 </button>
               );
             })()}
@@ -473,7 +473,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       const handler = actionHandlers[btn.id] || actionHandlers[btn.actionKey || btn.id];
                       const IconComponent = actionIcons[btn.id] || actionIcons[btn.actionKey || btn.id] || Plus;
                       const iconColor = iconColorClasses[btn.color] || 'text-amber-600';
-                      const label = btn.labelFa || btn.label || btn.id;
+                      const label = language === 'ps' ? (btn.labelPs || btn.labelFa || btn.label || btn.id) : language === 'en' ? (btn.labelEn || btn.label || btn.id) : (btn.labelFa || btn.label || btn.id);
 
                       return (
                         <button

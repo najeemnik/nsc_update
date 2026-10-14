@@ -90,6 +90,11 @@ class BackendApiService {
     return this.request<{ user: any }>('auth.php');
   }
 
+  /** ابطال تمام نشست‌های فعال کاربر در همه دستگاه‌ها (§2.2) */
+  public async logoutAll() {
+    return this.request('auth.php?action=logout_all', { method: 'POST' });
+  }
+
   // --- دفتر هفت (Office 7 Master Control) ---
   public async getOffice7Tenants() {
     return this.request<{ users: any[] }>('office7.php?action=tenants');

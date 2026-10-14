@@ -111,7 +111,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
       {/* 4 Financial KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 print:grid-cols-4">
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-xs">
-          <span className="text-slate-400 font-bold block mb-1 text-[11px]">مجموع دستمزد ناخالص:</span>
+          <span className="text-slate-400 font-bold block mb-1 text-[11px]">مجموع مزد ناخالص:</span>
           <span className="text-lg font-black font-mono text-ink">
             {formatNumber(totalGrossAFN, 0)} AFN
           </span>

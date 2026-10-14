@@ -96,6 +96,12 @@ function authenticateUser(bool $requireMaster = false): array {
         jsonResponse(false, null, 'حساب کاربری مسدود شده یا یافت نشد.', 403);
     }
 
+    // ابطال نشست‌ها: توکن‌های صادرشده قبل از logout_all نامعتبرند
+    $tokenVersion = (int)($payload['ver'] ?? 0);
+    if ($tokenVersion !== (int)($user['token_version'] ?? 0)) {
+        jsonResponse(false, null, 'نشست امنیتی شما باطل شده است. لطفاً دوباره وارد شوید.', 401);
+    }
+
     if ($requireMaster && (int)$user['is_master'] !== 1) {
         jsonResponse(false, null, 'دسترسی غیرمجاز: این عملیات مختص مدیریت ارشد (دفتر هفت) می‌باشد.', 403);
     }
@@ -104,14 +110,25 @@ function authenticateUser(bool $requireMaster = false): array {
 }
 
 /**
+ * شناسه مستأجر (شرکت) کاربر — کارمند: شناسه مالکش؛ مالک: شناسه خودش.
+ * تنها مرجع تفکیک معلومات شرکت‌ها در تمام اندپوینت‌ها (deny by default).
+ */
+function currentTenantId(array $user): string {
+    $tid = $user['owner_admin_id'] ?? '';
+    if ($tid === '' || $tid === null) { $tid = $user['id']; }
+    return (string)$tid;
+}
+
+/**
  * ساخت توکن امضاشده HMAC امن
  */
-function generateToken(string $userId, string $role, int $isMaster): string {
+function generateToken(string $userId, string $role, int $isMaster, int $tokenVersion = 0): string {
     $header = base64_encode(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
     $payload = base64_encode(json_encode([
         'user_id' => $userId,
         'role' => $role,
         'is_master' => $isMaster,
+        'ver' => $tokenVersion,
         'iat' => time(),
         'exp' => time() + (86400 * 30) // اعتبار ۳۰ روزه
     ]));

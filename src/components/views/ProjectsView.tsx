@@ -40,7 +40,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
     deleteProject, 
     formatCurrency, 
     t, 
-    language 
+    language, tp 
   } = useApp();
 
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'on_hold'>('all');
@@ -174,13 +174,13 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                   <div className="flex items-center gap-1.5 min-w-0">
                     <UserCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                     <span className="truncate">
-                      {language === 'en' ? 'Owner: ' : 'مالک فعلی: '}
-                      <strong>{project.currentOwner || project.clientOwner || (language === 'en' ? 'Initial Owner' : 'مالک اولیه')}</strong>
+                      {tp('Owner: ', 'مالک فعلی: ', 'اوسنی خاوند:')}
+                      <strong>{project.currentOwner || project.clientOwner || (tp('Initial Owner', 'مالک اولیه', 'لومړنی خاوند'))}</strong>
                     </span>
                   </div>
                   {project.transferHistory && project.transferHistory.length > 0 && (
                     <span className="text-[10px] bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded-md font-mono shrink-0">
-                      {project.transferHistory.length} {language === 'en' ? 'transfers' : 'واگذاری'}
+                      {project.transferHistory.length} {tp('transfers', 'واگذاری', 'لېږدول')}
                     </span>
                   )}
                 </div>
@@ -212,7 +212,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                     <button
                       onClick={() => onOpenTransfer(project)}
                       className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 dark:hover:bg-slate-800 rounded-xl transition"
-                      title={language === 'en' ? 'Transfer & Handover Project' : 'انتقال و واگذاری پروژه'}
+                      title={tp('Transfer & Handover Project', 'انتقال و واگذاری پروژه', 'د پروژې انتقال او سپارل')}
                     >
                       <ArrowRightLeft className="w-4 h-4" />
                     </button>

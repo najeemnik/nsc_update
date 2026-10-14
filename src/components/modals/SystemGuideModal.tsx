@@ -25,7 +25,7 @@ interface SystemGuideModalProps {
 }
 
 export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onClose }) => {
-  const { language } = useApp();
+  const { language, tp } = useApp();
   const [activeTopic, setActiveTopic] = useState<'project' | 'expense' | 'payment' | 'contractor' | 'report' | 'bills' | 'gdrive'>('project');
 
   if (!isOpen) return null;
@@ -37,50 +37,50 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
       id: 'project' as const,
       icon: Building2,
       color: 'text-amber-700 bg-amber-100 dark:bg-amber-950/60 dark:text-amber-400',
-      title: language === 'ps' ? '۱. پیل او پروژه' : language === 'en' ? '1. Project Setup' : '۱. تعریف و تنظیم پروژه',
-      badge: language === 'ps' ? 'بنسټ' : language === 'en' ? 'Foundation' : 'اساسی',
+      title: language === 'ps' ? '۱. پیل او پروژه' : tp('1. Project Setup', '۱. تعریف و تنظیم پروژه', '۱. د پروژې تعریف او برابرول'),
+      badge: language === 'ps' ? 'بنسټ' : tp('Foundation', 'اساسی', 'بنسټیز'),
     },
     {
       id: 'expense' as const,
       icon: Receipt,
       color: 'text-blue-700 bg-blue-100 dark:bg-blue-950/60 dark:text-blue-400',
-      title: language === 'ps' ? '۲. لګښتونه او توکي' : language === 'en' ? '2. Recording Expenses' : '۲. ثبت مصارف و مواد',
-      badge: language === 'ps' ? 'لګښتونه' : language === 'en' ? 'Daily Costs' : 'مصارف',
+      title: language === 'ps' ? '۲. لګښتونه او توکي' : tp('2. Recording Expenses', '۲. ثبت مصارف و مواد', '۲. د مصارفو او موادو ثبت'),
+      badge: language === 'ps' ? 'لګښتونه' : tp('Daily Costs', 'مصارف', 'مصارف'),
     },
     {
       id: 'payment' as const,
       icon: CreditCard,
       color: 'text-emerald-700 bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-400',
-      title: language === 'ps' ? '۳. رسیدونه او پیسې' : language === 'en' ? '3. Payments & Receipts' : '۳. پرداخت‌ها و اسناد رسمی',
-      badge: language === 'ps' ? 'سندونه' : language === 'en' ? 'Vouchers' : 'رسید A4',
+      title: language === 'ps' ? '۳. رسیدونه او پیسې' : tp('3. Payments & Receipts', '۳. پرداخت‌ها و اسناد رسمی', '۳. تادیې او رسمي سندونه'),
+      badge: language === 'ps' ? 'سندونه' : tp('Vouchers', 'رسید A4', 'A4 رسېد'),
     },
     {
       id: 'contractor' as const,
       icon: HardHat,
       color: 'text-purple-700 bg-purple-100 dark:bg-purple-950/60 dark:text-purple-400',
-      title: language === 'ps' ? '۴. قراردادیان' : language === 'en' ? '4. Contractors & Staff' : '۴. قراردادی‌ها و شرکا',
-      badge: language === 'ps' ? 'حساب' : language === 'en' ? 'Ledger' : 'حسابداری',
+      title: language === 'ps' ? '۴. قراردادیان' : tp('4. Contractors & Staff', '۴. قراردادی‌ها و شرکا', '۴. قراردادیان او شریکان'),
+      badge: language === 'ps' ? 'حساب' : tp('Ledger', 'حسابداری', 'محاسبه'),
     },
     {
       id: 'report' as const,
       icon: BarChart3,
       color: 'text-rose-700 bg-rose-100 dark:bg-rose-950/60 dark:text-rose-400',
-      title: language === 'ps' ? '۵. مالي راپورونه' : language === 'en' ? '5. Financial Reports' : '۵. گزارشات مالی A4',
-      badge: language === 'ps' ? 'راپور' : language === 'en' ? 'Auditing' : 'حسابرسی',
+      title: language === 'ps' ? '۵. مالي راپورونه' : tp('5. Financial Reports', '۵. گزارشات مالی A4', '۵. A4 مالي راپورونه'),
+      badge: language === 'ps' ? 'راپور' : tp('Auditing', 'حسابرسی', 'پلټنه'),
     },
     {
       id: 'bills' as const,
       icon: Camera,
       color: 'text-amber-800 bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300',
-      title: language === 'ps' ? '۶. د بلونو آرشیف' : language === 'en' ? '6. Bills & Camera Archive' : '۶. کمره و آرشیف بل‌ها',
-      badge: language === 'ps' ? 'کمره' : language === 'en' ? 'Paperless' : 'بدون کاغذ',
+      title: language === 'ps' ? '۶. د بلونو آرشیف' : tp('6. Bills & Camera Archive', '۶. کمره و آرشیف بل‌ها', '۶. کمره او د بلونو ارشیف'),
+      badge: language === 'ps' ? 'کمره' : tp('Paperless', 'بدون کاغذ', 'بې کاغذه'),
     },
     {
       id: 'gdrive' as const,
       icon: ExternalLink,
       color: 'text-sky-700 bg-sky-100 dark:bg-sky-950/60 dark:text-sky-400',
-      title: language === 'ps' ? '۷. ګوګل ډرایو' : language === 'en' ? '7. Google Drive Integration' : '۷. همگام‌سازی Google Drive',
-      badge: language === 'ps' ? 'ډرایو' : language === 'en' ? 'Cloud' : 'ابری',
+      title: language === 'ps' ? '۷. ګوګل ډرایو' : tp('7. Google Drive Integration', '۷. همگام‌سازی Google Drive', '۷. له Google Drive سره همغږي'),
+      badge: language === 'ps' ? 'ډرایو' : tp('Cloud', 'ابری', 'ورېځ'),
     },
   ];
 
@@ -107,16 +107,12 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
               <h2 id="guide-title" className="text-lg sm:text-xl font-black tracking-tight">
                 {language === 'ps' 
                   ? 'د نیک سمارټ کاونټ د سیسټم لارښود' 
-                  : language === 'en' 
-                  ? 'Nik Smart Count System User Guide' 
-                  : 'راهنمای جامع کاربری و محاسبات NIK SMART COUNT'}
+                  : tp('Nik Smart Count System User Guide', 'راهنمای جامع کاربری و محاسبات NIK SMART COUNT', 'د NIK SMART COUNT هراړخیز کارونکي او محاسبې لارښود')}
               </h2>
               <p className="text-xs text-amber-100 font-medium mt-0.5">
                 {language === 'ps' 
                   ? 'د ودانیو خاوندانو او انجینرانو لپاره واضح لارښوونې' 
-                  : language === 'en' 
-                  ? 'Clear operational instructions for building owners and site engineers' 
-                  : 'دستورالعمل‌های دقیق کاری ویژه مالکان ساختمان و انجینران'}
+                  : tp('Clear operational instructions for building owners and site engineers', 'دستورالعمل‌های دقیق کاری ویژه مالکان ساختمان و انجینران', 'د ودانیو د خاوندانو او انجینرانو لپاره کره کاري لارښوونې')}
               </p>
             </div>
           </div>
@@ -135,7 +131,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
           {/* Navigation Topics */}
           <div className="w-full md:w-72 bg-slate-50 dark:bg-slate-900/60 p-3 sm:p-4 border-b md:border-b-0 md:border-e border-line overflow-y-auto shrink-0 space-y-1.5">
             <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2 mb-2">
-              {language === 'ps' ? 'د سیستم موضوعات' : language === 'en' ? 'System Topics' : 'سرفصل‌های آموزشی'}
+              {language === 'ps' ? 'د سیستم موضوعات' : tp('System Topics', 'سرفصل‌های آموزشی', 'ښوونیز سرټکي')}
             </div>
             {topics.map((t) => {
               const Icon = t.icon;
@@ -320,12 +316,12 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
                     <Camera className="w-5 h-5 text-amber-600" />
                     <span>عکس‌برداری با کمره و آرشیف بل‌ها</span>
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1">حذف کاغذبازی با مستندسازی تصویری از قبض باسکول و فاکتورها</p>
+                  <p className="text-xs text-slate-500 mt-1">حذف کاغذبازی با مستندسازی تصویری از قبض باسکول و بل‌ها</p>
                 </div>
                 <div className="space-y-3 text-xs">
                   <div className="p-3.5 bg-surface-2/60 border border-line rounded-2xl">
                     <strong className="text-ink block font-bold mb-1">کمره مستقیم موبایل:</strong>
-                    در هر زمان با زدن آیکون کمره می‌توانید فاکتور خرید آهن یا کانکریت را در همان محل پروژه عکس گرفته و پیوست کنید.
+                    در هر زمان با زدن آیکون کمره می‌توانید بل خرید آهن یا کانکریت را در همان محل پروژه عکس گرفته و پیوست کنید.
                   </div>
                 </div>
               </div>
@@ -347,7 +343,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
                   </div>
                   <div className="p-3.5 bg-surface-2/60 border border-line rounded-2xl">
                     <strong className="text-ink block font-bold mb-1">دسترسی از همه جا:</strong>
-                    با اتصال گوگل درایو، تمام فاکتورها و تصاویر بل‌ها در هر دستگاه با لینک مستقیم قابل مشاهده خواهند بود.
+                    با اتصال گوگل درایو، تمام بل‌ها و تصاویر در هر دستگاه با لینک مستقیم قابل مشاهده خواهند بود.
                   </div>
                 </div>
               </div>

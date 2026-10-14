@@ -66,6 +66,7 @@ interface AppContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: ((key: string) => string) & typeof translations['en'];
+  tp: (en: string, fa: string, ps: string) => string;
   currentUser: User | null;
   login: (usernameOrEmail: string, password?: string, loginType?: 'admin' | 'employee') => { success: boolean; error?: string };
   logout: () => void;
@@ -284,9 +285,12 @@ interface AppContextType {
   lockSection: (sectionId: string) => void;
   setSectionPassword: (sectionId: string, newPassword: string, isEnabled?: boolean) => void;
   clearSampleData: () => void;
-  exportJsonBackup: () => void;
+  exportJsonBackup: () => { success: boolean; error?: string };
   restoreJsonBackup: (jsonContent: string) => { success: boolean; error?: string };
-  exportBackupJSON: () => void;
+  exportBackupJSON: () => { success: boolean; error?: string };
+  /** نام بخش ذخیره‌سازی ناموفق (null = سالم) — نمایش بنر هشدار در MainApp */
+  storageError: string | null;
+  clearStorageError: () => void;
   importBackupJSON: (json: any) => void;
   clearAuditLogs: () => void;
   formatCurrency: (amount: number | undefined, currency?: string) => string;
@@ -321,16 +325,18 @@ function loadFromStorage<T>(key: string, fallback: T): T {
   return fallback;
 }
 
-function saveToStorage<T>(key: string, value: T): void {
+function saveToStorage<T>(key: string, value: T): boolean {
   try {
     localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
+    return true;
   } catch (e) {
     console.error(`Failed to save ${key} to storage`, e);
+    return false;
   }
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>(() => loadFromStorage<Language>('lang', 'fa'));
+  const [language, setLanguageState] = useState<Language>(() => loadFromStorage<Language>('lang', 'en'));
   const [users, setUsers] = useState<User[]>(() => loadFromStorage('users', initialUsers));
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     return loadFromStorage<User | null>('currentUser', initialUsers[1]); // Default to admin for immediate preview
@@ -539,26 +545,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAudit('update', 'user', 'gdrive', 'Disconnected Google Drive', 'User signed out from Google Drive');
   };
 
+  // خطای ذخیره‌سازی محلی (QuotaExceeded / حالت خصوصی مرورگر) — باید مرئی باشد (§2.7)
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const clearStorageError = () => setStorageError(null);
+
   // Sync to local storage
-  useEffect(() => { saveToStorage('users', users); }, [users]);
-  useEffect(() => { saveToStorage('projects', projects); }, [projects]);
-  useEffect(() => { saveToStorage('currentProjId', currentProjectId); }, [currentProjectId]);
-  useEffect(() => { saveToStorage('expenses', expenses); }, [expenses]);
-  useEffect(() => { saveToStorage('steel', steelRecords); }, [steelRecords]);
-  useEffect(() => { saveToStorage('concrete', concreteRecords); }, [concreteRecords]);
-  useEffect(() => { saveToStorage('contractors', contractors); }, [contractors]);
-  useEffect(() => { saveToStorage('suppliers', suppliers); }, [suppliers]);
-  useEffect(() => { saveToStorage('labor', laborRecords); }, [laborRecords]);
-  useEffect(() => { saveToStorage('assets', assets); }, [assets]);
-  useEffect(() => { saveToStorage('apartments', apartments); }, [apartments]);
-  useEffect(() => { saveToStorage('payments', payments); }, [payments]);
-  useEffect(() => { saveToStorage('documents', documents); }, [documents]);
-  useEffect(() => { saveToStorage('auditLogs', auditLogs); }, [auditLogs]);
-  useEffect(() => { saveToStorage('activityEvents', activityEvents.slice(-600)); }, [activityEvents]);
-  useEffect(() => { saveToStorage('projectPartners', projectPartners); }, [projectPartners]);
-  useEffect(() => { saveToStorage('projectInvestments', projectInvestments); }, [projectInvestments]);
-  useEffect(() => { saveToStorage('partnerEquityTransfers', partnerEquityTransfers); }, [partnerEquityTransfers]);
-  useEffect(() => { saveToStorage('projectBudgets', projectBudgets); }, [projectBudgets]);
+  useEffect(() => { if (!saveToStorage('users', users)) { setStorageError('users'); } }, [users]);
+  useEffect(() => { if (!saveToStorage('projects', projects)) { setStorageError('projects'); } }, [projects]);
+  useEffect(() => { if (!saveToStorage('currentProjId', currentProjectId)) { setStorageError('currentProjId'); } }, [currentProjectId]);
+  useEffect(() => { if (!saveToStorage('expenses', expenses)) { setStorageError('expenses'); } }, [expenses]);
+  useEffect(() => { if (!saveToStorage('steel', steelRecords)) { setStorageError('steel'); } }, [steelRecords]);
+  useEffect(() => { if (!saveToStorage('concrete', concreteRecords)) { setStorageError('concrete'); } }, [concreteRecords]);
+  useEffect(() => { if (!saveToStorage('contractors', contractors)) { setStorageError('contractors'); } }, [contractors]);
+  useEffect(() => { if (!saveToStorage('suppliers', suppliers)) { setStorageError('suppliers'); } }, [suppliers]);
+  useEffect(() => { if (!saveToStorage('labor', laborRecords)) { setStorageError('labor'); } }, [laborRecords]);
+  useEffect(() => { if (!saveToStorage('assets', assets)) { setStorageError('assets'); } }, [assets]);
+  useEffect(() => { if (!saveToStorage('apartments', apartments)) { setStorageError('apartments'); } }, [apartments]);
+  useEffect(() => { if (!saveToStorage('payments', payments)) { setStorageError('payments'); } }, [payments]);
+  useEffect(() => { if (!saveToStorage('documents', documents)) { setStorageError('documents'); } }, [documents]);
+  useEffect(() => { if (!saveToStorage('auditLogs', auditLogs)) { setStorageError('auditLogs'); } }, [auditLogs]);
+  useEffect(() => { if (!saveToStorage('activityEvents', activityEvents.slice(-600))) { setStorageError('activityEvents'); } }, [activityEvents]);
+  useEffect(() => { if (!saveToStorage('projectPartners', projectPartners)) { setStorageError('projectPartners'); } }, [projectPartners]);
+  useEffect(() => { if (!saveToStorage('projectInvestments', projectInvestments)) { setStorageError('projectInvestments'); } }, [projectInvestments]);
+  useEffect(() => { if (!saveToStorage('partnerEquityTransfers', partnerEquityTransfers)) { setStorageError('partnerEquityTransfers'); } }, [partnerEquityTransfers]);
+  useEffect(() => { if (!saveToStorage('projectBudgets', projectBudgets)) { setStorageError('projectBudgets'); } }, [projectBudgets]);
 
   const isCurrentTimeDay = (): boolean => {
     const hour = new Date().getHours();
@@ -640,7 +650,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Persist app settings (theme, dark mode, branding, rates, ...) so the
   // anti-FOUC script in index.html and the next visit can restore them.
-  useEffect(() => { saveToStorage('appSettings', appSettings); }, [appSettings]);
+  useEffect(() => { if (!saveToStorage('appSettings', appSettings)) { setStorageError('appSettings'); } }, [appSettings]);
 
   useEffect(() => {
     if (appSettings.themeSchedule === 'auto') {
@@ -860,9 +870,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const t = useMemo(() => {
     const raw = translations[language] || translations['en'];
-    const fn = ((key: string) => (raw as any)[key] ?? key) as any;
+    // کلید گمشده: نمایش خوانا به‌جای کلید خام (مثلاً companyName → Company Name)
+    const humanize = (key: string) =>
+      key
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/^./, (ch) => ch.toUpperCase());
+    const fn = ((key: string) => (raw as any)[key] ?? humanize(key)) as any;
     return Object.assign(fn, raw);
   }, [language]);
+
+  /** متن سه‌زبانه: انگلیسی / دری / پشتو — جایگزین یکدست تمام ternaryهای زبانی */
+  const tp = (en: string, fa: string, ps: string): string => {
+    if (language === 'ps') return ps;
+    if (language === 'fa') return fa;
+    return en;
+  };
 
   const currentProject = useMemo(() => {
     return projects.find(p => p.id === currentProjectId) || projects[0] || null;
@@ -1387,6 +1412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setCurrentUser(null);
     saveToStorage('currentUser', null);
+    backendApi.setToken(null);
   };
 
   const switchUserRole = (role: 'admin' | 'accountant' | 'viewer') => {
@@ -2642,7 +2668,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newDoc: DocumentRecord = {
       id: 'doc-cam-' + Date.now(),
       projectId: currentProjectId,
-      title: title || `عکس فاکتور ${new Date().toLocaleDateString()}`,
+      title: title || `عکس بل ${new Date().toLocaleDateString()}`,
       category: 'bill',
       fileUrl: photoDataUrl,
       fileName: `Camera_Receipt_${Date.now()}.jpg`,
@@ -3050,8 +3076,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProjectInvestments([]);
   };
 
-  const exportJsonBackup = () => {
-    const backupData = {
+  const exportJsonBackup = (): { success: boolean; error?: string } => {
+    try {
+      const backupData = {
       version: '1.0.0',
       exportedAt: new Date().toISOString(),
       appName: 'Nik Smart Count Database',
@@ -3073,11 +3100,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nik_smart_count_backup_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      a.download = `nik_smart_count_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return { success: true };
+    } catch (err: any) {
+      console.error('Backup export failed', err);
+      return { success: false, error: err?.message || 'Export failed' };
+    }
   };
 
   const restoreJsonBackup = (jsonContent: string) => {
@@ -3152,6 +3184,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       language,
       setLanguage,
       t,
+      tp,
       currentUser,
       login,
       logout,
@@ -3286,6 +3319,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       restoreJsonBackup,
       exportBackupJSON,
       importBackupJSON,
+      storageError,
+      clearStorageError,
       clearAuditLogs,
       deleteUser,
       formatCurrency,

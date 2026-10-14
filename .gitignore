@@ -7,3 +7,6 @@ coverage/
 *.log
 .env*
 !.env.example
+api/.secrets/*.key
+api/uploads/*
+!api/uploads/.htaccess

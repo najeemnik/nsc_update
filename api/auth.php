@@ -42,21 +42,34 @@ if ($method === 'POST') {
             jsonResponse(false, null, 'حساب کاربری شما توسط مدیر ارشد مسدود گردیده است.', 403);
         }
 
-        // بررسی پسورد با الگوریتم امن bcrypt
-        $passwordMatches = password_verify($password, $user['password_hash']);
-        
-        // سازگاری برای اولین اجرای تست اگر رمز ساده باشد و هش نشده باشد
-        if (!$passwordMatches && ($password === 'password123' || $password === 'admin123')) {
-            $newHash = password_hash($password, PASSWORD_BCRYPT);
-            $upStmt = $db->prepare("UPDATE users SET password_hash = :p WHERE id = :id");
-            $upStmt->execute(['p' => $newHash, 'id' => $user['id']]);
-            $passwordMatches = true;
-        }
+        // محدودیت تلاش ورود: حداکثر ۵ تلاش ناموفق در ۱۵ دقیقه برای هر نام کاربری
+        $attemptKey = mb_strtolower($username, 'UTF-8');
+        $clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        try {
+            $rlStmt = $db->prepare("SELECT COUNT(*) AS c FROM login_attempts WHERE identifier = :ident AND attempted_at > (NOW() - INTERVAL 15 MINUTE)");
+            $rlStmt->execute(['ident' => $attemptKey]);
+            $fails = (int)($rlStmt->fetch()['c'] ?? 0);
+            if ($fails >= 5) {
+                jsonResponse(false, null, 'به دلیل تلاش‌های ناموفق پی‌هم، ورود برای ۱۵ دقیقه قفل شد. لطفاً بعداً تلاش کنید.', 429);
+            }
+        } catch (Exception $e) { error_log('Rate-limit check failed: ' . $e->getMessage()); }
+
+        // بررسی پسورد با الگوریتم امن bcrypt (بدون هیچ رمز پیش‌فرض یا میان‌بر تست)
+        $passwordMatches = !empty($user['password_hash']) && password_verify($password, $user['password_hash']);
 
         if (!$passwordMatches) {
+            try {
+                $insStmt = $db->prepare("INSERT INTO login_attempts (identifier, ip_address) VALUES (:ident, :ip)");
+                $insStmt->execute(['ident' => $attemptKey, 'ip' => substr($clientIp, 0, 45)]);
+            } catch (Exception $e) { error_log('Rate-limit record failed: ' . $e->getMessage()); }
             logAudit($db, $user['id'], $user['name'], 'login', 'auth', null, 'تلاش ناموفق برای ورود به سیستم');
             jsonResponse(false, null, 'نام کاربری یا رمز عبور اشتباه است.', 401);
         }
+        // ورود موفق: پاک‌سازی تلاش‌های ناموفق قبلی همین کاربر
+        try {
+            $clrStmt = $db->prepare("DELETE FROM login_attempts WHERE identifier = :ident");
+            $clrStmt->execute(['ident' => $attemptKey]);
+        } catch (Exception $e) { error_log('Rate-limit clear failed: ' . $e->getMessage()); }
 
         // به‌روزرسانی تاریخ آخرین ورود
         $now = date('Y-m-d H:i:s');
@@ -64,7 +77,7 @@ if ($method === 'POST') {
         $upStmt->execute(['now' => $now, 'id' => $user['id']]);
 
         // تولید توکن امنیتی
-        $token = generateToken($user['id'], $user['role'], (int)$user['is_master']);
+        $token = generateToken($user['id'], $user['role'], (int)$user['is_master'], (int)($user['token_version'] ?? 0));
 
         // ثبت در لاگ امنیتی
         logAudit($db, $user['id'], $user['name'], 'login', 'auth', $user['id'], 'ورود موفقانه به سامانه');
@@ -74,6 +87,7 @@ if ($method === 'POST') {
 
         jsonResponse(true, [
             'token' => $token,
+            'expiresAt' => date('c', time() + (86400 * 30)),
             'user' => [
                 'id' => $user['id'],
                 'name' => $user['name'],
@@ -94,6 +108,16 @@ if ($method === 'POST') {
             ]
         ], 'ورود با موفقیت انجام شد.');
     }
+
+    if ($action === 'logout_all') {
+        $me = authenticateUser(false);
+        $upStmt = $db->prepare("UPDATE users SET token_version = token_version + 1 WHERE id = :id");
+        $upStmt->execute(['id' => $me['id']]);
+        logAudit($db, $me['id'], $me['name'], 'logout', 'auth', $me['id'], 'ابطال تمام نشست‌های فعال کاربر');
+        jsonResponse(true, null, 'تمام نشست‌های فعال شما باطل شد. لطفاً دوباره وارد شوید.');
+    }
+
+    jsonResponse(false, null, 'عملیات نامعتبر است.', 400);
 }
 
 if ($method === 'GET') {

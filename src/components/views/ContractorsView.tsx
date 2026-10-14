@@ -291,7 +291,7 @@ export const ContractorsView: React.FC<ContractorsViewProps> = ({
                 {/* Bills Table */}
                 <div className="border border-line rounded-2xl overflow-hidden">
                   <div className="p-3 bg-surface-2 font-black text-xs text-ink flex items-center justify-between">
-                    <span>ریز صورت‌وضعیت‌ها و فاکتورهای کارکرد</span>
+                    <span>ریز صورت‌وضعیت‌ها و بل‌های کارکرد</span>
                     <span className="text-[11px] font-mono text-slate-400">{stats.contractorExpenses.length} سند</span>
                   </div>
                   <div className="overflow-x-auto">

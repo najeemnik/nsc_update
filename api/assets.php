@@ -12,15 +12,20 @@ sendSecurityHeaders();
 $method = $_SERVER['REQUEST_METHOD'];
 $db = Database::getConnection();
 $user = authenticateUser(false);
+$tenantId = currentTenantId($user);
 
 if ($method === 'GET') {
     $projectId = $_GET['projectId'] ?? null;
     $sql = "SELECT a.*, p.name as project_name 
             FROM assets_machinery a 
             LEFT JOIN projects p ON a.assigned_project_id = p.id";
-    $params = [];
+    $params = ['tid' => $tenantId];
+    $sql .= " WHERE a.tenant_id = :tid";
     if ($projectId) {
-        $sql .= " WHERE a.assigned_project_id = :pid";
+        $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+        $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+        if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+        $sql .= " AND a.assigned_project_id = :pid";
         $params['pid'] = $projectId;
     }
     $sql .= " ORDER BY a.purchase_date DESC";
@@ -54,13 +59,26 @@ if ($method === 'POST') {
         jsonResponse(false, null, 'نام دارایی و بهای تمام‌شده الزامی است.', 400);
     }
 
+    // امنیت: پروژه (در صورت انتخاب) و دارایی موجود باید متعلق به همین شرکت باشند
+    if (!empty($projectId)) {
+        $ownStmt = $db->prepare("SELECT id FROM projects WHERE id = :pid AND tenant_id = :tid LIMIT 1");
+        $ownStmt->execute(['pid' => $projectId, 'tid' => $tenantId]);
+        if (!$ownStmt->fetch()) { jsonResponse(false, null, 'پروژه یافت نشد یا دسترسی ندارید.', 404); }
+    }
+    $chkStmt = $db->prepare("SELECT tenant_id FROM assets_machinery WHERE id = :id LIMIT 1");
+    $chkStmt->execute(['id' => $id]);
+    $existing = $chkStmt->fetch();
+    if ($existing && (string)$existing['tenant_id'] !== (string)$tenantId) {
+        jsonResponse(false, null, 'دارایی یافت نشد یا دسترسی ندارید.', 404);
+    }
+
     $stmt = $db->prepare("
         INSERT INTO assets_machinery (
-            id, asset_tag_code, asset_name, category, assigned_project_id,
+            id, tenant_id, asset_tag_code, asset_name, category, assigned_project_id,
             purchase_date, purchase_cost, current_book_value, salvage_value,
             useful_life_years, serial_or_engine_no, location_site, status, notes
         ) VALUES (
-            :id, :tag, :name, :cat, :pid,
+            :id, :tid, :tag, :name, :cat, :pid,
             :pdate, :cost, :bval, :salvage,
             :life, :serial, :loc, :status, :notes
         ) ON DUPLICATE KEY UPDATE 
@@ -74,6 +92,7 @@ if ($method === 'POST') {
 
     $stmt->execute([
         'id' => $id,
+        'tid' => $tenantId,
         'tag' => $tag,
         'name' => $name,
         'cat' => $category,

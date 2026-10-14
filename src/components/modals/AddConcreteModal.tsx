@@ -97,7 +97,7 @@ export const AddConcreteModal: React.FC<AddConcreteModalProps> = ({ isOpen, onCl
       return;
     }
     if (rawPaid > totalAmountInCurrentCurrency) {
-      setFormError('مبلغ پرداختی نمی‌تواند بیشتر از کل فاکتور باشد.');
+      setFormError('مبلغ پرداختی نمی‌تواند بیشتر از کل بل باشد.');
       return;
     }
     if (!date || isNaN(new Date(date).getTime())) {

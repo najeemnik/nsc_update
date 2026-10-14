@@ -155,7 +155,7 @@ export const SteelView: React.FC<SteelViewProps> = ({ onOpenAddSteel }) => {
           }`}
         >
           <Box className="w-4 h-4 text-emerald-500" />
-          <span>کاردکس انبار و مصرف در سازه (Stock & Kardex)</span>
+          <span>کاردکس گدام و مصرف در سازه (Stock & Kardex)</span>
         </button>
       </div>
 
@@ -217,7 +217,7 @@ export const SteelView: React.FC<SteelViewProps> = ({ onOpenAddSteel }) => {
               <span className={`text-lg font-black font-mono ${hasLowStockWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
                 {hasLowStockWarning ? 'نیاز به خرید' : 'موجودی پایدار'}
               </span>
-              <span className="block text-[10px] text-slate-400 mt-0.5">کنترل انبار ساحه</span>
+              <span className="block text-[10px] text-slate-400 mt-0.5">کنترل گدام ساحه</span>
             </div>
           </div>
 
@@ -227,7 +227,7 @@ export const SteelView: React.FC<SteelViewProps> = ({ onOpenAddSteel }) => {
               <div>
                 <h3 className="font-bold text-sm sm:text-base text-ink flex items-center gap-2">
                   <Box className="w-4 h-4 text-emerald-500" />
-                  <span>کاردکس انبار تفکیک نمره میلگرد (Steel Rebar Stock Kardex)</span>
+                  <span>کاردکس گدام تفکیک نمره میلگرد (Steel Rebar Stock Kardex)</span>
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">
                   ردیابی ورود، مصرف در المان‌های بتنی و مانده فیزیکی در کارگاه
@@ -240,7 +240,7 @@ export const SteelView: React.FC<SteelViewProps> = ({ onOpenAddSteel }) => {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-2 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 rounded-xl transition"
               >
                 <Printer className="w-3.5 h-3.5 text-slate-500" />
-                <span>چاپ کاردکس انبار</span>
+                <span>چاپ کاردکس گدام</span>
               </button>
             </div>
 
@@ -254,7 +254,7 @@ export const SteelView: React.FC<SteelViewProps> = ({ onOpenAddSteel }) => {
                     <th className="py-3 px-3 text-left">مصرف در بتن‌ریزی (تن)</th>
                     <th className="py-3 px-3 text-left">موجودی پای کار (تن)</th>
                     <th className="py-3 px-3 text-center">نقطه سفارش بحرانی</th>
-                    <th className="py-3 px-3 text-center">وضعیت انبار</th>
+                    <th className="py-3 px-3 text-center">وضعیت گدام</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">

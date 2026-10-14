@@ -144,7 +144,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
           }`}
         >
           <Receipt className="w-4 h-4 text-rose-500" />
-          <span>همه فاکتورها و مصارف کارگاه ({projectExpenses.length})</span>
+          <span>همه بل‌ها و مصارف کارگاه ({projectExpenses.length})</span>
         </button>
         <button
           type="button"

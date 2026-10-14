@@ -355,6 +355,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
         ...b,
         labelFa: b.labelFa || b.label,
         labelEn: b.labelEn || b.label,
+        labelPs: (b as any).labelPs || b.label,
         actionKey: b.actionKey || b.id,
         isEnabled: b.isEnabled ?? b.enabled ?? true,
       }))
@@ -1016,7 +1017,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                     {[
                       { id: 'income', label: 'عواید و دریافت‌ها', desc: 'اقساط، فروش واحد و سرمایه‌گذاران', icon: Coins },
                       { id: 'materials', label: 'خرید مصالح و تدارکات', desc: 'سیمان، ریگ، خشت با اتصال به مصرف', icon: Truck },
-                      { id: 'labor', label: 'معاشات کارگران', desc: 'دستمزد، مساعده و تسویه کارکرد', icon: UserCheck },
+                      { id: 'labor', label: 'معاشات کارگران', desc: 'مزد، مساعده و تسویه کارکرد', icon: UserCheck },
                       { id: 'steel', label: 'سیخ‌گول و آهن‌آلات', desc: 'محاسبات کیلو و تن و قیمت', icon: Layers },
                       { id: 'concrete', label: 'کانکریت و پمپ', desc: 'بچینگ، مکسر و کرایه پمپ', icon: CircleDot },
                       { id: 'expenses', label: 'مصارف روزمره', desc: 'خریدهای عمومی و متفرقه', icon: Receipt },
@@ -1210,6 +1211,20 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                                   value={btn.labelFa || btn.label || ''}
                                   onChange={e => updateField('labelFa', e.target.value)}
                                   placeholder="عنوان فارسی/دری"
+                                  className="w-28 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200"
+                                />
+                                <input
+                                  type="text"
+                                  value={btn.labelEn || btn.label || ''}
+                                  onChange={e => updateField('labelEn', e.target.value)}
+                                  placeholder="English title"
+                                  className="w-28 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200"
+                                />
+                                <input
+                                  type="text"
+                                  value={btn.labelPs || btn.label || ''}
+                                  onChange={e => updateField('labelPs', e.target.value)}
+                                  placeholder="عنوان پښتو"
                                   className="w-28 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200"
                                 />
 

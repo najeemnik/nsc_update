@@ -190,7 +190,7 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
             <option value="all">همه وضعیت‌ها</option>
             <option value="active">فعال در ساحه</option>
             <option value="maintenance">تحت سرویس و تعمیر</option>
-            <option value="idle">آماده‌به‌کار در انبار</option>
+            <option value="idle">آماده‌به‌کار در گدام</option>
           </select>
         </div>
       </div>
@@ -273,7 +273,7 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
                         }`}
                         title="برای تغییر وضعیت کلیک کنید"
                       >
-                        {asset.status === 'active' ? 'آماده در ساحه' : asset.status === 'maintenance' ? 'تحت سرویس' : 'غیرفعال / انبار'}
+                        {asset.status === 'active' ? 'آماده در ساحه' : asset.status === 'maintenance' ? 'تحت سرویس' : 'غیرفعال / گدام'}
                       </button>
                     </td>
                     <td className="py-3 px-3 text-center print:hidden">

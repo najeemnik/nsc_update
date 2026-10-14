@@ -61,12 +61,14 @@ function MainApp() {
   const { 
     currentUser, 
     isDarkMode, 
-    language, 
+    language, tp, 
     isAiAssistantOpen, 
     setIsAiAssistantOpen,
     isMasterAdminOpen,
     setIsMasterAdminOpen,
-    isTabAllowed
+    isTabAllowed,
+    storageError,
+    clearStorageError
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -155,6 +157,16 @@ function MainApp() {
       className="min-h-dscreen bg-canvas text-ink flex flex-col"
       dir={isRtl ? 'rtl' : 'ltr'}
     >
+      {storageError && (
+        <div className="bg-red-600 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between gap-3" role="alert">
+          <span>
+            {tp(`⚠️ Local storage failed (section: ${storageError}). New data may be lost on reload — free browser space or download a JSON backup.`, `⚠️ خطا در ذخیره‌سازی محلی (بخش: ${storageError}). معلومات جدید ممکن است بعد از بستن صفحه از بین برود — حافظه مرورگر را خالی کنید یا یک بکاپ JSON بگیرید.`, `⚠️ په ځايي ذخیره کې تېروتنه (برخه: ${storageError}). نوي معلومات ښايي پاڼه له تړلو وروسته ورک شي — د براوزر حافظه تشه کړئ یا یو JSON بکاپ کښته کړئ.`)}
+          </span>
+          <button type="button" onClick={clearStorageError} className="shrink-0 underline hover:no-underline">
+            {tp('Dismiss', 'بستن', 'بندول')}
+          </button>
+        </div>
+      )}
       <div className="flex flex-1 h-dscreen overflow-hidden">
         {/* Desktop / Tablet Sidebar */}
         <div className="hidden md:flex shrink-0">

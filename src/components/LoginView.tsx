@@ -42,7 +42,7 @@ export const LoginView: React.FC = () => {
     login, 
     requestPasswordReset, 
     completePasswordReset,
-    language, 
+    language, tp, 
     setLanguage, 
     t,
     appSettings,
@@ -359,7 +359,7 @@ export const LoginView: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-amber-600 dark:text-amber-400 block">
-                    {language === 'en' ? 'OFFICIAL CIVIL ENGINEERING SUITE' : 'سیستم تخصصی محاسبات و مدیریت مالی ساختمان'}
+                    {tp('OFFICIAL CIVIL ENGINEERING SUITE', 'سیستم تخصصی محاسبات و مدیریت مالی ساختمان', 'د ودانۍ د محاسبې او مالي مدیریت مسلکي سیسټم')}
                   </span>
                   <span className={`text-xl sm:text-2xl font-black tracking-tight ${appSettings.darkMode ? 'text-white' : 'text-slate-900'}`}>
                     {t.appName}
@@ -544,7 +544,7 @@ export const LoginView: React.FC = () => {
               <div className="space-y-1.5 pb-2 border-b border-slate-200/80 dark:border-white/10">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>{language === 'en' ? 'Authorized Corporate Portal' : 'سامانه اختصاصی ورود به سیستم'}</span>
+                  <span>{tp('Authorized Corporate Portal', 'سامانه اختصاصی ورود به سیستم', 'سیسټم ته د ننوتلو ځانګړې دروازه')}</span>
                 </div>
                 <h2 className={`text-xl font-black tracking-tight ${appSettings.darkMode ? 'text-white' : 'text-slate-900'}`}>
                   {t.loginTitle || 'ورود به دیتابیس پروژه ساختمانی'}
@@ -595,7 +595,7 @@ export const LoginView: React.FC = () => {
                 <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs">
                   <div>
                     <label className={`block font-bold mb-1.5 ${appSettings.darkMode ? 'text-slate-200' : 'text-slate-800'}`}>
-                      {language === 'en' ? 'Username or Email' : 'نام کاربری یا ایمیل'}
+                      {tp('Username or Email', 'نام کاربری یا ایمیل', 'کارن نوم یا برېښنالیک')}
                     </label>
                     <div className="relative">
                       <UserIcon className="w-4 h-4 text-slate-400 absolute start-3.5 top-1/2 -translate-y-1/2" />

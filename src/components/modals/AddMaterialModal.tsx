@@ -16,7 +16,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
   defaultMaterialName,
   defaultSupplierId,
 }) => {
-  const { currentProject, projects, suppliers, formatCurrency, t, language } = useApp();
+  const { currentProject, projects, suppliers, formatCurrency, t, language, tp } = useApp();
   const [projectId, setProjectId] = useState<string>(currentProject?.id || (projects[0]?.id || ''));
   const [materialName, setMaterialName] = useState(defaultMaterialName || '');
   const [category, setCategory] = useState('مصالح عمومی ساختمانی');
@@ -62,17 +62,17 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
     e.preventDefault();
     setFormError(null);
     if (!materialName.trim()) {
-      setFormError(language === 'fa' ? 'نام جنس/ماده ساختمانی الزامی است.' : 'Material name is required.');
+      setFormError(tp('Material name is required.', 'نام جنس/ماده ساختمانی الزامی است.', 'د ساختماني جنس/مادې نوم اړین دی.'));
       return;
     }
     if (numQty <= 0 || numUnitPrice <= 0) {
-      setFormError(language === 'fa' ? 'تعداد و قیمت فی واحد باید بیشتر از صفر باشد.' : 'Quantity and price must be greater than zero.');
+      setFormError(tp('Quantity and price must be greater than zero.', 'تعداد و قیمت فی واحد باید بیشتر از صفر باشد.', 'شمېر او د واحد فی بیه باید له صفره زیاته وي.'));
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await backendApi.createMaterialProcurement({
+      const res = await backendApi.createMaterialProcurement({
         projectId,
         materialName: materialName.trim(),
         materialCategory: category,
@@ -85,6 +85,9 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
         purchaseDate,
         notes: notes.trim() || undefined,
       });
+      if (!res.success) {
+        throw new Error(res.error || 'خطا در ثبت خرید مصالح');
+      }
 
       setSuccessNotice(true);
       setTimeout(() => {
@@ -112,10 +115,10 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-ink">
-                {language === 'fa' ? 'ثبت و تدارکات خرید مصالح (تعداد × فی)' : 'Material Purchase & Procurement'}
+                {tp('Material Purchase & Procurement', 'ثبت و تدارکات خرید مصالح (تعداد × فی)', 'د مصالحو د پېر ثبت او تدارکات (شمېر × فی)')}
               </h2>
               <p className="text-xs text-ink-muted">
-                {language === 'fa' ? 'محاسبه خودکار سرجمع و اتصال مستقیم به مصارف و تأمین‌کننده' : 'Auto-calculated Total Cost connected to Actual Cost'}
+                {tp('Auto-calculated Total Cost connected to Actual Cost', 'محاسبه خودکار سرجمع و اتصال مستقیم به مصارف و تأمین‌کننده', 'د سرجمع اوتومات محاسبه او له مصارفو او عرضه کوونکي سره مستقیمه نښلول')}
               </p>
             </div>
           </div>
@@ -139,7 +142,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
           {successNotice && (
             <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
-              <span>{language === 'fa' ? 'خرید مصالح با موفقیت ثبت و در مصارف پروژه اعمال گردید!' : 'Material purchase logged successfully!'}</span>
+              <span>{tp('Material purchase logged successfully!', 'خرید مصالح با موفقیت ثبت و در مصارف پروژه اعمال گردید!', 'د مصالحو پېر په بریالیتوب ثبت او د پروژې په مصارفو کې ولګول شو!')}</span>
             </div>
           )}
 
@@ -163,20 +166,20 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
             {/* Category */}
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'دسته‌بندی مواد' : 'Category'}
+                {tp('Category', 'دسته‌بندی مواد', 'د موادو ډلبندي')}
               </label>
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-surface-2 border border-line rounded-xl text-ink font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/30"
               >
-                <option value="سیمان و مواد چسباننده">{language === 'fa' ? 'سیمان و مواد چسباننده' : 'Cement & Binders'}</option>
-                <option value="ریگ، جغل و سنگ‌دانه">{language === 'fa' ? 'ریگ، جغل و سنگ‌دانه' : 'Sand, Gravel & Aggregates'}</option>
-                <option value="خشت و بلاک ساختمانی">{language === 'fa' ? 'خشت و بلاک ساختمانی' : 'Bricks & Blocks'}</option>
-                <option value="پایپ‌دوانی و تأسیسات آب">{language === 'fa' ? 'پایپ‌دوانی و تأسیسات آب' : 'Plumbing & Pipes'}</option>
-                <option value="تأسیسات برقی و کیبل">{language === 'fa' ? 'تأسیسات برقی و کیبل' : 'Electrical & Wiring'}</option>
-                <option value="گچ، رنگ و نازک‌کاری">{language === 'fa' ? 'گچ، رنگ و نازک‌کاری' : 'Plaster, Paint & Finishing'}</option>
-                <option value="تجهیزات و مصالح متفرقه">{language === 'fa' ? 'تجهیزات و مصالح متفرقه' : 'Other Building Materials'}</option>
+                <option value="سیمان و مواد چسباننده">{tp('Cement & Binders', 'سیمان و مواد چسباننده', 'سمنټ او نښلوونکي مواد')}</option>
+                <option value="ریگ، جغل و سنگ‌دانه">{tp('Sand, Gravel & Aggregates', 'ریگ، جغل و سنگ‌دانه', 'شګه، جغل او ډبرې')}</option>
+                <option value="خشت و بلاک ساختمانی">{tp('Bricks & Blocks', 'خشت و بلاک ساختمانی', 'خښتې او ساختماني بلاکونه')}</option>
+                <option value="پایپ‌دوانی و تأسیسات آب">{tp('Plumbing & Pipes', 'پایپ‌دوانی و تأسیسات آب', 'پایپ غځول او د اوبو تاسیسات')}</option>
+                <option value="تأسیسات برقی و کیبل">{tp('Electrical & Wiring', 'تأسیسات برقی و کیبل', 'برېښنايي تاسیسات او کېبل')}</option>
+                <option value="گچ، رنگ و نازک‌کاری">{tp('Plaster, Paint & Finishing', 'گچ، رنگ و نازک‌کاری', 'ګچ، رنګ او نازک کاري')}</option>
+                <option value="تجهیزات و مصالح متفرقه">{tp('Other Building Materials', 'تجهیزات و مصالح متفرقه', 'متفرقه تجهیزات او مصالح')}</option>
               </select>
             </div>
           </div>
@@ -184,7 +187,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
           {/* Material Name */}
           <div>
             <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              {language === 'fa' ? 'نام مشخص جنس / مواد' : 'Material Description'}
+              {tp('Material Description', 'نام مشخص جنس / مواد', 'د جنس / موادو ځانګړی نوم')}
             </label>
             <div className="relative">
               <Package className="w-4 h-4 text-slate-400 absolute start-3 top-1/2 -translate-y-1/2" />
@@ -193,7 +196,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 required
                 value={materialName}
                 onChange={e => setMaterialName(e.target.value)}
-                placeholder={language === 'fa' ? 'مثلاً: سیمان پرتلند غوری درجه یک' : 'e.g. Portland Cement Grade 1'}
+                placeholder={tp('e.g. Portland Cement Grade 1', 'مثلاً: سیمان پرتلند غوری درجه یک', 'بېلګه: لومړۍ درجه غوري پورټلنډ سمنټ')}
                 className="w-full ps-9 pe-3.5 py-2.5 bg-surface-2 border border-line rounded-xl text-ink font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/30"
               />
             </div>
@@ -203,7 +206,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'تعداد / مقدار (Qty)' : 'Quantity'}
+                {tp('Quantity', 'تعداد / مقدار (Qty)', 'شمېر / مقدار (Qty)')}
               </label>
               <input
                 type="number"
@@ -217,7 +220,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
 
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'واحد اندازه‌گیری' : 'Unit'}
+                {tp('Unit', 'واحد اندازه‌گیری', 'د اندازه واحد')}
               </label>
               <select
                 value={unitOfMeasure}
@@ -236,7 +239,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
 
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'قیمت فی واحد (AFN)' : 'Unit Price (AFN)'}
+                {tp('Unit Price (AFN)', 'قیمت فی واحد (AFN)', 'د واحد فی بیه (AFN)')}
               </label>
               <input
                 type="number"
@@ -254,12 +257,12 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
             <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
               <Calculator className="w-4 h-4 shrink-0" />
               <span className="font-bold">
-                {language === 'fa' ? 'فرمول محاسبه سرجمع: ' : 'Formula: '} 
+                {tp('Formula: ', 'فرمول محاسبه سرجمع: ', 'د سرجمع د محاسبې فورمول:')} 
                 <span className="font-mono">{numQty} {unitOfMeasure} × {numUnitPrice.toLocaleString()} AFN</span>
               </span>
             </div>
             <div className="text-end">
-              <span className="text-[10px] text-slate-400 block">{language === 'fa' ? 'مجموع بهای کل:' : 'Total Cost:'}</span>
+              <span className="text-[10px] text-slate-400 block">{tp('Total Cost:', 'مجموع بهای کل:', 'د ټولټال بیې مجموعه:')}</span>
               <span className="text-base font-black text-amber-600 dark:text-amber-400 font-mono">
                 {totalCost.toLocaleString()} AFN
               </span>
@@ -270,7 +273,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'تأمین‌کننده / فروشنده' : 'Supplier'}
+                {tp('Supplier', 'تأمین‌کننده / فروشنده', 'عرضه کوونکی / پلورونکی')}
               </label>
               <div className="relative">
                 <Building2 className="w-4 h-4 text-slate-400 absolute start-3 top-1/2 -translate-y-1/2" />
@@ -286,7 +289,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
 
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'وضعیت تسویه مالی' : 'Settlement Status'}
+                {tp('Settlement Status', 'وضعیت تسویه مالی', 'د مالي تسویې وضعیت')}
               </label>
               <div className="flex gap-2">
                 <button
@@ -296,7 +299,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                     isPaid ? 'bg-emerald-600 text-white shadow-xs' : 'bg-surface-2 text-slate-500'
                   }`}
                 >
-                  {language === 'fa' ? 'پرداخت نقدی (کسر از صندوق)' : 'Paid (Cash)'}
+                  {tp('Paid (Cash)', 'پرداخت نقدی (کسر از صندوق)', 'نغده تادیه (له صندوق څخه کسرول)')}
                 </button>
                 <button
                   type="button"
@@ -305,7 +308,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                     !isPaid ? 'bg-amber-600 text-white shadow-xs' : 'bg-surface-2 text-slate-500'
                   }`}
                 >
-                  {language === 'fa' ? 'نسیه (طلب تأمین‌کننده)' : 'Credit / Payable'}
+                  {tp('Credit / Payable', 'نسیه (طلب تأمین‌کننده)', 'پور (د عرضه کوونکي طلب)')}
                 </button>
               </div>
             </div>
@@ -314,7 +317,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'fa' ? 'شماره بل فاکتور' : 'Invoice Number'}
+                {tp('Invoice Number', 'شماره بل', 'د بل نمبر')}
               </label>
               <input
                 type="text"
