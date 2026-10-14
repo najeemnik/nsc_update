@@ -114,40 +114,61 @@ export interface UserPermissions {
 export interface CustomActionButton {
   id: string;
   label: string;
+  /** Dari/Persian label (falls back to `label` when absent) */
+  labelFa?: string;
+  /** English label (falls back to `label` when absent) */
+  labelEn?: string;
+  /** Action key alias — falls back to `id` when absent */
+  actionKey?: string;
   enabled: boolean;
-  color: 'blue' | 'emerald' | 'amber' | 'rose' | 'purple' | 'slate' | 'indigo' | 'orange';
-  shape: 'pill' | 'rounded-xl' | 'rounded-md';
+  /** Editor visibility flag — kept in sync with `enabled` */
+  isEnabled?: boolean;
+  color: 'blue' | 'emerald' | 'amber' | 'rose' | 'purple' | 'slate' | 'indigo' | 'orange' | 'primary' | 'success' | 'danger' | 'warning' | 'info';
+  shape: 'pill' | 'rounded-xl' | 'rounded-md' | 'rounded' | 'square';
   order: number;
 }
 
 export const DEFAULT_ACTION_BUTTONS: CustomActionButton[] = [
-  { id: 'addExpense', label: 'ثبت مصارف', enabled: true, color: 'blue', shape: 'rounded-xl', order: 1 },
-  { id: 'addPayment', label: 'پرداخت وجه', enabled: true, color: 'emerald', shape: 'rounded-xl', order: 2 },
-  { id: 'addIncome', label: 'دریافت عواید', enabled: true, color: 'emerald', shape: 'rounded-xl', order: 3 },
-  { id: 'addMaterial', label: 'خرید مصالح', enabled: true, color: 'amber', shape: 'rounded-xl', order: 4 },
-  { id: 'addLabor', label: 'معاشات کارگران', enabled: true, color: 'purple', shape: 'rounded-xl', order: 5 },
-  { id: 'addSteel', label: 'سیخ‌گول', enabled: true, color: 'amber', shape: 'rounded-xl', order: 6 },
-  { id: 'addConcrete', label: 'کانکریت', enabled: true, color: 'blue', shape: 'rounded-xl', order: 7 },
-  { id: 'addApartment', label: 'فروش پلاک', enabled: true, color: 'indigo', shape: 'rounded-xl', order: 8 },
-  { id: 'addContractor', label: 'قراردادی جدید', enabled: true, color: 'orange', shape: 'rounded-xl', order: 9 },
-  { id: 'addTransfer', label: 'حواله پروژه‌ای', enabled: true, color: 'purple', shape: 'rounded-xl', order: 10 },
-  { id: 'addPettyCash', label: 'تنخواه کارگاه', enabled: true, color: 'slate', shape: 'rounded-xl', order: 11 },
-  { id: 'addAsset', label: 'ثبت ماشین‌آلات', enabled: true, color: 'amber', shape: 'rounded-xl', order: 12 },
+  { id: 'addExpense', label: 'ثبت مصارف', labelFa: 'ثبت مصارف', actionKey: 'addExpense', enabled: true, isEnabled: true, color: 'blue', shape: 'rounded-xl', order: 1 },
+  { id: 'addPayment', label: 'پرداخت وجه', labelFa: 'پرداخت وجه', actionKey: 'addPayment', enabled: true, isEnabled: true, color: 'emerald', shape: 'rounded-xl', order: 2 },
+  { id: 'addIncome', label: 'دریافت عواید', labelFa: 'دریافت عواید', actionKey: 'addIncome', enabled: true, isEnabled: true, color: 'emerald', shape: 'rounded-xl', order: 3 },
+  { id: 'addMaterial', label: 'خرید مصالح', labelFa: 'خرید مصالح', actionKey: 'addMaterial', enabled: true, isEnabled: true, color: 'amber', shape: 'rounded-xl', order: 4 },
+  { id: 'addLabor', label: 'معاشات کارگران', labelFa: 'معاشات کارگران', actionKey: 'addLabor', enabled: true, isEnabled: true, color: 'purple', shape: 'rounded-xl', order: 5 },
+  { id: 'addSteel', label: 'سیخ‌گول', labelFa: 'سیخ‌گول', actionKey: 'addSteel', enabled: true, isEnabled: true, color: 'amber', shape: 'rounded-xl', order: 6 },
+  { id: 'addConcrete', label: 'کانکریت', labelFa: 'کانکریت', actionKey: 'addConcrete', enabled: true, isEnabled: true, color: 'blue', shape: 'rounded-xl', order: 7 },
+  { id: 'addApartment', label: 'فروش پلاک', labelFa: 'فروش پلاک', actionKey: 'addApartment', enabled: true, isEnabled: true, color: 'indigo', shape: 'rounded-xl', order: 8 },
+  { id: 'addContractor', label: 'قراردادی جدید', labelFa: 'قراردادی جدید', actionKey: 'addContractor', enabled: true, isEnabled: true, color: 'orange', shape: 'rounded-xl', order: 9 },
+  { id: 'addTransfer', label: 'حواله پروژه‌ای', labelFa: 'حواله پروژه‌ای', actionKey: 'addTransfer', enabled: true, isEnabled: true, color: 'purple', shape: 'rounded-xl', order: 10 },
+  { id: 'addPettyCash', label: 'تنخواه کارگاه', labelFa: 'تنخواه کارگاه', actionKey: 'addPettyCash', enabled: true, isEnabled: true, color: 'slate', shape: 'rounded-xl', order: 11 },
+  { id: 'addAsset', label: 'ثبت ماشین‌آلات', labelFa: 'ثبت ماشین‌آلات', actionKey: 'addAsset', enabled: true, isEnabled: true, color: 'amber', shape: 'rounded-xl', order: 12 },
 ];
 
 export interface CustomBillDesign {
   receiptTitle?: string;
   receiptHeader?: string;
+  receiptSubheader?: string;
   receiptSubtitle?: string;
   receiptFooter?: string;
   receiptContact?: string;
   taxNumber?: string;
+  companyAddress?: string;
+  companyPhone?: string;
+  companyEmail?: string;
+  logoPosition?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  borderStyle?: string;
+  termsAndConditions?: string;
+  customNote?: string;
   watermarkText?: string;
   themeColor?: string;
   showStampArea?: boolean;
+  showStampSignature?: boolean;
+  showWatermark?: boolean;
   showQrCode?: boolean;
   showWithholdingTax?: boolean;
   showRetention?: boolean;
+  showRetentionBox?: boolean;
   paperSize?: 'A4' | 'A5' | 'thermal';
   customNotesHtml?: string;
 }
@@ -684,6 +705,8 @@ export interface AccountBalance {
   /** Total debits minus credits, in account-normal sign convention */
   balanceUSD: number;
   balanceAFN: number;
+  /** Net balance in USD (same normal-sign convention as balanceUSD) */
+  netUSD: number;
   debitUSD: number;
   creditUSD: number;
   debitAFN: number;
@@ -781,6 +804,8 @@ export interface Payment {
   partyName: string;
   recipientName?: string;
   recipientId?: string;
+  /** Recipient classification (e.g. 'apartment_buyer') used by income reports */
+  recipientType?: string;
   receiptNumber?: string;
   referenceNumber?: string;
   bankOrSarafiName?: string;

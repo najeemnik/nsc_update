@@ -346,10 +346,18 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
       borderStyle: bill.borderStyle || 'solid',
     });
 
+    const savedButtons = user.customButtonConfig && user.customButtonConfig.length > 0
+      ? user.customButtonConfig
+      : DEFAULT_ACTION_BUTTONS;
+    // Normalize older saved configs so the editor always works with complete button data
     setEditButtonConfig(
-      user.customButtonConfig && user.customButtonConfig.length > 0 
-        ? user.customButtonConfig 
-        : DEFAULT_ACTION_BUTTONS
+      savedButtons.map(b => ({
+        ...b,
+        labelFa: b.labelFa || b.label,
+        labelEn: b.labelEn || b.label,
+        actionKey: b.actionKey || b.id,
+        isEnabled: b.isEnabled ?? b.enabled ?? true,
+      }))
     );
 
     const mods = user.customEnabledModules || {};
@@ -1110,7 +1118,11 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
 
                         const toggleEnable = () => {
                           setEditButtonConfig(prev =>
-                            prev.map(b => (b.id === btn.id ? { ...b, isEnabled: !b.isEnabled } : b))
+                            prev.map(b => {
+                              if (b.id !== btn.id) return b;
+                              const next = !(b.isEnabled ?? b.enabled ?? true);
+                              return { ...b, enabled: next, isEnabled: next };
+                            })
                           );
                         };
 
@@ -1160,13 +1172,13 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <span className="font-black text-xs text-slate-800 dark:text-slate-100">
-                                      {btn.labelFa}
+                                      {btn.labelFa || btn.label}
                                     </span>
                                     <span className="text-[10px] text-slate-400 font-mono">
-                                      ({btn.actionKey})
+                                      ({btn.actionKey || btn.id})
                                     </span>
                                   </div>
-                                  <span className="text-[11px] text-slate-400">{btn.labelEn}</span>
+                                  <span className="text-[11px] text-slate-400">{btn.labelEn || btn.label}</span>
                                 </div>
                               </div>
 
@@ -1186,7 +1198,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                                     btn.shape === 'square' ? 'rounded-md' : 'rounded-xl'
                                   }`}
                                 >
-                                  <span>{btn.labelFa}</span>
+                                  <span>{btn.labelFa || btn.label}</span>
                                 </div>
                               </div>
 
@@ -1195,7 +1207,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                                 {/* Editable label */}
                                 <input
                                   type="text"
-                                  value={btn.labelFa}
+                                  value={btn.labelFa || btn.label || ''}
                                   onChange={e => updateField('labelFa', e.target.value)}
                                   placeholder="عنوان فارسی/دری"
                                   className="w-28 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200"

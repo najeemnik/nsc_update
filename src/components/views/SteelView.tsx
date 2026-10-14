@@ -61,7 +61,7 @@ export const SteelView: React.FC<SteelViewProps> = ({ onOpenAddSteel }) => {
   const totalTons = totalKG / 1000;
   const totalCostUSD = filteredSteel.reduce((sum, s) => sum + (s.totalCostUSD || 0), 0);
 
-  const sizes = Array.from(new Set(projectSteel.map(s => s.size).filter(Boolean)));
+  const sizes = Array.from(new Set(projectSteel.map(s => s.size).filter((x): x is string => Boolean(x))));
 
   // Kardex Inventory by Rebar Diameter (نمره سیخ)
   const kardexBySize = useMemo(() => {

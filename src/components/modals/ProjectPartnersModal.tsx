@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Project, ProjectPartner, ProjectInvestment } from '../../types';
+import { Project, ProjectPartner, ProjectInvestment, PartnerEquityTransfer } from '../../types';
 import { 
   Users, 
   X, 

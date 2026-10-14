@@ -203,18 +203,11 @@ interface AppContextType {
   updateInstallment: (apartmentId: string, installmentId: string, updates: Partial<InstallmentRecord>) => void;
   addInstallmentToApartment: (apartmentId: string, installmentData: Omit<InstallmentRecord, 'id' | 'remainingAmount' | 'status' | 'paymentHistory'>) => void;
   deleteInstallment: (apartmentId: string, installmentId: string) => void;
-  // Notifications & Reminders
-  notifications: SystemReminderNotification[];
-  unreadNotificationCount: number;
-  markNotificationAsRead: (id: string) => void;
-  markAllNotificationsAsRead: () => void;
-  dismissNotification: (id: string) => void;
-  clearAllNotifications: () => void;
-  refreshReminders: () => void;
-  isNotificationCenterOpen: boolean;
-  setIsNotificationCenterOpen: (open: boolean) => void;
-  selectedNotification: SystemReminderNotification | null;
-  setSelectedNotification: (n: SystemReminderNotification | null) => void;
+  // NOTE (Wave 1): the notification-center API declarations were removed here.
+  // They were declared but never implemented, had no UI and no callers, so any
+  // use would have crashed at runtime. The full notification system (categories,
+  // quiet hours, read status, reminder engine) will be implemented in Wave 8
+  // together with its UI. See `generateSmartReminders` in utils/installmentUtils.
   payments: Payment[];
   addPayment: (payment: Omit<Payment, 'id' | 'createdAt' | 'createdBy'>) => void;
   updatePayment: (id: string, updates: Partial<Payment>) => void;
@@ -2228,6 +2221,104 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAudit('delete', 'apartment', id, `Unit #${old?.unitNumber}`, `Deleted apartment unit`, `$${old?.salePrice}`, undefined, old?.projectId);
   };
 
+  // Apartment installments CRUD
+  const addInstallmentToApartment = (apartmentId: string, installmentData: Omit<InstallmentRecord, 'id' | 'remainingAmount' | 'status' | 'paymentHistory'>) => {
+    const apt = apartments.find(a => a.id === apartmentId);
+    if (!apt) return;
+    const paidAmount = installmentData.paidAmount || 0;
+    const newInst: InstallmentRecord = {
+      ...installmentData,
+      id: 'inst-' + Date.now(),
+      paidAmount,
+      remainingAmount: Math.max(0, installmentData.amount - paidAmount),
+      status: paidAmount >= installmentData.amount ? 'Paid' : (paidAmount > 0 ? 'Partially Paid' : 'Pending'),
+      paymentHistory: [],
+    };
+    setApartments(prev => prev.map(a => (a.id === apartmentId ? { ...a, installments: [...(a.installments || []), newInst] } : a)));
+    logAudit('create', 'apartment', apartmentId, `Unit #${apt.unitNumber} Installment #${newInst.installmentNumber}`, `Added installment of $${newInst.amount} due ${newInst.dueDate}`, undefined, `$${newInst.amount}`, apt.projectId);
+  };
+
+  const addInstallmentPayment = (apartmentId: string, installmentId: string, amount: number, paymentMethod?: string, receiptNumber?: string, notes?: string) => {
+    if (!amount || amount <= 0) return;
+    const apt = apartments.find(a => a.id === apartmentId);
+    const inst = apt?.installments?.find(i => i.id === installmentId);
+    if (!apt || !inst) return;
+    const today = new Date().toISOString().split('T')[0];
+    const payment: InstallmentPaymentRecord = {
+      id: 'instpay-' + Date.now(),
+      amount,
+      currency: inst.currency || apt.currency || 'USD',
+      date: today,
+      receiptNumber,
+      notes: notes || (paymentMethod ? `Method: ${paymentMethod}` : undefined),
+      receivedBy: currentUser?.name,
+    };
+    const paidAmount = inst.paidAmount + amount;
+    const remainingAmount = Math.max(0, inst.amount - paidAmount);
+    const fullyPaid = remainingAmount <= 0;
+    setApartments(prev => prev.map(a => {
+      if (a.id !== apartmentId) return a;
+      const totalReceived = (a.totalReceived || 0) + amount;
+      return {
+        ...a,
+        installments: (a.installments || []).map(i => (i.id === installmentId ? {
+          ...i,
+          paidAmount,
+          remainingAmount,
+          status: fullyPaid ? 'Paid' : 'Partially Paid',
+          paymentHistory: [...i.paymentHistory, payment],
+          received: fullyPaid ? true : i.received,
+          receivedDate: fullyPaid ? today : i.receivedDate,
+        } : i)),
+        totalReceived,
+        amountReceived: totalReceived,
+        remainingBalance: (a.salePrice || 0) - totalReceived,
+      };
+    }));
+    logAudit('create', 'payment', payment.id, `Installment #${inst.installmentNumber} (Unit #${apt.unitNumber})`, `Installment payment of $${amount}${paymentMethod ? ` via ${paymentMethod}` : ''}${receiptNumber ? ` — Receipt ${receiptNumber}` : ''}`, undefined, `$${amount}`, apt.projectId);
+  };
+
+  const updateInstallment = (apartmentId: string, installmentId: string, updates: Partial<InstallmentRecord>) => {
+    const apt = apartments.find(a => a.id === apartmentId);
+    const inst = apt?.installments?.find(i => i.id === installmentId);
+    if (!apt || !inst) return;
+    const amount = updates.amount !== undefined ? updates.amount : inst.amount;
+    const paidAmount = updates.paidAmount !== undefined ? updates.paidAmount : inst.paidAmount;
+    const delta = paidAmount - inst.paidAmount;
+    const remainingAmount = Math.max(0, amount - paidAmount);
+    const status = updates.status || (remainingAmount <= 0 ? 'Paid' : (paidAmount > 0 ? 'Partially Paid' : 'Pending'));
+    setApartments(prev => prev.map(a => {
+      if (a.id !== apartmentId) return a;
+      const totalReceived = (a.totalReceived || 0) + delta;
+      return {
+        ...a,
+        installments: (a.installments || []).map(i => (i.id === installmentId ? { ...i, ...updates, amount, paidAmount, remainingAmount, status } : i)),
+        totalReceived,
+        amountReceived: totalReceived,
+        remainingBalance: (a.salePrice || 0) - totalReceived,
+      };
+    }));
+    logAudit('update', 'apartment', apartmentId, `Unit #${apt.unitNumber} Installment #${inst.installmentNumber}`, `Updated installment schedule`, `$${inst.amount}`, `$${amount}`, apt.projectId);
+  };
+
+  const deleteInstallment = (apartmentId: string, installmentId: string) => {
+    const apt = apartments.find(a => a.id === apartmentId);
+    const inst = apt?.installments?.find(i => i.id === installmentId);
+    if (!apt || !inst) return;
+    setApartments(prev => prev.map(a => {
+      if (a.id !== apartmentId) return a;
+      const totalReceived = Math.max(0, (a.totalReceived || 0) - inst.paidAmount);
+      return {
+        ...a,
+        installments: (a.installments || []).filter(i => i.id !== installmentId),
+        totalReceived,
+        amountReceived: totalReceived,
+        remainingBalance: (a.salePrice || 0) - totalReceived,
+      };
+    }));
+    logAudit('delete', 'apartment', apartmentId, `Unit #${apt.unitNumber} Installment #${inst.installmentNumber}`, `Deleted installment of $${inst.amount}`, `$${inst.amount}`, undefined, apt.projectId);
+  };
+
   // Payments CRUD
   const addPayment = (paymentData: Omit<Payment, 'id' | 'createdAt' | 'createdBy'>) => {
     const time = paymentData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -3137,6 +3228,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addApartment,
       updateApartment,
       deleteApartment,
+      addInstallmentToApartment,
+      addInstallmentPayment,
+      updateInstallment,
+      deleteInstallment,
       payments,
       addPayment,
       updatePayment,

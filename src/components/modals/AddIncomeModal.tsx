@@ -205,9 +205,9 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
                 amount={amount}
                 currency={currency}
                 exchangeRate={exchangeRate}
-                onAmountChange={setAmount}
-                onCurrencyChange={setCurrency}
-                onExchangeRateChange={setExchangeRate}
+                onChangeAmount={setAmount}
+                onChangeCurrency={setCurrency}
+                onChangeExchangeRate={setExchangeRate}
               />
             </div>
 

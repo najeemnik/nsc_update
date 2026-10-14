@@ -133,15 +133,30 @@ export const AddApartmentModal: React.FC<AddApartmentModalProps> = ({ isOpen, on
       ? customSection.trim() 
       : buildingSection;
 
+    const downPaymentNote = `پیش‌پرداخت اولیه خرید (${currency === 'AFN' ? `${initialDown.toLocaleString()} AFN` : `$${initialDown.toLocaleString()}`})`;
     const installments = initialDownUSD > 0 && status !== 'available' ? [
       {
         id: `inst_${Date.now()}`,
+        installmentNumber: 1,
         date: contractDate,
+        dueDate: contractDate,
         amount: initialDownUSD,
+        paidAmount: initialDownUSD,
+        remainingAmount: 0,
         currency: 'USD',
+        status: 'Paid' as const,
+        paymentHistory: [
+          {
+            id: `instpay_${Date.now()}`,
+            amount: initialDownUSD,
+            currency: 'USD',
+            date: contractDate,
+            notes: downPaymentNote,
+          },
+        ],
         received: true,
         receivedDate: contractDate,
-        notes: `پیش‌پرداخت اولیه خرید (${currency === 'AFN' ? `${initialDown.toLocaleString()} AFN` : `$${initialDown.toLocaleString()}`})`,
+        notes: downPaymentNote,
       }
     ] : [];
 

@@ -692,6 +692,7 @@ export function computeAccountBalances(entries: JournalEntry[], projectId?: stri
       isHeader: !!acc.isHeader,
       balanceUSD: round2(netUSD),
       balanceAFN: round0(netAFN),
+      netUSD: round2(netUSD),
       debitUSD: round2(s.dUSD),
       creditUSD: round2(s.cUSD),
       debitAFN: round0(s.dAFN),

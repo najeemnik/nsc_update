@@ -342,13 +342,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : DEFAULT_ACTION_BUTTONS;
 
               const activeQuickButtons = configuredButtons
-                .filter(b => (b.enabled !== false && (b as any).isEnabled !== false) && (actionHandlers[b.id] || actionHandlers[(b as any).actionKey]))
+                .filter(b => (b.enabled !== false && b.isEnabled !== false) && (actionHandlers[b.id] || actionHandlers[b.actionKey || b.id]))
                 .sort((a, b) => a.order - b.order);
 
               const topButton = activeQuickButtons[0];
               if (!topButton) return null;
-              const handler = actionHandlers[topButton.id] || actionHandlers[(topButton as any).actionKey];
-              const IconComponent = actionIcons[topButton.id] || actionIcons[(topButton as any).actionKey] || Plus;
+              const handler = actionHandlers[topButton.id] || actionHandlers[topButton.actionKey || topButton.id];
+              const IconComponent = actionIcons[topButton.id] || actionIcons[topButton.actionKey || topButton.id] || Plus;
 
               const colorClass = topButton.color === 'success' ? 'bg-emerald-600 hover:bg-emerald-700' :
                                 topButton.color === 'info' ? 'bg-blue-600 hover:bg-blue-700' :
@@ -367,7 +367,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className={`hidden xl:flex items-center space-x-1.5 rtl:space-x-reverse ${colorClass} ${shapeClass} text-white px-3 py-1.5 text-xs font-bold shadow-xs transition-colors`}
                 >
                   <IconComponent className="w-3.5 h-3.5" />
-                  <span className="whitespace-nowrap">{language === 'en' ? topButton.labelEn : topButton.labelFa}</span>
+                  <span className="whitespace-nowrap">{language === 'en' ? (topButton.labelEn || topButton.label) : (topButton.labelFa || topButton.label)}</span>
                 </button>
               );
             })()}
@@ -466,14 +466,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                       : DEFAULT_ACTION_BUTTONS;
 
                     const activeQuickButtons = configuredButtons
-                      .filter(b => (b.enabled !== false && (b as any).isEnabled !== false) && (actionHandlers[b.id] || actionHandlers[(b as any).actionKey]))
+                      .filter(b => (b.enabled !== false && b.isEnabled !== false) && (actionHandlers[b.id] || actionHandlers[b.actionKey || b.id]))
                       .sort((a, b) => a.order - b.order);
 
                     return activeQuickButtons.map(btn => {
-                      const handler = actionHandlers[btn.id] || actionHandlers[(btn as any).actionKey];
-                      const IconComponent = actionIcons[btn.id] || actionIcons[(btn as any).actionKey] || Plus;
+                      const handler = actionHandlers[btn.id] || actionHandlers[btn.actionKey || btn.id];
+                      const IconComponent = actionIcons[btn.id] || actionIcons[btn.actionKey || btn.id] || Plus;
                       const iconColor = iconColorClasses[btn.color] || 'text-amber-600';
-                      const label = (btn as any).labelFa || btn.label || btn.id;
+                      const label = btn.labelFa || btn.label || btn.id;
 
                       return (
                         <button
