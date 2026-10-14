@@ -291,6 +291,10 @@ interface AppContextType {
   /** نام بخش ذخیره‌سازی ناموفق (null = سالم) — نمایش بنر هشدار در MainApp */
   storageError: string | null;
   clearStorageError: () => void;
+  /** اطلاع امنیتی نشست: منقضی‌شده (خروج اجباری) یا قفل موقت سرور (429) */
+  authNotice: 'session-expired' | 'server-lockout' | null;
+  clearAuthNotice: () => void;
+  notifySessionExpired: () => void;
   importBackupJSON: (json: any) => void;
   clearAuditLogs: () => void;
   formatCurrency: (amount: number | undefined, currency?: string) => string;
@@ -548,6 +552,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // خطای ذخیره‌سازی محلی (QuotaExceeded / حالت خصوصی مرورگر) — باید مرئی باشد (§2.7)
   const [storageError, setStorageError] = useState<string | null>(null);
   const clearStorageError = () => setStorageError(null);
+  const [authNotice, setAuthNotice] = useState<'session-expired' | 'server-lockout' | null>(null);
+  const clearAuthNotice = () => setAuthNotice(null);
 
   // Sync to local storage
   useEffect(() => { if (!saveToStorage('users', users)) { setStorageError('users'); } }, [users]);
@@ -1004,7 +1010,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       aiEnabled: found.permissions?.aiEnabled !== false,
     }));
     logAudit('login', 'user', found.id, `User ${found.name} logged in (${found.role})`, 'Authenticated successfully');
-    backendApi.login(trimmedInput, password || '').catch(() => {});
+    // همگام‌سازی توکن سرور در پس‌زمینه؛ فقط قفل موقت (429) را به کاربر نشان بده
+    backendApi.login(trimmedInput, password || '').then((res) => {
+      if (!res.success && res.status === 429) {
+        setAuthNotice('server-lockout');
+      }
+    }).catch(() => {});
     return { success: true };
   };
 
@@ -3321,6 +3332,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       importBackupJSON,
       storageError,
       clearStorageError,
+      authNotice,
+      clearAuthNotice,
+      notifySessionExpired: () => setAuthNotice('session-expired'),
       clearAuditLogs,
       deleteUser,
       formatCurrency,

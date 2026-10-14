@@ -10,6 +10,8 @@ export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   error?: string;
+  /** HTTP status code (0 = network failure) */
+  status?: number;
 }
 
 class BackendApiService {
@@ -60,16 +62,27 @@ class BackendApiService {
         headers,
       });
 
-      const json = await response.json().catch(() => ({
+      const raw = await response.json().catch(() => ({
         success: false,
         error: `پاسخ نامعتبر از سرور (کد وضعیت: ${response.status})`,
       }));
+      const json: ApiResponse<T> = (raw && typeof raw === 'object')
+        ? { ...raw, status: response.status }
+        : { success: false, error: `پاسخ نامعتبر از سرور (کد وضعیت: ${response.status})`, status: response.status };
+
+      // نشست مرده (توکن منقضی/باطل‌شده یا حساب قفل): توکن را دور بینداز و همه را خبر کن.
+      // (ورود ناموفق مستثنی است — آن خطای اعتبارنامه است نه مرگ نشست)
+      if ((response.status === 401 || response.status === 403) && this.token && !endpoint.startsWith('auth.php?action=login')) {
+        this.setToken(null);
+        window.dispatchEvent(new CustomEvent('nsc:session-expired'));
+      }
 
       return json;
     } catch (err: any) {
       return {
         success: false,
         error: err.message || 'خطا در برقراری ارتباط با سرور هاست',
+        status: 0,
       };
     }
   }

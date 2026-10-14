@@ -50,7 +50,9 @@ export const LoginView: React.FC = () => {
     cycleThemeSchedule,
     connectGoogleDrive,
     isGoogleDriveConnected,
-    googleDriveUserEmail
+    googleDriveUserEmail,
+    authNotice,
+    clearAuthNotice
   } = useApp();
 
   const [authMode, setAuthMode] = useState<'login' | 'forgot_password' | 'reset_otp'>('login');
@@ -145,6 +147,7 @@ export const LoginView: React.FC = () => {
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    clearAuthNotice();
     setLoading(true);
     setTimeout(() => {
       const result = login(loginEmail, loginPassword);
@@ -576,6 +579,13 @@ export const LoginView: React.FC = () => {
                   <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800"></div>
                 </div>
               </div>
+
+              {authNotice === 'session-expired' && (
+                <div className="p-3.5 bg-amber-950/80 border border-amber-600/80 rounded-2xl text-amber-200 text-xs flex items-center gap-2.5 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>{tp('Your server session expired or was revoked on another device. Please sign in again.', 'نشست سرور شما منقضی شد یا در دستگاه دیگری باطل گردید. لطفاً دوباره وارد شوید.', 'ستاسې د سرور ناسته پای ته ورسېده یا په بلې دستګا کې باطله شوه. مهرباني وکړئ بیا ننوځئ.')}</span>
+                </div>
+              )}
 
               {errorMessage && (
                 <div className="p-3.5 bg-rose-950/80 border border-rose-600/80 rounded-2xl text-rose-200 text-xs flex items-center gap-2.5 animate-in fade-in">

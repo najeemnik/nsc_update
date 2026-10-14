@@ -68,7 +68,11 @@ function MainApp() {
     setIsMasterAdminOpen,
     isTabAllowed,
     storageError,
-    clearStorageError
+    clearStorageError,
+    authNotice,
+    clearAuthNotice,
+    notifySessionExpired,
+    logout
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -94,6 +98,16 @@ function MainApp() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]);
+
+  // نشست مرده سرور (401/403): خروج اجباری + پیام ورود مجدد
+  useEffect(() => {
+    const onSessionExpired = () => {
+      notifySessionExpired();
+      logout();
+    };
+    window.addEventListener('nsc:session-expired', onSessionExpired);
+    return () => window.removeEventListener('nsc:session-expired', onSessionExpired);
+  }, [notifySessionExpired, logout]);
 
   // دفتر هفت telemetry: log every section a user opens (who, where, when)
   const { trackFeature } = useApp();
@@ -157,6 +171,16 @@ function MainApp() {
       className="min-h-dscreen bg-canvas text-ink flex flex-col"
       dir={isRtl ? 'rtl' : 'ltr'}
     >
+      {authNotice === 'server-lockout' && (
+        <div className="bg-amber-500 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between gap-3" role="alert">
+          <span>
+            {tp('Server is temporarily rate-limited (too many login attempts). Local mode works fine — online sync will resume automatically.', 'سرور موقتاً محدود شده است (تلاش ورود زیاد). حالت محلی سالم کار می‌کند — همگام‌سازی آنلاین خودکار برمی‌گردد.', 'سرور په موقتي توګه محدود شوی دی (ډېرې ننوتنې). ځايي حالت سم کار کوي — آنلاین همغږي به په اوتومات ډول بېرته شي.')}
+          </span>
+          <button type="button" onClick={clearAuthNotice} className="shrink-0 underline hover:no-underline">
+            {tp('Dismiss', 'بستن', 'بندول')}
+          </button>
+        </div>
+      )}
       {storageError && (
         <div className="bg-red-600 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between gap-3" role="alert">
           <span>
