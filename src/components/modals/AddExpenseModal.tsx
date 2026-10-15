@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentField } from '../docs/AttachmentField';
+import type { AttachmentRef } from '../../types';
 import { Receipt, X, Camera, Clock, Calendar, PlusCircle, Check, Banknote, AlertCircle, ArrowRightLeft, Package, UserCheck, Upload, Building2 } from 'lucide-react';
 import { CurrencyAmountInput } from '../CurrencyAmountInput';
 import { AVAILABLE_UNITS, calculateUnitConversion } from '../../utils/unitConversion';
@@ -70,6 +72,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
   const [billNumber, setBillNumber] = useState('');
   const [documentUrl, setDocumentUrl] = useState<string>('');
   const [notes, setNotes] = useState('');
+  const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -244,6 +247,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
       remainingAmount: Math.max(0, parsedAmount - rawPaid),
       documentUrl: documentUrl || undefined,
       notes: notes.trim() || undefined,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
 
     setIsSubmitting(false);
@@ -255,6 +259,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
       <div className="bg-surface rounded-t-3xl sm:rounded-3xl safe-bottom-only shadow-2xl w-full max-w-full sm:max-w-2xl max-h-[94dvh] flex flex-col overflow-hidden border border-line my-0 sm:my-auto">
         
         {/* Modal Header */}
+        <AttachmentField value={attachments} onChange={setAttachments} />
         <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-slate-900 text-white shrink-0">
           <div className="flex items-center space-x-2 rtl:space-x-reverse">
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">

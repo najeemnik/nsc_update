@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentField } from '../docs/AttachmentField';
+import type { AttachmentRef } from '../../types';
 import { Truck, X, CheckCircle, Calculator, ShieldCheck } from 'lucide-react';
 import { backendApi } from '../../services/backendApi';
 
@@ -24,6 +26,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
   const [serialNumber, setSerialNumber] = useState('');
   const [assignedTo, setAssignedTo] = useState('مسئول ترانسپورت و ماشین‌آلات');
   const [notes, setNotes] = useState('');
+  const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successNotice, setSuccessNotice] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -91,6 +94,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
         assignedPerson: assignedTo.trim() || undefined,
         status: 'active',
         notes: notes.trim() || undefined,
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
 
       const res = await backendApi.recordAsset({
@@ -316,6 +320,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
           </div>
 
           {/* Action Buttons */}
+          <AttachmentField value={attachments} onChange={setAttachments} />
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-line">
             <button
               type="button"

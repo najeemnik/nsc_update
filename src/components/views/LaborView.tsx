@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentClip } from '../docs/AttachmentClip';
 import { 
   UserCheck, 
   Plus, 
@@ -240,6 +241,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
                       <div className="h-10 border border-dashed border-slate-300 rounded-lg mx-auto w-24"></div>
                     </td>
                     <td className="py-3 px-3 text-center print:hidden">
+                      <AttachmentClip refs={l.attachments} section="labor" />
                       <button
                         type="button"
                         onClick={() => handleDelete(l.id, l.workerName)}

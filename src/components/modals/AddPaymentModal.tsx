@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentField } from '../docs/AttachmentField';
+import type { AttachmentRef } from '../../types';
 import { CreditCard, X, Clock, Calendar, CheckCircle, Users, AlertCircle } from 'lucide-react';
 import { PaymentMethod } from '../../types';
 import { CurrencyAmountInput } from '../CurrencyAmountInput';
@@ -41,6 +43,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
   const [bankOrSarafiName, setBankOrSarafiName] = useState('');
   const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
+  const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -143,6 +146,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
       bankOrSarafiName: bankOrSarafiName.trim() || undefined,
       description: description.trim() || `${t.dashboardAddPayment} - ${partyName}`,
       notes: notes.trim() || undefined,
+      attachments: attachments.length > 0 ? attachments : undefined,
       relatedId: relatedId,
       relatedType: (relatedType as any) || undefined,
     });
@@ -161,6 +165,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
       <div className="bg-surface rounded-t-3xl sm:rounded-3xl safe-bottom-only shadow-2xl w-full max-w-full sm:max-w-xl max-h-[92dvh] flex flex-col overflow-hidden border border-line my-0 sm:my-auto">
         
         {/* Header */}
+        <AttachmentField value={attachments} onChange={setAttachments} />
         <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-slate-900 text-white shrink-0">
           <div className="flex items-center space-x-2 rtl:space-x-reverse">
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">

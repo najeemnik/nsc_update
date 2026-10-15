@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentClip } from '../docs/AttachmentClip';
 import { 
   Home, 
   Plus, 
@@ -32,6 +33,7 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
     currentProject, 
     apartments, 
     deleteApartment, 
+    updateApartment, 
     formatCurrency, 
     formatNumber, 
     isApartmentsUnlocked, 
@@ -359,6 +361,9 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {selectedApartment.attachments && selectedApartment.attachments.length > 0 && (
+                    <AttachmentClip refs={selectedApartment.attachments} section="apartments" onRefsChange={next => updateApartment(selectedApartment.id, { attachments: next })} />
+                  )}
                   <button
                     type="button"
                     onClick={() => setShowContract(true)}

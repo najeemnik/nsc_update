@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentClip } from '../docs/AttachmentClip';
 import { 
   Receipt, 
   Plus, 
@@ -12,7 +13,6 @@ import {
   Calendar, 
   Eye, 
   Printer, 
-  Image, 
   CheckCircle2, 
   Clock, 
   AlertCircle,
@@ -41,6 +41,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
     currentProject, 
     expenses, 
     deleteExpense, 
+    updateExpense, 
     formatCurrency, 
     formatNumber, 
     t,
@@ -60,7 +61,6 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<{ exp: Expense; kind: 'bill' | 'grn' } | null>(null);
   const [activeViewMode, setActiveViewMode] = useState<'all' | 'petty_cash'>('all');
 
@@ -400,17 +400,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                     </div>
                   </td>
                   <td className="py-3.5 px-4 text-center">
-                    {exp.receiptUrl || exp.attachments?.[0] ? (
-                      <button
-                        onClick={() => setSelectedReceipt(exp.receiptUrl || exp.attachments?.[0] || '')}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition"
-                        title="View Receipt"
-                      >
-                        <Image className="w-4 h-4" />
-                      </button>
-                    ) : (
-                      <span className="text-slate-300 dark:text-slate-600">—</span>
-                    )}
+                    <AttachmentClip refs={exp.attachments} receiptUrl={exp.receiptUrl} section="expenses" onRefsChange={next => updateExpense(exp.id, { attachments: next })} onReceiptRemove={() => updateExpense(exp.id, { receiptUrl: undefined })} />
                   </td>
                   <td className="py-3.5 px-4 text-center whitespace-nowrap">
                     {canApprove && exp.approvalStatus !== 'approved' && (
@@ -499,30 +489,6 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
     </div>
   )}
 
-      {/* Image Preview Modal */}
-      {selectedDoc && selectedDoc.kind === 'bill' && (
-        <ExpenseBillDoc expense={selectedDoc.exp} onClose={() => setSelectedDoc(null)} />
-      )}
-      {selectedDoc && selectedDoc.kind === 'grn' && (
-        <GoodsReceiptDoc expense={selectedDoc.exp} onClose={() => setSelectedDoc(null)} />
-      )}
-      {selectedReceipt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="relative max-w-2xl w-full bg-surface rounded-3xl p-4 overflow-hidden">
-            <button
-              onClick={() => setSelectedReceipt(null)}
-              className="absolute top-4 right-4 p-2 bg-black/60 text-white rounded-full hover:bg-black transition z-10"
-            >
-              ✕
-            </button>
-            <img 
-              src={selectedReceipt} 
-              alt="Receipt Preview" 
-              className="w-full h-auto max-h-[80vh] object-contain rounded-2xl" 
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 };

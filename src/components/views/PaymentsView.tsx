@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentClip } from '../docs/AttachmentClip';
 import { 
   CreditCard, 
   Plus, 
@@ -30,6 +31,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
     currentProject, 
     payments, 
     deletePayment, 
+    updatePayment, 
     formatCurrency, 
     formatNumber, 
     t, 
@@ -216,6 +218,9 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
                     >
                       <Printer className="w-4 h-4" />
                     </button>
+                    {p.attachments && p.attachments.length > 0 && (
+                      <AttachmentClip refs={p.attachments} section="payments" onRefsChange={next => updatePayment(p.id, { attachments: next })} />
+                    )}
                   </td>
                   <td className="py-3.5 px-4 text-center">
                     {can('payments', 'approve') && docStateOf(p) !== 'posted' && !p.reversedBy && (

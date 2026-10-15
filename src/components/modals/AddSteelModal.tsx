@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentField } from '../docs/AttachmentField';
+import type { AttachmentRef } from '../../types';
 import { Layers, X, Calendar, Clock, Check, Banknote, AlertCircle } from 'lucide-react';
 import { CurrencyAmountInput } from '../CurrencyAmountInput';
 
@@ -29,6 +31,7 @@ export const AddSteelModal: React.FC<AddSteelModalProps> = ({ isOpen, onClose })
   const [scaleWeightKg, setScaleWeightKg] = useState('');
   const [unloadingLocation, setUnloadingLocation] = useState('');
   const [notes, setNotes] = useState('');
+  const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
 
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -126,6 +129,7 @@ export const AddSteelModal: React.FC<AddSteelModalProps> = ({ isOpen, onClose })
       scaleWeightKg: parseFloat(scaleWeightKg) || undefined,
       unloadingLocation: unloadingLocation.trim() || undefined,
       notes: notes.trim() || undefined,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
     setIsSubmitting(false);
     onClose();
@@ -350,6 +354,7 @@ export const AddSteelModal: React.FC<AddSteelModalProps> = ({ isOpen, onClose })
           </div>
 
           {/* Action buttons */}
+          <AttachmentField value={attachments} onChange={setAttachments} />
           <div className="pt-2 flex items-center justify-end space-x-2 rtl:space-x-reverse border-t border-line">
             <button
               type="button"

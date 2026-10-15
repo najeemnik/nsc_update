@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentField } from '../docs/AttachmentField';
+import { AttachmentClip } from '../docs/AttachmentClip';
+import type { AttachmentRef } from '../../types';
 import { ArrowLeftRight, X, CheckCircle, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { backendApi } from '../../services/backendApi';
 import { transferTotals } from '../../utils/partnerFinance';
@@ -37,6 +40,7 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
   const [toAccount, setToAccount] = useState('حساب بانکی پروژه مقصد');
   const [transferDate, setTransferDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState('');
+  const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successNotice, setSuccessNotice] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -102,6 +106,7 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
       toAccount: toAccount.trim() || undefined,
       date: transferDate,
       reason: description.trim() || undefined,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
     // Best-effort server sync (local ledger is the source of truth).
     backendApi.interProjectTransfer({
@@ -333,6 +338,7 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
             </div>
 
             {/* Action Buttons */}
+            <AttachmentField value={attachments} onChange={setAttachments} />
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-line">
               <button
                 type="button"
@@ -374,6 +380,9 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
                       <span className="block text-[10px] text-slate-400 font-mono">
                         {tr.date}{tr.requestedBy ? ` • ${tp('by', 'توسط', 'لخوا')} ${tr.requestedBy}` : ''}{tr.reason ? ` • ${tr.reason}` : ''}
                       </span>
+                      {tr.attachments && tr.attachments.length > 0 && (
+                        <span className="inline-block mt-1 rounded-lg bg-surface-2 px-1"><AttachmentClip refs={tr.attachments} section="projects" /></span>
+                      )}
                     </div>
                     {canApprove ? (
                       <div className="flex items-center gap-1.5 shrink-0">

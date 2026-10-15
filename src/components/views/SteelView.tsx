@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentClip } from '../docs/AttachmentClip';
 import { 
   Layers, 
   Plus, 
@@ -30,6 +31,7 @@ export const SteelView: React.FC<SteelViewProps> = ({ onOpenAddSteel }) => {
     currentProject, 
     steelRecords, 
     deleteSteelRecord, 
+    updateSteelRecord, 
     formatCurrency, 
     formatNumber, 
     t, 
@@ -374,6 +376,7 @@ export const SteelView: React.FC<SteelViewProps> = ({ onOpenAddSteel }) => {
                     {formatCurrency(s.totalCostUSD, 'USD')}
                   </td>
                   <td className="py-3.5 px-4 text-center">
+                    <AttachmentClip refs={s.attachments} section="steel" onRefsChange={next => updateSteelRecord(s.id, { attachments: next })} />
                     <button
                       onClick={() => handleDelete(s.id)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"

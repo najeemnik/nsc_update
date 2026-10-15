@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentField } from '../docs/AttachmentField';
+import type { AttachmentRef } from '../../types';
 import { HardHat, X, Calculator, CheckCircle, UserCheck, DollarSign, MinusCircle } from 'lucide-react';
 import { backendApi } from '../../services/backendApi';
 
@@ -24,6 +26,7 @@ export const AddLaborModal: React.FC<AddLaborModalProps> = ({
   const [payrollDate, setPayrollDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [approvedBy, setApprovedBy] = useState('انجنیر ناظر ساحه');
   const [notes, setNotes] = useState('');
+  const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successNotice, setSuccessNotice] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -82,6 +85,7 @@ export const AddLaborModal: React.FC<AddLaborModalProps> = ({
         paidDate: payrollDate,
         approvedBy: approvedBy.trim(),
         notes: notes.trim() || undefined,
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
 
       const res = await backendApi.createLaborPayroll({
@@ -328,6 +332,7 @@ export const AddLaborModal: React.FC<AddLaborModalProps> = ({
           </div>
 
           {/* Action Buttons */}
+          <AttachmentField value={attachments} onChange={setAttachments} />
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-line">
             <button
               type="button"

@@ -336,6 +336,7 @@ export interface InterProjectTransfer {
   requestedBy?: string;
   approvedBy?: string;
   approvedAt?: string;
+  attachments?: AttachmentRef[];
   createdAt: string;
 }
 
@@ -399,6 +400,29 @@ export type DocStatus = 'draft' | 'approved' | 'posted';
 
 export type PaymentStatus = 'paid' | 'partial' | 'unpaid';
 
+/**
+ * Wave 25: stored file attachment (bill scan, photo, PDF).
+ * Kept inside the owning record so it travels with export/backup/offline queue.
+ * `data` is a data: URL (image/* or application/pdf only — see scanEngine).
+ */
+export interface StoredAttachment {
+  id: string;
+  name: string;
+  kind: 'scan' | 'photo' | 'pdf' | 'file';
+  mime: string;
+  size: number;
+  data: string;
+  pageCount?: number;
+  width?: number;
+  height?: number;
+  uploadedAt: string;
+  uploadedBy?: string;
+  note?: string;
+}
+
+/** Legacy records carry raw data: URL strings; new ones carry objects. */
+export type AttachmentRef = string | StoredAttachment;
+
 export interface Expense {
   id: string;
   projectId: string;
@@ -447,7 +471,7 @@ export interface Expense {
   recipientName?: string;
   recipientId?: string;
   receiptUrl?: string;
-  attachments?: string[];
+  attachments?: AttachmentRef[];
   invoiceNumber?: string;
   createdAt: string;
   createdBy?: string;
@@ -487,6 +511,7 @@ export interface SteelRecord {
   totalCostUSD?: number;
   bundles?: number | string;
   branches?: number | string;
+  attachments?: AttachmentRef[];
   createdAt: string;
 }
 
@@ -522,6 +547,7 @@ export interface ConcreteRecord {
   structurePart?: string;
   invoiceNumber?: string;
   pumpCost?: number;
+  attachments?: AttachmentRef[];
   createdAt: string;
 }
 
@@ -607,6 +633,7 @@ export interface ApartmentUnit {
   downPaymentUSD?: number;
   paidAmountUSD?: number;
   notes?: string;
+  attachments?: AttachmentRef[];
   createdAt: string;
 }
 
@@ -725,6 +752,7 @@ export interface FixedAsset {
   assignedPerson?: string;
   status: 'active' | 'maintenance' | 'idle' | 'disposed';
   notes?: string;
+  attachments?: AttachmentRef[];
   createdAt?: string;
 }
 
@@ -915,6 +943,7 @@ export interface Payment {
   description: string;
   notes?: string;
   documentUrl?: string;
+  attachments?: AttachmentRef[];
   createdAt: string;
   createdBy: string;
 }
@@ -1048,6 +1077,7 @@ export interface LaborRecord {
   paidDate?: string;
   approvedBy?: string;
   notes?: string;
+  attachments?: AttachmentRef[];
   createdAt?: string;
 }
 

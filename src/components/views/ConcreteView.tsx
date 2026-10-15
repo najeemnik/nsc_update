@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentClip } from '../docs/AttachmentClip';
 import { 
   CircleDot, 
   Plus, 
@@ -20,6 +21,7 @@ export const ConcreteView: React.FC<ConcreteViewProps> = ({ onOpenAddConcrete })
     currentProject, 
     concreteRecords, 
     deleteConcreteRecord, 
+    updateConcreteRecord, 
     formatCurrency, 
     formatNumber, 
     t, 
@@ -148,6 +150,7 @@ export const ConcreteView: React.FC<ConcreteViewProps> = ({ onOpenAddConcrete })
                     {formatCurrency(c.totalCostUSD, 'USD')}
                   </td>
                   <td className="py-3.5 px-4 text-center">
+                    <AttachmentClip refs={c.attachments} section="concrete" onRefsChange={next => updateConcreteRecord(c.id, { attachments: next })} />
                     <button
                       onClick={() => handleDelete(c.id)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"

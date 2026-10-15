@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentClip } from '../docs/AttachmentClip';
 import { 
   Truck, 
   Plus, 
@@ -282,6 +283,7 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
                       </button>
                     </td>
                     <td className="py-3 px-3 text-center print:hidden">
+                      <AttachmentClip refs={asset.attachments} section="assets" onRefsChange={next => updateAsset(asset.id, { attachments: next })} />
                       <button
                         type="button"
                         onClick={() => handleDelete(asset.id, asset.name)}

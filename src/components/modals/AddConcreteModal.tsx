@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AttachmentField } from '../docs/AttachmentField';
+import type { AttachmentRef } from '../../types';
 import { CircleDot, X, Calendar, Check, Banknote, AlertCircle } from 'lucide-react';
 import { CurrencyAmountInput } from '../CurrencyAmountInput';
 
@@ -29,6 +31,7 @@ export const AddConcreteModal: React.FC<AddConcreteModalProps> = ({ isOpen, onCl
   const [labReportNumber, setLabReportNumber] = useState('');
   const [mixerCount, setMixerCount] = useState('10');
   const [notes, setNotes] = useState('');
+  const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
 
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,6 +136,7 @@ export const AddConcreteModal: React.FC<AddConcreteModalProps> = ({ isOpen, onCl
       labReportNumber: labReportNumber.trim() || undefined,
       mixerCount: parseInt(mixerCount) || undefined,
       notes: notes.trim() || undefined,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
     setIsSubmitting(false);
     onClose();
@@ -372,6 +376,7 @@ export const AddConcreteModal: React.FC<AddConcreteModalProps> = ({ isOpen, onCl
           </div>
 
           {/* Action buttons */}
+          <AttachmentField value={attachments} onChange={setAttachments} />
           <div className="pt-2 flex items-center justify-end space-x-2 rtl:space-x-reverse border-t border-line">
             <button
               type="button"
