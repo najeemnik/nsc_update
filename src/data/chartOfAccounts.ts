@@ -27,7 +27,7 @@ export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expens
 export type NormalBalance = 'debit' | 'credit';
 
 export interface Account {
-  /** 4-digit account code, e.g. '5100' */
+  /** 4-digit main code (e.g. '5100') or 6-digit leaf code (e.g. '595008') */
   code: string;
   type: AccountType;
   /** The side on which the account normally increases */
@@ -52,6 +52,11 @@ export interface Account {
   /** Which implementation phase the account becomes actively posted to */
   activePhase?: 1 | 2 | 3;
   description?: string;
+  /**
+   * Wave 14: small/optional leaf inside its trade — shown collapsed under
+   * "small expenses" in the budget sheet instead of the main list.
+   */
+  isBudgetMinor?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -126,6 +131,155 @@ export const CHART_OF_ACCOUNTS: Account[] = [
   { code: '5990', type: 'expense', normalBalance: 'debit', parentCode: '5000', nameEn: 'Other Project Expenses', nameFa: 'سایر مصارف پروژه', namePs: 'د پروژې نور لګښتونه', system: true, activePhase: 1,
     description: 'Default/fallback bucket for unmapped or custom expense categories.' },
 
+  /* ============ 5xxx LEAF ACCOUNTS — Wave 14 (budget planning detail) ============ */
+  /* 6-digit leaves (main + 2 digits). Planning-only: actuals post to the 4-digit */
+  /* main; budget reports roll leaves up via toBudgetMain(). isBudgetMinor leaves */
+  /* are the optional "small expenses" in the budget sheet. */
+  /* ----- 5100 detail ----- */
+  { code: '510001', type: 'expense', normalBalance: 'debit', parentCode: '5100', nameEn: 'Rebar steel', nameFa: 'سیخ‌گرد ساختمانی', namePs: 'ساختماني سیخ', system: true, activePhase: 1 },
+  { code: '510002', type: 'expense', normalBalance: 'debit', parentCode: '5100', nameEn: 'Binding wire', nameFa: 'سیم آرماتوربندی', namePs: 'د سیخ تړلو سیم', system: true, activePhase: 1 },
+  { code: '510003', type: 'expense', normalBalance: 'debit', parentCode: '5100', nameEn: 'Cover blocks & spacers', nameFa: 'کاور بلاک و فاصله‌گذار', namePs: 'کاور بلاک او واټن ساتونکي', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '510004', type: 'expense', normalBalance: 'debit', parentCode: '5100', nameEn: 'Welding electrodes', nameFa: 'الکترود جوشکاری', namePs: 'د وېلډینګ الکترود', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '510005', type: 'expense', normalBalance: 'debit', parentCode: '5100', nameEn: 'Cutting & grinding discs', nameFa: 'صفحه برش و سنگ فرز', namePs: 'د پرې کولو او ګرینډ ډیسکونه', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '510006', type: 'expense', normalBalance: 'debit', parentCode: '5100', nameEn: 'Bar-bending & fixing labor', nameFa: 'مزد سیخ‌بند و آرماتوربند', namePs: 'د سیخ تړونکو مزد', system: true, activePhase: 1 },
+  { code: '510007', type: 'expense', normalBalance: 'debit', parentCode: '5100', nameEn: 'Steel cutting machine use', nameFa: 'مصرف ماشین برش سیخ', namePs: 'د سیخ پرې کولو ماشین', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '510008', type: 'expense', normalBalance: 'debit', parentCode: '5100', nameEn: 'Rebar lab testing', nameFa: 'تست لابراتواری سیخ', namePs: 'د سیخ لابراتواري معاینه', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5200 detail ----- */
+  { code: '520001', type: 'expense', normalBalance: 'debit', parentCode: '5200', nameEn: 'Ready-mix concrete', nameFa: 'کانکریت آماده (ریدی‌مکس)', namePs: 'چمتو کانکریټ', system: true, activePhase: 1 },
+  { code: '520002', type: 'expense', normalBalance: 'debit', parentCode: '5200', nameEn: 'Concrete pump rental', nameFa: 'کرایه پمپ کانکریت', namePs: 'د کانکریټو پمپ کرایه', system: true, activePhase: 1 },
+  { code: '520003', type: 'expense', normalBalance: 'debit', parentCode: '5200', nameEn: 'Pump operator & pipeline team', nameFa: 'مزد تیم پمپ و لوله', namePs: 'د پمپ او پایپ ټیم مزد', system: true, activePhase: 1 },
+  { code: '520004', type: 'expense', normalBalance: 'debit', parentCode: '5200', nameEn: 'Vibrators & compaction', nameFa: 'ویبراتور و تراکم', namePs: 'ویبراتور او ټینګښت', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '520005', type: 'expense', normalBalance: 'debit', parentCode: '5200', nameEn: 'Curing (water, jute, chemical)', nameFa: 'عمل‌آوری کانکریت (آب، جوټ)', namePs: 'د کانکریټو روزنه', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '520006', type: 'expense', normalBalance: 'debit', parentCode: '5200', nameEn: 'Cube/cylinder lab testing', nameFa: 'تست مقاومت کانکریت', namePs: 'د کانکریټو مقاومت معاینه', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '520007', type: 'expense', normalBalance: 'debit', parentCode: '5200', nameEn: 'Concrete pouring labor gang', nameFa: 'مزد تیم کانکریت‌ریزی', namePs: 'د کانکریټو اچولو ټیم مزد', system: true, activePhase: 1 },
+  { code: '520008', type: 'expense', normalBalance: 'debit', parentCode: '5200', nameEn: 'Admixtures & additives', nameFa: 'مواد افزودنی کانکریت', namePs: 'د کانکریټو اضافي مواد', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5300 detail ----- */
+  { code: '530001', type: 'expense', normalBalance: 'debit', parentCode: '5300', nameEn: 'Portland cement', nameFa: 'سیمنت پرتلند', namePs: 'پرټلنډ سمنټ', system: true, activePhase: 1 },
+  { code: '530002', type: 'expense', normalBalance: 'debit', parentCode: '5300', nameEn: 'White cement', nameFa: 'سیمنت سفید', namePs: 'سپین سمنټ', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '530003', type: 'expense', normalBalance: 'debit', parentCode: '5300', nameEn: 'Waterproof cement compounds', nameFa: 'ترکیبات سیمنت ضدآب', namePs: 'د اوبو ضد سمنټي مواد', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5400 detail ----- */
+  { code: '540001', type: 'expense', normalBalance: 'debit', parentCode: '5400', nameEn: 'River sand', nameFa: 'ریگ دریایی', namePs: 'د سیند شګه', system: true, activePhase: 1 },
+  { code: '540002', type: 'expense', normalBalance: 'debit', parentCode: '5400', nameEn: 'Washed gravel', nameFa: 'شن شسته', namePs: 'وینځل شوی ریګ', system: true, activePhase: 1 },
+  { code: '540003', type: 'expense', normalBalance: 'debit', parentCode: '5400', nameEn: 'Crushed stone aggregate', nameFa: 'سنگ شکسته (کرش)', namePs: 'مات شوی تیږه', system: true, activePhase: 1 },
+  { code: '540004', type: 'expense', normalBalance: 'debit', parentCode: '5400', nameEn: 'Sieving & washing charges', nameFa: 'مصرف غربیل و شستشو', namePs: 'د چاڼ او وینځلو لګښت', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5500 detail ----- */
+  { code: '550001', type: 'expense', normalBalance: 'debit', parentCode: '5500', nameEn: 'Concrete blocks', nameFa: 'بلاک سیمنتی', namePs: 'سمنټي بلاک', system: true, activePhase: 1 },
+  { code: '550002', type: 'expense', normalBalance: 'debit', parentCode: '5500', nameEn: 'Bricks', nameFa: 'آجر', namePs: 'خښتې', system: true, activePhase: 1 },
+  { code: '550003', type: 'expense', normalBalance: 'debit', parentCode: '5500', nameEn: 'Mortar materials', nameFa: 'مصالح ملات', namePs: 'د مسالې مواد', system: true, activePhase: 1 },
+  { code: '550004', type: 'expense', normalBalance: 'debit', parentCode: '5500', nameEn: 'Steel lintels', nameFa: 'لنتل فلزی', namePs: 'فلزي لنټل', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '550005', type: 'expense', normalBalance: 'debit', parentCode: '5500', nameEn: 'Wall ties & anchors', nameFa: 'بست و انکر دیوار', namePs: 'د دېوال بست او انکر', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '550006', type: 'expense', normalBalance: 'debit', parentCode: '5500', nameEn: 'Mason wages', nameFa: 'مزد بنّا', namePs: 'د بنایانو مزد', system: true, activePhase: 1 },
+  { code: '550007', type: 'expense', normalBalance: 'debit', parentCode: '5500', nameEn: 'Mason helpers', nameFa: 'مزد شاگرد بنّا', namePs: 'د بنایانو شاګردانو مزد', system: true, activePhase: 1 },
+  /* ----- 5600 detail ----- */
+  { code: '560001', type: 'expense', normalBalance: 'debit', parentCode: '5600', nameEn: 'Daily unskilled laborers', nameFa: 'کارگران روزمزد', namePs: 'ورځني کارګران', system: true, activePhase: 1 },
+  { code: '560002', type: 'expense', normalBalance: 'debit', parentCode: '5600', nameEn: 'Site foreman', nameFa: 'سرکارگر ساحه', namePs: 'د ساحې سرکارګر', system: true, activePhase: 1 },
+  { code: '560003', type: 'expense', normalBalance: 'debit', parentCode: '5600', nameEn: 'Worker meals & food', nameFa: 'نان و غذای کارگران', namePs: 'د کارګرانو ډوډۍ او خواړه', system: true, activePhase: 1 },
+  { code: '560004', type: 'expense', normalBalance: 'debit', parentCode: '5600', nameEn: 'Safety gear & PPE', nameFa: 'وسایل ایمنی', namePs: 'د خوندیتوب وسایل', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '560005', type: 'expense', normalBalance: 'debit', parentCode: '5600', nameEn: 'Drinking water & first aid', nameFa: 'آب آشامیدنی و کمک‌های اولیه', namePs: 'څښاک اوبه او لومړنۍ مرسته', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5700 detail ----- */
+  { code: '570001', type: 'expense', normalBalance: 'debit', parentCode: '5700', nameEn: 'Excavator rental', nameFa: 'کرایه اکسکواتور', namePs: 'د اکسکواتور کرایه', system: true, activePhase: 1 },
+  { code: '570002', type: 'expense', normalBalance: 'debit', parentCode: '5700', nameEn: 'Crane & hoist rental', nameFa: 'کرایه کرین و بالابر', namePs: 'د کرین او لفټ کرایه', system: true, activePhase: 1 },
+  { code: '570003', type: 'expense', normalBalance: 'debit', parentCode: '5700', nameEn: 'Concrete mixer rental', nameFa: 'کرایه میکسر', namePs: 'د میکسر کرایه', system: true, activePhase: 1 },
+  { code: '570004', type: 'expense', normalBalance: 'debit', parentCode: '5700', nameEn: 'Compactor & roller rental', nameFa: 'کرایه کمپکتور و غلتک', namePs: 'د کمپکټور کرایه', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '570005', type: 'expense', normalBalance: 'debit', parentCode: '5700', nameEn: 'Water pump & dewatering', nameFa: 'پمپ آب و خشک‌کردن', namePs: 'د اوبو پمپ', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '570006', type: 'expense', normalBalance: 'debit', parentCode: '5700', nameEn: 'Machine operators wages', nameFa: 'مزد اوپراتور ماشین‌آلات', namePs: 'د ماشین چلوونکو مزد', system: true, activePhase: 1 },
+  { code: '570007', type: 'expense', normalBalance: 'debit', parentCode: '5700', nameEn: 'Small tools & consumables', nameFa: 'ابزار کوچک و مصرفی', namePs: 'واړه وسایل', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '570008', type: 'expense', normalBalance: 'debit', parentCode: '5700', nameEn: 'Equipment repair & maintenance', nameFa: 'ترمیم و نگهداری تجهیزات', namePs: 'د تجهیزاتو ترمیم', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5800 detail ----- */
+  { code: '580001', type: 'expense', normalBalance: 'debit', parentCode: '5800', nameEn: 'Material haulage (trucks)', nameFa: 'حمل مصالح با موتر', namePs: 'د موادو لېږد', system: true, activePhase: 1 },
+  { code: '580002', type: 'expense', normalBalance: 'debit', parentCode: '5800', nameEn: 'Debris & soil removal', nameFa: 'انتقال آوار و خاک اضافه', namePs: 'د کثافاتو او خاورو لېږدول', system: true, activePhase: 1 },
+  { code: '580003', type: 'expense', normalBalance: 'debit', parentCode: '5800', nameEn: 'Loading & unloading labor', nameFa: 'مزد بارگیری و تخلیه', namePs: 'د بارولو او تشولو مزد', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '580004', type: 'expense', normalBalance: 'debit', parentCode: '5800', nameEn: 'Driver wages', nameFa: 'مزد دریور', namePs: 'د ډرېور مزد', system: true, activePhase: 1 },
+  /* ----- 5900 detail ----- */
+  { code: '590001', type: 'expense', normalBalance: 'debit', parentCode: '5900', nameEn: 'Site electricity', nameFa: 'برق ساحه', namePs: 'د ساحې برق', system: true, activePhase: 1 },
+  { code: '590002', type: 'expense', normalBalance: 'debit', parentCode: '5900', nameEn: 'Site water', nameFa: 'آب ساحه', namePs: 'د ساحې اوبه', system: true, activePhase: 1 },
+  { code: '590003', type: 'expense', normalBalance: 'debit', parentCode: '5900', nameEn: 'Diesel & fuel', nameFa: 'دیزل و تیل', namePs: 'ډیزل او تیل', system: true, activePhase: 1 },
+  { code: '590004', type: 'expense', normalBalance: 'debit', parentCode: '5900', nameEn: 'Generator service & maintenance', nameFa: 'سرویس جنراتور', namePs: 'د جنراتور سرویس', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5910 detail ----- */
+  { code: '591001', type: 'expense', normalBalance: 'debit', parentCode: '5910', nameEn: 'Plywood & shuttering sheets', nameFa: 'پلای‌وود و تخته قالب', namePs: 'پلایوډ او قالب تخته', system: true, activePhase: 1 },
+  { code: '591002', type: 'expense', normalBalance: 'debit', parentCode: '5910', nameEn: 'Timber, joists & battens', nameFa: 'چوب، جوست و زیرکوب', namePs: 'لرګي او جوېسټ', system: true, activePhase: 1 },
+  { code: '591003', type: 'expense', normalBalance: 'debit', parentCode: '5910', nameEn: 'Steel props & jacks', nameFa: 'پایه فلزی و جک', namePs: 'فلزي پایې او جک', system: true, activePhase: 1 },
+  { code: '591004', type: 'expense', normalBalance: 'debit', parentCode: '5910', nameEn: 'Nails, screws & bolts', nameFa: 'میخ، پیچ و بولت', namePs: 'مېخونه، پېچ او بولټ', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '591005', type: 'expense', normalBalance: 'debit', parentCode: '5910', nameEn: 'Form oil', nameFa: 'روغن قالب', namePs: 'د قالب غوړي', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '591006', type: 'expense', normalBalance: 'debit', parentCode: '5910', nameEn: 'Scaffolding rental & fixing', nameFa: 'کرایه و بستن داربست', namePs: 'د داربست کرایه او تړل', system: true, activePhase: 1 },
+  { code: '591007', type: 'expense', normalBalance: 'debit', parentCode: '5910', nameEn: 'Formwork carpenter wages', nameFa: 'مزد نجار قالب‌بند', namePs: 'د قالب تړونکو مزد', system: true, activePhase: 1 },
+  { code: '591008', type: 'expense', normalBalance: 'debit', parentCode: '5910', nameEn: 'Dismantling & cleaning labor', nameFa: 'مزد بازکردن و پاک‌کاری قالب', namePs: 'د قالب خلاصولو مزد', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5920 detail ----- */
+  { code: '592001', type: 'expense', normalBalance: 'debit', parentCode: '5920', nameEn: 'Wires & cables', nameFa: 'سیم و کیبل', namePs: 'سیم او کېبل', system: true, activePhase: 1 },
+  { code: '592002', type: 'expense', normalBalance: 'debit', parentCode: '5920', nameEn: 'Conduits & pipes', nameFa: 'لوله برق و خرطومی', namePs: 'د برق پایپونه', system: true, activePhase: 1 },
+  { code: '592003', type: 'expense', normalBalance: 'debit', parentCode: '5920', nameEn: 'Distribution boards & breakers', nameFa: 'تابلو برق و فیوز', namePs: 'د برق تابلو او فیوز', system: true, activePhase: 1 },
+  { code: '592004', type: 'expense', normalBalance: 'debit', parentCode: '5920', nameEn: 'Switches & sockets', nameFa: 'کلید و ساکت', namePs: 'سویچ او ساکټ', system: true, activePhase: 1 },
+  { code: '592005', type: 'expense', normalBalance: 'debit', parentCode: '5920', nameEn: 'Light fixtures & bulbs', nameFa: 'چراغ و گروپ', namePs: 'څراغونه او ګروپونه', system: true, activePhase: 1 },
+  { code: '592006', type: 'expense', normalBalance: 'debit', parentCode: '5920', nameEn: 'Earthing materials', nameFa: 'مصالح ارتینگ', namePs: 'د ارتنګ مواد', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '592007', type: 'expense', normalBalance: 'debit', parentCode: '5920', nameEn: 'Electrician wages', nameFa: 'مزد برق‌کار', namePs: 'د برقکار مزد', system: true, activePhase: 1 },
+  { code: '592008', type: 'expense', normalBalance: 'debit', parentCode: '5920', nameEn: 'Testing & commissioning', nameFa: 'تست و راه‌اندازی برق', namePs: 'د برق ټیسټ', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5930 detail ----- */
+  { code: '593001', type: 'expense', normalBalance: 'debit', parentCode: '5930', nameEn: 'Water supply pipes', nameFa: 'لوله آب', namePs: 'د اوبو پایپونه', system: true, activePhase: 1 },
+  { code: '593002', type: 'expense', normalBalance: 'debit', parentCode: '5930', nameEn: 'Fittings, valves & elbows', nameFa: 'اتصالات، والو و زانو', namePs: 'فټنګ، والو او زنګن', system: true, activePhase: 1 },
+  { code: '593003', type: 'expense', normalBalance: 'debit', parentCode: '5930', nameEn: 'Sanitary ware (WC, basins)', nameFa: 'لوازم صحی (کمود، دستشویی)', namePs: 'صحي سامانونه', system: true, activePhase: 1 },
+  { code: '593004', type: 'expense', normalBalance: 'debit', parentCode: '5930', nameEn: 'Faucets & mixers', nameFa: 'شیرآلات', namePs: 'شېرونه', system: true, activePhase: 1 },
+  { code: '593005', type: 'expense', normalBalance: 'debit', parentCode: '5930', nameEn: 'Water tanks', nameFa: 'تانکر آب', namePs: 'د اوبو ټانکۍ', system: true, activePhase: 1 },
+  { code: '593006', type: 'expense', normalBalance: 'debit', parentCode: '5930', nameEn: 'Sewage & drainage pipes', nameFa: 'لوله فاضلاب', namePs: 'د فاضلاب پایپونه', system: true, activePhase: 1 },
+  { code: '593007', type: 'expense', normalBalance: 'debit', parentCode: '5930', nameEn: 'Plumber wages', nameFa: 'مزد لوله‌کش', namePs: 'د نلدوان مزد', system: true, activePhase: 1 },
+  { code: '593008', type: 'expense', normalBalance: 'debit', parentCode: '5930', nameEn: 'Pressure testing', nameFa: 'تست فشار لوله', namePs: 'د پایپ فشار ټیسټ', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5940 detail ----- */
+  { code: '594001', type: 'expense', normalBalance: 'debit', parentCode: '5940', nameEn: 'Wooden doors', nameFa: 'دروازه‌های چوبی', namePs: 'لرګینې دروازې', system: true, activePhase: 1 },
+  { code: '594002', type: 'expense', normalBalance: 'debit', parentCode: '5940', nameEn: 'Steel & PVC doors', nameFa: 'دروازه‌های فلزی و PVC', namePs: 'فلزي او PVC دروازې', system: true, activePhase: 1 },
+  { code: '594003', type: 'expense', normalBalance: 'debit', parentCode: '5940', nameEn: 'Window frames', nameFa: 'چوکات ورک', namePs: 'د ورکو چوکاټونه', system: true, activePhase: 1 },
+  { code: '594004', type: 'expense', normalBalance: 'debit', parentCode: '5940', nameEn: 'Glass & glazing', nameFa: 'شیشه و نصب آن', namePs: 'ښیښه', system: true, activePhase: 1 },
+  { code: '594005', type: 'expense', normalBalance: 'debit', parentCode: '5940', nameEn: 'Locks, handles & hinges', nameFa: 'قفل، دستگیره و لولا', namePs: 'قلف، لاسني او لوځې', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '594006', type: 'expense', normalBalance: 'debit', parentCode: '5940', nameEn: 'Carpentry & installation wages', nameFa: 'مزد نجاری و نصب', namePs: 'د نجارۍ او نصب مزد', system: true, activePhase: 1 },
+  { code: '594007', type: 'expense', normalBalance: 'debit', parentCode: '5940', nameEn: 'Varnish & wood polish', nameFa: 'وارنیش و پولیش چوب', namePs: 'وارنیش او پولیش', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5950 detail ----- */
+  { code: '595001', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Floor tiles', nameFa: 'کاشی کف', namePs: 'د فرش کاشي', system: true, activePhase: 1 },
+  { code: '595002', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Wall tiles', nameFa: 'کاشی دیوار', namePs: 'د دېوال کاشي', system: true, activePhase: 1 },
+  { code: '595003', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Tile adhesive & mortar', nameFa: 'چسب و ملات کاشی', namePs: 'د کاشۍ چسپ', system: true, activePhase: 1 },
+  { code: '595004', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Grout', nameFa: 'بندکشی (گروت)', namePs: 'ګراوټ', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '595005', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Tile fixer wages', nameFa: 'مزد کاشی‌کار', namePs: 'د کاشۍ کار مزد', system: true, activePhase: 1 },
+  { code: '595006', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Gypsum plaster', nameFa: 'گچ', namePs: 'ګچ', system: true, activePhase: 1 },
+  { code: '595007', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Plasterer wages', nameFa: 'مزد گچ‌کار', namePs: 'د ګچ کار مزد', system: true, activePhase: 1 },
+  { code: '595008', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Emulsion/plastic paint', nameFa: 'رنگ پلاستیک', namePs: 'پلاستیکي رنګ', system: true, activePhase: 1 },
+  { code: '595009', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Oil & enamel paint', nameFa: 'رنگ روغنی', namePs: 'روغني رنګ', system: true, activePhase: 1 },
+  { code: '595010', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Primer & sealer', nameFa: 'پرایمر و سیلر', namePs: 'پرایمر', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '595011', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Wall putty', nameFa: 'بتونه', namePs: 'پوټي', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '595012', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Sandpaper & abrasives', nameFa: 'ریگمال', namePs: 'رېګمال', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '595013', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Brushes', nameFa: 'برس', namePs: 'برسونه', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '595014', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Rollers & trays', nameFa: 'غلتک و تشت رنگ', namePs: 'رولرونه', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '595015', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Masking tape & covers', nameFa: 'چسپ محافظ و نایلون', namePs: 'محافظتي ټېپ', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '595016', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Thinner & solvents', nameFa: 'تینر', namePs: 'تینر', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '595017', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Spray machine rental', nameFa: 'کرایه ماشین رنگ‌پاشی', namePs: 'د رنګ پاشلو ماشین', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '595018', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Painter wages', nameFa: 'مزد رنگمال', namePs: 'د رنګمال مزد', system: true, activePhase: 1 },
+  { code: '595019', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Painter helpers', nameFa: 'مزد شاگرد رنگمال', namePs: 'د رنګمال شاګرد', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '595020', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Final cleaning', nameFa: 'پاک‌کاری نهایی تعمیر', namePs: 'د ودانۍ وروستۍ پاکوالي', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '595021', type: 'expense', normalBalance: 'debit', parentCode: '5950', nameEn: 'Touch-ups & snagging', nameFa: 'ریزه‌کاری و اصلاحات', namePs: 'وړې جوړونې', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5960 detail ----- */
+  { code: '596001', type: 'expense', normalBalance: 'debit', parentCode: '5960', nameEn: 'Excavation work', nameFa: 'خاکبرداری', namePs: 'کېندنه', system: true, activePhase: 1 },
+  { code: '596002', type: 'expense', normalBalance: 'debit', parentCode: '5960', nameEn: 'Shoring & soil support', nameFa: 'تکیه‌گاه و تحکیم خاک', namePs: 'د خاورې ټینګښت', system: true, activePhase: 1 },
+  { code: '596003', type: 'expense', normalBalance: 'debit', parentCode: '5960', nameEn: 'Backfill & compaction', nameFa: 'خاک‌ریزی و تراکم', namePs: 'خاورې اچول او ټینګول', system: true, activePhase: 1 },
+  { code: '596004', type: 'expense', normalBalance: 'debit', parentCode: '5960', nameEn: 'Soil testing', nameFa: 'تست خاک', namePs: 'د خاورې معاینه', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '596005', type: 'expense', normalBalance: 'debit', parentCode: '5960', nameEn: 'Elevator supply', nameFa: 'خرید لیفت', namePs: 'د لفټ پېرل', system: true, activePhase: 1 },
+  { code: '596006', type: 'expense', normalBalance: 'debit', parentCode: '5960', nameEn: 'Elevator installation', nameFa: 'نصب لیفت', namePs: 'د لفټ نصب', system: true, activePhase: 1 },
+  { code: '596007', type: 'expense', normalBalance: 'debit', parentCode: '5960', nameEn: 'Elevator initial service', nameFa: 'سرویس اولیه لیفت', namePs: 'د لفټ لومړنی سرویس', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5970 detail ----- */
+  { code: '597001', type: 'expense', normalBalance: 'debit', parentCode: '5970', nameEn: 'Municipality & construction permit', nameFa: 'جواز شاروالی و اعمار', namePs: 'د ښاروالۍ جواز', system: true, activePhase: 1 },
+  { code: '597002', type: 'expense', normalBalance: 'debit', parentCode: '5970', nameEn: 'Architectural design fee', nameFa: 'فیس دیزاین', namePs: 'د ډیزاین فیس', system: true, activePhase: 1 },
+  { code: '597003', type: 'expense', normalBalance: 'debit', parentCode: '5970', nameEn: 'Structural engineering fee', nameFa: 'فیس انجنیری ساختمان', namePs: 'د ساختمان انجنیرۍ فیس', system: true, activePhase: 1 },
+  { code: '597004', type: 'expense', normalBalance: 'debit', parentCode: '5970', nameEn: 'Site supervision fee', nameFa: 'فیس نظارت ساحه', namePs: 'د ساحې څارنې فیس', system: true, activePhase: 1 },
+  { code: '597005', type: 'expense', normalBalance: 'debit', parentCode: '5970', nameEn: 'Soil survey', nameFa: 'سروی خاک', namePs: 'د خاورې سروې', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '597006', type: 'expense', normalBalance: 'debit', parentCode: '5970', nameEn: 'Legal & documentation', nameFa: 'اسناد حقوقی و قباله', namePs: 'حقوقي سندونه', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '597007', type: 'expense', normalBalance: 'debit', parentCode: '5970', nameEn: 'Printing & copies', nameFa: 'چاپ نقشه و کاپی', namePs: 'د نقشو چاپ', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5980 detail ----- */
+  { code: '598001', type: 'expense', normalBalance: 'debit', parentCode: '5980', nameEn: 'Temporary fencing & gate', nameFa: 'دیوار موقت و دروازه ساحه', namePs: 'لنډمهاله دېوال', system: true, activePhase: 1 },
+  { code: '598002', type: 'expense', normalBalance: 'debit', parentCode: '5980', nameEn: 'Guard room & site office', nameFa: 'اتاق نگهبان و دفتر ساحه', namePs: 'د ساتونکي خونه', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '598003', type: 'expense', normalBalance: 'debit', parentCode: '5980', nameEn: 'Site guard wages', nameFa: 'مزد نگهبان', namePs: 'د ساتونکي مزد', system: true, activePhase: 1 },
+  { code: '598004', type: 'expense', normalBalance: 'debit', parentCode: '5980', nameEn: 'Site lighting', nameFa: 'روشنایی ساحه', namePs: 'د ساحې رڼا', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '598005', type: 'expense', normalBalance: 'debit', parentCode: '5980', nameEn: 'Office supplies', nameFa: 'لوازم دفتر ساحه', namePs: 'د دفتر سامانونه', system: true, activePhase: 1, isBudgetMinor: true },
+  { code: '598006', type: 'expense', normalBalance: 'debit', parentCode: '5980', nameEn: 'Site signage', nameFa: 'تابلوی پروژه', namePs: 'د پروژې تابلو', system: true, activePhase: 1, isBudgetMinor: true },
+  /* ----- 5990 detail ----- */
+  { code: '599001', type: 'expense', normalBalance: 'debit', parentCode: '5990', nameEn: 'Contingency reserve', nameFa: 'احتیاط (پیش‌بینی‌نشده)', namePs: 'احتیاطي زېرمه', system: true, activePhase: 1 },
+  { code: '599002', type: 'expense', normalBalance: 'debit', parentCode: '5990', nameEn: 'Price escalation allowance', nameFa: 'افزایش نرخ‌ها', namePs: 'د بیو لوړېدل', system: true, activePhase: 1 },
+  { code: '599003', type: 'expense', normalBalance: 'debit', parentCode: '5990', nameEn: 'Miscellaneous', nameFa: 'متفرقه', namePs: 'متفرقه', system: true, activePhase: 1, isBudgetMinor: true },
+
   /* ================= 6000 OPERATING & ADMIN (COMPANY) ================= */
   { code: '6000', type: 'expense', normalBalance: 'debit', nameEn: 'Operating & Admin Expenses', nameFa: 'هزینه‌های اداری عمومی (غیر از پروژه)', namePs: 'عمومي اداري لګښتونه', isHeader: true, system: true,
     description: 'Company-level overheads — NOT project costs, kept out of project P&L.' },
@@ -175,6 +329,45 @@ export function getPostingAccounts(): Account[] {
 /** Accounts belonging to a top-level group, e.g. groupCode '5000' */
 export function getAccountsInGroup(groupCode: string): Account[] {
   return CHART_OF_ACCOUNTS.filter(a => a.code.startsWith(groupCode[0]));
+}
+
+/**
+ * Roll a budget code up to its 4-digit trade main (leaf → parent main).
+ * Actual costs post to mains, so leaf-level budgets compare at main level.
+ * Unknown codes pass through untouched (computeBudgetReport skips them).
+ */
+export function toBudgetMain(code: string): string {
+  if (!code || code.length <= 4) return code;
+  const acc = ACCOUNT_INDEX.get(code);
+  if (acc?.parentCode) return acc.parentCode;
+  return code.slice(0, 4);
+}
+
+/** One trade (main + its leaf accounts) for the budget sheet form. */
+export interface BudgetTradeGroup {
+  main: Account;
+  /** Always-visible planning lines */
+  majors: Account[];
+  /** Optional small expenses (collapsed by default) */
+  minors: Account[];
+}
+
+/**
+ * All plannable 5xxx trades with their leaves (Wave 14).
+ * 5050 COGS is excluded — it is system-computed, never budgeted by hand.
+ */
+export function getBudgetTradeGroups(): BudgetTradeGroup[] {
+  const mains = CHART_OF_ACCOUNTS.filter(
+    a => a.parentCode === '5000' && !a.isHeader && a.code !== '5050',
+  );
+  return mains.map(main => {
+    const leaves = CHART_OF_ACCOUNTS.filter(a => a.parentCode === main.code);
+    return {
+      main,
+      majors: leaves.filter(l => !l.isBudgetMinor),
+      minors: leaves.filter(l => !!l.isBudgetMinor),
+    };
+  });
 }
 
 /**
@@ -259,6 +452,7 @@ export const EXPENSE_CATEGORY_ACCOUNT_MAP: Record<string, string> = {
   'doors & windows': '5940', 'doorswindows': '5940',
 
   // ---- 5950 Tiles, Paint & Finishing ----
+  'رنگ': '5950', 'رنگمالی': '5950', 'گچ': '5950', 'گچ‌کاری': '5950',
   'paint': '5950', 'paint & finishes': '5950', 'painting': '5950', 'painting & finishes': '5950',
   'finishing': '5950', 'finishing materials': '5950',
   'tiles': '5950', 'tiles & flooring': '5950',

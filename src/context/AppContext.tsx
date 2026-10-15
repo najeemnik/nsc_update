@@ -154,7 +154,7 @@ interface AppContextType {
   projects: Project[];
   currentProject: Project | null;
   setCurrentProjectId: (id: string) => void;
-  addProject: (project: Omit<Project, 'id' | 'createdAt'>) => void;
+  addProject: (project: Omit<Project, 'id' | 'createdAt'>) => Project;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
   transferProject: (transferData: Omit<import('../types').ProjectTransferEvent, 'id' | 'createdAt'>) => import('../types').ProjectTransferEvent;
@@ -1493,7 +1493,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Projects CRUD
-  const addProject = (projectData: Omit<Project, 'id' | 'createdAt'>) => {
+  const addProject = (projectData: Omit<Project, 'id' | 'createdAt'>): Project => {
     const newProject: Project = {
       ...projectData,
       id: 'proj-' + Date.now(),
@@ -1579,6 +1579,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       expectedFinish: newProject.expectedCompletionDate,
       status: newProject.status,
     }).catch(() => {});
+    return newProject;
   };
 
   const updateProject = (id: string, updates: Partial<Project>) => {

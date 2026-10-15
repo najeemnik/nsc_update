@@ -765,7 +765,7 @@ export interface TrialBalanceRow {
 export interface ProjectBudget {
   id: string;
   projectId: string;
-  /** 4-digit COA code (normally a 5xxx project-cost account) */
+  /** COA code: 4-digit trade main (e.g. '5950') or 6-digit leaf (e.g. '595008') */
   accountCode: string;
   amount: number;
   currency: string;

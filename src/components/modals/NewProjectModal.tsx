@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Building2, X, Plus, Trash2, Receipt, ArrowRight, Check, AlertCircle, Users, Coins, PieChart } from 'lucide-react';
 import { GeneralExpenseItem, ProjectPartner } from '../../types';
+import { BudgetSheetForm } from '../BudgetSheetForm';
 
 interface InitialPartnerRow {
   id: string;
@@ -19,8 +20,8 @@ interface NewProjectModalProps {
 }
 
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClose }) => {
-  const { projects, addProject, t } = useApp();
-  const [activeStep, setActiveStep] = useState<'info' | 'expenses' | 'partners'>('info');
+  const { projects, addProject, addProjectBudget, t } = useApp();
+  const [activeStep, setActiveStep] = useState<'info' | 'budget' | 'expenses' | 'partners'>('info');
 
   // Basic Information
   const [name, setName] = useState('');
@@ -36,6 +37,9 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
   const [projectImage, setProjectImage] = useState<string>('https://images.unsplash.com/photo-1541888946425-d0fbb18615f3?w=800&auto=format&fit=crop&q=80');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Wave 15: optional budget sheet (accountCode -> amount in project currency)
+  const [budgetLines, setBudgetLines] = useState<Record<string, number>>({});
 
   // Optional Initial Partners & Capital
   const [initialPartners, setInitialPartners] = useState<InitialPartnerRow[]>([
@@ -165,7 +169,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
         createdAt: new Date().toISOString(),
       }));
 
-    addProject({
+    const createdProject = addProject({
       name: name.trim(),
       code: code.trim() || `PRJ-${Date.now().toString().slice(-4)}`,
       address: address.trim() || 'کابل',
@@ -186,13 +190,20 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
       partners: validPartners,
     });
 
+    // Wave 15: optional budget sheet — only filled (>0) lines are stored.
+    Object.entries(budgetLines).forEach(([accountCode, amount]) => {
+      if (amount > 0) {
+        addProjectBudget({ projectId: createdProject.id, accountCode, amount, currency, exchangeRate });
+      }
+    });
+
     setIsSubmitting(false);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-surface rounded-3xl shadow-2xl max-w-xl w-full overflow-hidden border border-line my-auto animate-in fade-in zoom-in-95">
+      <div className="bg-surface rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-line my-auto animate-in fade-in zoom-in-95">
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-slate-900 text-white">
@@ -202,7 +213,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
             </div>
             <div>
               <h3 className="font-extrabold text-sm">{t.newProject || 'ثبت پروژه ساختمانی جدید'}</h3>
-              <p className="text-[11px] text-slate-400">مشخصات تعمیر، مصارف ابتدایی و شرکا</p>
+              <p className="text-[11px] text-slate-400">مشخصات تعمیر، بودجه، مصارف ابتدایی و شرکا</p>
             </div>
           </div>
           <button 
@@ -226,6 +237,18 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
             }`}
           >
             مشخصات تعمیر
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveStep('budget')}
+            className={`flex-1 py-3 px-2 text-center font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 ${
+              activeStep === 'budget'
+                ? 'border-amber-500 text-amber-800 dark:text-amber-300 bg-surface'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <PieChart className="w-3.5 h-3.5 text-amber-600" />
+            <span>بودجه (اختیاری)</span>
           </button>
           <button
             type="button"
@@ -419,17 +442,63 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               <div className="pt-2 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => setActiveStep('expenses')}
+                  onClick={() => setActiveStep('budget')}
                   className="px-5 py-2.5 bg-slate-900 dark:bg-amber-600 hover:bg-slate-800 text-amber-400 dark:text-white font-bold rounded-xl flex items-center gap-1.5 shadow-xs"
                 >
-                  <span>مرحله بعدی (مصارف اولیه)</span>
+                  <span>مرحله بعدی (بودجه)</span>
                   <ArrowRight className="w-4 h-4 rtl:rotate-180" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 2: General Expenses Form */}
+          {/* STEP 2: Budget Sheet (optional, Wave 15) */}
+          {activeStep === 'budget' && (
+            <div className="space-y-4 animate-in fade-in">
+              <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-2xl p-3 text-emerald-900 dark:text-emerald-200 leading-relaxed">
+                <p className="font-bold mb-1">بجت‌شیت پروژه (اختیاری):</p>
+                <p className="text-[11px]">
+                  مقابل هر مصرف، مبلغ بودجه را بنویسید. مصارف کوچک در بخش جمع‌شده هر رشته است.
+                  می‌توانید رد کنید و بعداً در بخش بودجه تکمیل کنید.
+                </p>
+              </div>
+
+              <BudgetSheetForm
+                currency={currency}
+                value={budgetLines}
+                onChange={(code, amount) => setBudgetLines(prev => ({ ...prev, [code]: amount }))}
+              />
+
+              <div className="pt-3 border-t border-line flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setActiveStep('info')}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
+                >
+                  بازگشت
+                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep('expenses')}
+                    className="px-4 py-2 text-slate-500 hover:text-slate-800 font-bold"
+                  >
+                    رد کردن
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep('expenses')}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-xs flex items-center gap-1.5"
+                  >
+                    <span>مرحله بعدی (مصارف اولیه)</span>
+                    <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: General Expenses Form */}
           {activeStep === 'expenses' && (
             <div className="space-y-4 animate-in fade-in">
               <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-3 text-amber-900 dark:text-amber-200 leading-relaxed">
@@ -516,7 +585,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
               <div className="pt-3 border-t border-line flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={() => setActiveStep('info')}
+                  onClick={() => setActiveStep('budget')}
                   className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
                 >
                   بازگشت

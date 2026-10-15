@@ -41,7 +41,7 @@ import {
   BudgetLineReport,
   BudgetStatus,
 } from '../types';
-import { ACC, getAccount, resolveExpenseAccount } from '../data/chartOfAccounts';
+import { ACC, getAccount, resolveExpenseAccount, toBudgetMain } from '../data/chartOfAccounts';
 
 export const BUDGET_WARNING_THRESHOLD = 80;
 export const BUDGET_OVER_THRESHOLD = 100;
@@ -126,7 +126,11 @@ export function computeBudgetReport(input: BudgetReportInput): BudgetLineReport[
   for (const b of budgets.filter(x => x.projectId === projectId)) {
     const rate = b.exchangeRate || project?.defaultExchangeRate || 70;
     const usd = b.amountUSD ?? toUSD(b.amount, b.currency, rate);
-    budgetMap.set(b.accountCode, round2((budgetMap.get(b.accountCode) || 0) + usd));
+    // Wave 14: 6-digit leaf budgets roll up to their 4-digit trade main,
+    // because actual costs always post to mains. Main-level budgets
+    // and leaf budgets under the same trade simply add up.
+    const main = toBudgetMain(b.accountCode);
+    budgetMap.set(main, round2((budgetMap.get(main) || 0) + usd));
   }
 
   const actuals = computeBudgetActuals(input);

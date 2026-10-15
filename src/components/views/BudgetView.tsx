@@ -34,7 +34,7 @@ import {
   X,
 } from 'lucide-react';
 import { BudgetLineReport, BudgetStatus, ProjectBudget } from '../../types';
-import { getPostingAccounts } from '../../data/chartOfAccounts';
+import { getBudgetTradeGroups, toBudgetMain } from '../../data/chartOfAccounts';
 import { summarizeBudgetReport } from '../../utils/budgetUtils';
 import { CurrencyAmountInput } from '../CurrencyAmountInput';
 
@@ -87,17 +87,15 @@ const StatusChip: React.FC<{ status: BudgetStatus; label: string }> = ({ status,
 interface BudgetModalProps {
   onClose: () => void;
   editing?: ProjectBudget | null;
+  presetAccountCode?: string | null;
 }
 
-const BudgetModal: React.FC<BudgetModalProps> = ({ onClose, editing }) => {
+const BudgetModal: React.FC<BudgetModalProps> = ({ onClose, editing, presetAccountCode }) => {
   const { t, currentProject, addProjectBudget, updateProjectBudget, getAccountDisplayName, language } = useApp();
 
-  const costAccounts = useMemo(
-    () => getPostingAccounts().filter(a => a.code.startsWith('5')),
-    []
-  );
+  const tradeGroups = useMemo(() => getBudgetTradeGroups(), []);
 
-  const [accountCode, setAccountCode] = useState<string>(editing?.accountCode || costAccounts[0]?.code || '5100');
+  const [accountCode, setAccountCode] = useState<string>(editing?.accountCode || presetAccountCode || '5100');
   const [amount, setAmount] = useState<string>(editing ? String(editing.amount) : '');
   const [currency, setCurrency] = useState<'USD' | 'AFN'>((editing?.currency as 'USD' | 'AFN') || 'USD');
   const [rate, setRate] = useState<number>(editing?.exchangeRate || currentProject?.defaultExchangeRate || 70);
@@ -146,10 +144,17 @@ const BudgetModal: React.FC<BudgetModalProps> = ({ onClose, editing }) => {
               disabled={!!editing}
               className="w-full px-3 py-2.5 bg-surface-2/80 border border-line rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
             >
-              {costAccounts.map(acc => (
-                <option key={acc.code} value={acc.code}>
-                  {acc.code} — {getAccountDisplayName(acc.code, language)}
-                </option>
+              {tradeGroups.map(g => (
+                <optgroup key={g.main.code} label={`${g.main.code} — ${getAccountDisplayName(g.main.code, language)}`}>
+                  <option value={g.main.code}>
+                    {g.main.code} — {getAccountDisplayName(g.main.code, language)}
+                  </option>
+                  {[...g.majors, ...g.minors].map(acc => (
+                    <option key={acc.code} value={acc.code}>
+                      {acc.code} — {getAccountDisplayName(acc.code, language)}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <p className="text-[10px] text-ink-muted mt-1">{t('budgetAccountHint') || 'Budgets attach to Chart-of-Accounts cost codes — purchases auto-map here.'}</p>
@@ -289,6 +294,7 @@ export const BudgetView: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<ProjectBudget | null>(null);
+  const [presetCode, setPresetCode] = useState<string | null>(null);
 
   const canManage =
     currentUser?.role === 'admin' ||
@@ -310,14 +316,27 @@ export const BudgetView: React.FC = () => {
   const handleEdit = (row: BudgetLineReport) => {
     const stored = projectBudgets.find(b => b.projectId === currentProject?.id && b.accountCode === row.accountCode);
     setEditingBudget(stored || null);
+    // Rolled-up (leaf-level) or unbudgeted rows open the modal in add mode,
+    // pre-selected on the trade main so the new line lands in this trade.
+    setPresetCode(stored ? null : row.accountCode);
     setIsModalOpen(true);
   };
 
   const handleDelete = (row: BudgetLineReport) => {
-    const stored = projectBudgets.find(b => b.projectId === currentProject?.id && b.accountCode === row.accountCode);
-    if (!stored) return;
-    if (confirm(t('budgetDeleteConfirm') || `Remove budget for ${row.nameFa}?`)) {
-      deleteProjectBudget(stored.id);
+    const lines = projectBudgets.filter(
+      b => b.projectId === currentProject?.id && toBudgetMain(b.accountCode) === row.accountCode,
+    );
+    if (lines.length === 0) return;
+    const label = language === 'ps' ? row.namePs : language === 'en' ? row.nameEn : row.nameFa;
+    const msg = lines.length > 1
+      ? (language === 'en'
+          ? `Remove ${lines.length} budget lines under "${label}"?`
+          : language === 'ps'
+            ? `د «${label}» ${lines.length} بودجې کرښې حذف شي؟`
+            : `${lines.length} ردیف بودجه «${label}» حذف شود؟`)
+      : (t('budgetDeleteConfirm') || `Remove budget for ${row.nameFa}?`);
+    if (confirm(msg)) {
+      lines.forEach(l => deleteProjectBudget(l.id));
     }
   };
 
@@ -512,7 +531,8 @@ export const BudgetView: React.FC = () => {
       {isModalOpen && (
         <BudgetModal
           editing={editingBudget}
-          onClose={() => { setIsModalOpen(false); setEditingBudget(null); }}
+          presetAccountCode={presetCode}
+          onClose={() => { setIsModalOpen(false); setEditingBudget(null); setPresetCode(null); }}
         />
       )}
     </div>
