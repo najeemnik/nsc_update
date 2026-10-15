@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { expUSD, payUSD, aptUSD, isCountedDoc } from '../../utils/docFinance';
+import { inMonth, isCashInflow, isCashOutflow, collectedFromSales } from '../../utils/opsMath';
 import { 
   BarChart3, 
   Printer, 
@@ -102,47 +103,29 @@ export const ReportsView: React.FC = () => {
     { num: 12, fa: 'حوت / دسمبر', en: 'December', ps: 'کب / دسمبر' },
   ];
 
-  const rateAFN = (appSettings as any)?.exchangeRate || 70;
+  const rateAFN = appSettings.exchangeRateUSDToAFN || 70;
 
   const monthlyTimeline = useMemo(() => {
     let runningCash = 0;
 
     return monthNames.map(m => {
       // 1. Accrual Expenses / Committed Costs in this month
-      const mExpenses = projectExpenses.filter(e => {
-        if (!e.date) return false;
-        const d = new Date(e.date);
-        return d.getFullYear() === selectedYear && (d.getMonth() + 1) === m.num;
-      });
+      const mExpenses = projectExpenses.filter(e => inMonth(e.date, selectedYear, m.num));
       const expenseUSD = mExpenses.reduce((sum, e) => sum + expUSD(e), 0);
 
       // 2. Accrual Revenue (Contracted apartment sales in this month)
-      const mSales = projectApartments.filter(a => {
-        if (!a.saleDate) return false;
-        const d = new Date(a.saleDate);
-        return d.getFullYear() === selectedYear && (d.getMonth() + 1) === m.num;
-      });
+      const mSales = projectApartments.filter(a => inMonth(a.saleDate, selectedYear, m.num));
       const revenueUSD = mSales.reduce((sum, a) => sum + aptUSD(a), 0);
 
       // 3. Cash Inflows (Actual cash receipts collected)
-      const mInflows = projectPayments.filter(p => {
-        if (!p.date) return false;
-        const d = new Date(p.date);
-        const matches = d.getFullYear() === selectedYear && (d.getMonth() + 1) === m.num;
-        return matches && ((p as any).paymentType === 'income' || (p as any).type === 'income' || p.recipientType === 'apartment_buyer');
-      });
+      const mInflows = projectPayments.filter(p => inMonth(p.date, selectedYear, m.num) && isCashInflow(p));
       let cashInflowUSD = mInflows.reduce((sum, p) => sum + payUSD(p), 0);
       if (cashInflowUSD === 0 && mSales.length > 0) {
-        cashInflowUSD = mSales.reduce((sum, a) => sum + (a.downPaymentUSD || a.paidAmountUSD || 0), 0);
+        cashInflowUSD = collectedFromSales(mSales);
       }
 
       // 4. Cash Outflows (Actual cash paid to contractors, vendors, labor)
-      const mOutflows = projectPayments.filter(p => {
-        if (!p.date) return false;
-        const d = new Date(p.date);
-        const matches = d.getFullYear() === selectedYear && (d.getMonth() + 1) === m.num;
-        return matches && (p as any).paymentType !== 'income' && (p as any).type !== 'income';
-      });
+      const mOutflows = projectPayments.filter(p => inMonth(p.date, selectedYear, m.num) && isCashOutflow(p));
       const cashOutflowUSD = mOutflows.reduce((sum, p) => sum + payUSD(p), 0);
 
       // 5. Net Accrual Profit & Net Cash Flow

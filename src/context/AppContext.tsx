@@ -839,6 +839,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateAppSettings = (updates: Partial<AppSettings>) => {
     if (!guard('settings', 'edit')) return;
     setAppSettings(prev => ({ ...prev, ...updates }));
+    // Wave 29: persist company branding back to the owner's user record so it
+    // survives logout/login and is inherited by their employees.
+    if (currentUser && (
+      updates.logoUrl !== undefined || updates.billDesign !== undefined ||
+      updates.companyName !== undefined || updates.receiptHeader !== undefined ||
+      updates.receiptFooter !== undefined || updates.receiptContact !== undefined
+    )) {
+      setUsers(prevUsers => prevUsers.map(u => {
+        if (u.id !== currentUser.id) return u;
+        const bill: CustomBillDesign = { ...(u.customBillDesign || {}), ...(updates.billDesign || {}) };
+        if (updates.receiptHeader !== undefined) bill.receiptHeader = updates.receiptHeader || undefined;
+        if (updates.receiptFooter !== undefined) bill.receiptFooter = updates.receiptFooter || undefined;
+        if (updates.receiptContact !== undefined) bill.receiptContact = updates.receiptContact || undefined;
+        return {
+          ...u,
+          companyName: updates.companyName !== undefined ? updates.companyName : u.companyName,
+          customLogoUrl: updates.logoUrl !== undefined ? (updates.logoUrl || undefined) : u.customLogoUrl,
+          customBillDesign: bill,
+        };
+      }));
+      setCurrentUser(prevUser => {
+        if (!prevUser || prevUser.id !== currentUser.id) return prevUser;
+        const bill: CustomBillDesign = { ...(prevUser.customBillDesign || {}), ...(updates.billDesign || {}) };
+        if (updates.receiptHeader !== undefined) bill.receiptHeader = updates.receiptHeader || undefined;
+        if (updates.receiptFooter !== undefined) bill.receiptFooter = updates.receiptFooter || undefined;
+        if (updates.receiptContact !== undefined) bill.receiptContact = updates.receiptContact || undefined;
+        const next = {
+          ...prevUser,
+          companyName: updates.companyName !== undefined ? updates.companyName : prevUser.companyName,
+          customLogoUrl: updates.logoUrl !== undefined ? (updates.logoUrl || undefined) : prevUser.customLogoUrl,
+          customBillDesign: bill,
+        };
+        saveToStorage('currentUser', next);
+        return next;
+      });
+    }
     logAudit('update', 'user', 'settings', 'App Settings & Branding', 'Updated system branding, theme or wallpaper');
   };
 
@@ -1067,13 +1103,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
+    // Wave 29: branding follows the OWNER company — employees inherit their
+    // owner's logo/design; nothing leaks across companies between sessions.
+    const brandSrc = (found.customLogoUrl || found.customBillDesign)
+      ? found
+      : users.find(u => !!u.companyName && u.companyName === found.companyName && (u.customLogoUrl || u.customBillDesign));
+    const brandDesign = brandSrc?.customBillDesign;
     setAppSettings(prev => ({
       ...prev,
-      companyName: found.companyName || prev.companyName,
-      logoUrl: found.customLogoUrl || prev.logoUrl,
-      receiptHeader: found.customBillDesign?.receiptHeader || prev.receiptHeader,
-      receiptFooter: found.customBillDesign?.receiptFooter || prev.receiptFooter,
-      receiptContact: found.customBillDesign?.receiptContact || prev.receiptContact,
+      companyName: found.companyName || brandSrc?.companyName || 'NIK SMART COUNT',
+      logoUrl: brandSrc?.customLogoUrl || '',
+      billDesign: brandDesign || undefined,
+      receiptHeader: brandDesign?.receiptHeader || '',
+      receiptFooter: brandDesign?.receiptFooter || '',
+      receiptContact: brandDesign?.receiptContact || '',
       enabledModules: found.customEnabledModules ? { ...prev.enabledModules, ...found.customEnabledModules } : prev.enabledModules,
       aiEnabled: found.permissions?.aiEnabled !== false,
     }));

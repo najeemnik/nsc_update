@@ -411,6 +411,16 @@ export interface Project {
   transferHistory?: ProjectTransferEvent[];
   floorsCount?: number;
   unitsCount?: number;
+  /** Wave 29: per-project wallpaper (data: image or same-origin path). */
+  backgroundImageUrl?: string;
+  /** Wave 29: cover | contain | repeat | stretch. */
+  backgroundSize?: string;
+  /** Wave 29: CSS position key, e.g. 'center', 'top left'. */
+  backgroundPosition?: string;
+  /** Wave 29: wallpaper opacity 5..60 (%). */
+  backgroundOpacity?: number;
+  /** Wave 29: backdrop blur 0..12 (px). */
+  backgroundBlur?: number;
   createdAt: string;
 }
 

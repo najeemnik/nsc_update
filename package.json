@@ -20,7 +20,9 @@
     "test:partners": "esbuild scripts/verify-partners.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-partners.cjs --log-level=error && node node_modules/.cache/verify-partners.cjs",
     "test:doclifecycle": "esbuild scripts/verify-doc-lifecycle.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-doclifecycle.cjs --log-level=error && node node_modules/.cache/verify-doclifecycle.cjs",
     "test:scan": "esbuild scripts/verify-scan.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-scan.cjs --log-level=error && node node_modules/.cache/verify-scan.cjs",
-    "test:docdesign": "esbuild scripts/verify-doc-design.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-docdesign.cjs --log-level=error && node node_modules/.cache/verify-docdesign.cjs"
+    "test:docdesign": "esbuild scripts/verify-doc-design.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-docdesign.cjs --log-level=error && node node_modules/.cache/verify-docdesign.cjs",
+    "test:branding": "esbuild scripts/verify-project-branding.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-branding.cjs --log-level=error && node node_modules/.cache/verify-branding.cjs",
+    "test:opsmath": "esbuild scripts/verify-ops-math.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-opsmath.cjs --log-level=error && node node_modules/.cache/verify-opsmath.cjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

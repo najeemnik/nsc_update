@@ -4,6 +4,7 @@ import { AttachmentField } from '../docs/AttachmentField';
 import type { AttachmentRef } from '../../types';
 import { HardHat, X, Calculator, CheckCircle, UserCheck, DollarSign, MinusCircle } from 'lucide-react';
 import { backendApi } from '../../services/backendApi';
+import { laborPay } from '../../utils/opsMath';
 
 interface AddLaborModalProps {
   isOpen: boolean;
@@ -33,9 +34,8 @@ export const AddLaborModal: React.FC<AddLaborModalProps> = ({
 
   const numDays = parseFloat(daysOrUnits) || 0;
   const numRate = parseFloat(ratePerUnit) || 0;
-  const grossAmount = numDays * numRate;
   const numAdvance = parseFloat(advanceDeduction) || 0;
-  const netPaid = Math.max(0, grossAmount - numAdvance);
+  const { gross: grossAmount, net: netPaid } = laborPay(numDays, numRate, numAdvance);
 
   useEffect(() => {
     if (currentProject) setProjectId(currentProject.id);

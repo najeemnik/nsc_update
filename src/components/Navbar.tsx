@@ -162,10 +162,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               {logoOk ? (
                 <img
-                  src="/assets/logo.png"
-                  alt="NIK SMART COUNT"
+                  src={appSettings.logoUrl || '/assets/logo.png'}
+                  alt={appSettings.companyName || 'NIK SMART COUNT'}
                   onError={() => setLogoOk(false)}
-                  className="h-9 w-auto shrink-0 object-contain"
+                  className="h-9 w-auto max-w-[120px] shrink-0 object-contain"
                 />
               ) : (
                 <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-white font-black text-sm shadow-xs">

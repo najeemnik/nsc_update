@@ -58,6 +58,7 @@ import { CameraModal } from './components/CameraModal';
 import { PwaManager } from './components/PwaManager';
 import { NotificationToasts } from './components/NotificationCenter';
 import { Project } from './types';
+import { resolveWallpaper, wallpaperLayerStyle } from './utils/projectBranding';
 
 function MainApp() {
   const { 
@@ -78,8 +79,14 @@ function MainApp() {
     can,
     denyAccess,
     accessNotice,
-    clearAccessNotice
+    clearAccessNotice,
+    currentProject,
+    appSettings
   } = useApp();
+  const wallpaper = resolveWallpaper(currentProject, {
+    backgroundImageUrl: appSettings.backgroundImageUrl,
+    backgroundOpacity: appSettings.backgroundOpacity,
+  });
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -195,12 +202,15 @@ function MainApp() {
   }
 
   return (
-    <div 
+    <div
       className="min-h-dscreen bg-canvas text-ink flex flex-col"
       dir={isRtl ? 'rtl' : 'ltr'}
     >
+      {wallpaper.url && (
+        <div aria-hidden className="pointer-events-none fixed inset-0 z-0 print:hidden" style={wallpaperLayerStyle(wallpaper)} />
+      )}
       {authNotice === 'server-lockout' && (
-        <div className="bg-amber-500 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between gap-3" role="alert">
+        <div className="relative bg-amber-500 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between gap-3" role="alert">
           <span>
             {tp('Server is temporarily rate-limited (too many login attempts). Local mode works fine — online sync will resume automatically.', 'سرور موقتاً محدود شده است (تلاش ورود زیاد). حالت محلی سالم کار می‌کند — همگام‌سازی آنلاین خودکار برمی‌گردد.', 'سرور په موقتي توګه محدود شوی دی (ډېرې ننوتنې). ځايي حالت سم کار کوي — آنلاین همغږي به په اوتومات ډول بېرته شي.')}
           </span>
@@ -210,7 +220,7 @@ function MainApp() {
         </div>
       )}
       {storageError && (
-        <div className="bg-red-600 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between gap-3" role="alert">
+        <div className="relative bg-red-600 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between gap-3" role="alert">
           <span>
             {tp(`⚠️ Local storage failed (section: ${storageError}). New data may be lost on reload — free browser space or download a JSON backup.`, `⚠️ خطا در ذخیره‌سازی محلی (بخش: ${storageError}). معلومات جدید ممکن است بعد از بستن صفحه از بین برود — حافظه مرورگر را خالی کنید یا یک بکاپ JSON بگیرید.`, `⚠️ په ځايي ذخیره کې تېروتنه (برخه: ${storageError}). نوي معلومات ښايي پاڼه له تړلو وروسته ورک شي — د براوزر حافظه تشه کړئ یا یو JSON بکاپ کښته کړئ.`)}
           </span>
@@ -220,7 +230,7 @@ function MainApp() {
         </div>
       )}
       {accessNotice && (
-        <div className="bg-rose-600 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between gap-3" role="alert">
+        <div className="relative bg-rose-600 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between gap-3" role="alert">
           <span>
             {accessNotice.action === 'expired'
               ? tp('Your session ended: account deactivated or access period finished. Please contact the company owner.', 'نشست شما پایان یافت: حساب غیرفعال شده یا مهلت دسترسی تمام شده است. با مالک شرکت تماس بگیرید.', 'ستاسو ناسته پای ته ورسېده: حساب غیر فعال شوی یا د لاسرسي موده پای ته رسېدلې. د شرکت له مالک سره اړیکه ونیسئ.')
@@ -231,7 +241,7 @@ function MainApp() {
           </button>
         </div>
       )}
-      <div className="flex flex-1 h-dscreen overflow-hidden">
+      <div className="relative z-[1] flex flex-1 h-dscreen overflow-hidden">
         {/* Desktop / Tablet Sidebar */}
         <div className="hidden md:flex shrink-0">
           <Sidebar 

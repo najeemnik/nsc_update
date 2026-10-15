@@ -3,6 +3,10 @@ import { useApp } from '../context/AppContext';
 import { backendApi } from '../services/backendApi';
 import { User, UserActivityEvent, CustomActionButton, CustomBillDesign, DEFAULT_ACTION_BUTTONS, ProjectGrant } from '../types';
 import { AccessMatrix } from './AccessMatrix';
+import { contractorPayout } from '../utils/opsMath';
+
+/** Wave 30: sample contractor statement — computed (was hard-coded strings). */
+const SAMPLE_PAYOUT = contractorPayout(200000, 10, 2);
 import { DocQr } from './docs/DocQr';
 import {
   FONT_OPTIONS, SECTION_LABELS, DEFAULT_SECTION_ORDER, TEMPLATE_MAX_BYTES,
@@ -1968,20 +1972,20 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5 mb-4 text-[11px]">
                             <div className="flex justify-between items-center text-slate-600">
                               <span>مبلغ کل ناخالص (Gross Amount):</span>
-                              <span className="font-mono font-bold">200,000 AFN</span>
+                              <span className="font-mono font-bold">{SAMPLE_PAYOUT.gross.toLocaleString('en-US')} AFN</span>
                             </div>
 
                             {editBillDesign.showRetentionBox !== false && (
                               <div className="flex justify-between items-center text-amber-700 font-semibold">
                                 <span>کسر ۱۰٪ تضمین حسن نیت کار (Retention 10%):</span>
-                                <span className="font-mono">-20,000 AFN</span>
+                                <span className="font-mono">-{SAMPLE_PAYOUT.retention.toLocaleString('en-US')} AFN</span>
                               </div>
                             )}
 
                             {editBillDesign.showWithholdingTax !== false && (
                               <div className="flex justify-between items-center text-rose-700 font-semibold">
                                 <span>کسر مالیات موضوعی قرارداد (BRT 2% Withholding):</span>
-                                <span className="font-mono">-4,000 AFN</span>
+                                <span className="font-mono">-{SAMPLE_PAYOUT.brt.toLocaleString('en-US')} AFN</span>
                               </div>
                             )}
 
@@ -1991,11 +1995,12 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                                 className="font-mono text-base px-2 py-0.5 rounded-lg text-white"
                                 style={{ backgroundColor: editBillDesign.primaryColor || '#0f172a' }}
                               >
-                                {editBillDesign.showRetentionBox !== false && editBillDesign.showWithholdingTax !== false
-                                  ? '176,000 AFN'
+                                {(editBillDesign.showRetentionBox !== false && editBillDesign.showWithholdingTax !== false
+                                  ? SAMPLE_PAYOUT.net
                                   : editBillDesign.showRetentionBox !== false
-                                  ? '180,000 AFN'
-                                  : '200,000 AFN'}
+                                  ? SAMPLE_PAYOUT.gross - SAMPLE_PAYOUT.retention
+                                  : SAMPLE_PAYOUT.gross
+                                ).toLocaleString('en-US') + ' AFN'}
                               </span>
                             </div>
                           </div>
