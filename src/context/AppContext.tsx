@@ -35,6 +35,7 @@ import {
   CustomActionButton,
   GrantAction,
   ProjectGrant,
+  InterProjectTransfer,
   LaborRecord,
   FixedAsset,
   PartnerEquityTransfer
@@ -65,6 +66,7 @@ import { getAccount, getAccountName, getFullChart, nextLeafCode, sanitizeCustomA
 import type { Account } from '../data/chartOfAccounts';
 import { computeBudgetReport, findUpdatableBudgetLine } from '../utils/budgetUtils';
 import { canDo, grantedProjectIds } from '../utils/permissions';
+import { validateEquityTransfer, applyEquityTransfer } from '../utils/partnerFinance';
 import { backendApi } from '../services/backendApi';
 
 interface AppContextType {
@@ -184,7 +186,11 @@ interface AppContextType {
   updateProjectInvestment: (id: string, updates: Partial<ProjectInvestment>) => void;
   deleteProjectInvestment: (id: string) => void;
   partnerEquityTransfers: PartnerEquityTransfer[];
-  transferPartnerEquity: (transfer: Omit<PartnerEquityTransfer, 'id' | 'createdAt'>) => PartnerEquityTransfer;
+  transferPartnerEquity: (transfer: Omit<PartnerEquityTransfer, 'id' | 'createdAt'>) => { success: boolean; error?: string; record?: PartnerEquityTransfer };
+  interProjectTransfers: InterProjectTransfer[];
+  requestInterProjectTransfer: (t: Omit<InterProjectTransfer, 'id' | 'createdAt' | 'status'>) => { success: boolean; error?: string; record?: InterProjectTransfer };
+  approveInterProjectTransfer: (id: string) => void;
+  rejectInterProjectTransfer: (id: string) => void;
   getProjectPartners: (projectId: string) => ProjectPartner[];
   getProjectInvestments: (projectId: string) => ProjectInvestment[];
   expenses: Expense[];
@@ -549,6 +555,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [projectPartners, setProjectPartners] = useState<ProjectPartner[]>(() => loadFromStorage('projectPartners', initialProjectPartners));
   const [projectInvestments, setProjectInvestments] = useState<ProjectInvestment[]>(() => loadFromStorage('projectInvestments', initialProjectInvestments));
   const [partnerEquityTransfers, setPartnerEquityTransfers] = useState<PartnerEquityTransfer[]>(() => loadFromStorage('partnerEquityTransfers', []));
+  const [interProjectTransfers, setInterProjectTransfers] = useState<InterProjectTransfer[]>(() => loadFromStorage('interProjectTransfers', []));
   const [projectBudgets, setProjectBudgets] = useState<ProjectBudget[]>(() => loadFromStorage('projectBudgets', initialProjectBudgets));
 
   // Google Drive state (in-memory token cached in googleDriveAuth)
@@ -621,6 +628,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { if (!saveToStorage('projectPartners', projectPartners)) { setStorageError('projectPartners'); } }, [projectPartners]);
   useEffect(() => { if (!saveToStorage('projectInvestments', projectInvestments)) { setStorageError('projectInvestments'); } }, [projectInvestments]);
   useEffect(() => { if (!saveToStorage('partnerEquityTransfers', partnerEquityTransfers)) { setStorageError('partnerEquityTransfers'); } }, [partnerEquityTransfers]);
+  useEffect(() => { if (!saveToStorage('interProjectTransfers', interProjectTransfers)) { setStorageError('interProjectTransfers'); } }, [interProjectTransfers]);
   useEffect(() => { if (!saveToStorage('projectBudgets', projectBudgets)) { setStorageError('projectBudgets'); } }, [projectBudgets]);
 
   const isCurrentTimeDay = (): boolean => {
@@ -1726,6 +1734,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const transferProject = (transferData: Omit<ProjectTransferEvent, 'id' | 'createdAt'>): ProjectTransferEvent => {
+    if (!guard('projects', 'edit')) { return { ...transferData, id: 'denied-' + Date.now(), createdAt: new Date().toISOString() }; }
     const newEvent: ProjectTransferEvent = {
       ...transferData,
       id: 'trans-' + Date.now(),
@@ -1863,62 +1872,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAudit('delete', 'project', id, `Investment: ${old?.partnerName || id}`, `Deleted investment record of ${old?.amount} ${old?.currency}`, undefined, undefined, old?.projectId);
   };
 
-  const transferPartnerEquity = (data: Omit<PartnerEquityTransfer, 'id' | 'createdAt'>): PartnerEquityTransfer => {
-    const id = 'eq-tr-' + Date.now();
-    const newTransfer: PartnerEquityTransfer = {
-      ...data,
-      id,
-      createdAt: new Date().toISOString()
-    };
-    setPartnerEquityTransfers(prev => [newTransfer, ...prev]);
-
-    // Update seller partner
-    setProjectPartners(prev => prev.map(p => {
-      if (p.id === data.fromPartnerId) {
-        const remainingShare = Math.max(0, (p.sharePercentage || 0) - data.transferredPercentage);
-        return {
-          ...p,
-          sharePercentage: remainingShare,
-          status: remainingShare === 0 ? 'exited' : p.status,
-          exitDate: remainingShare === 0 ? data.transferDate : p.exitDate,
-          exitReason: remainingShare === 0 ? `واگذاری کامل سهم به ${data.toPartnerName}` : p.exitReason,
-          transferredToPartnerId: data.toPartnerId,
-          transferredToPartnerName: data.toPartnerName,
-          transferPrice: data.transferPrice,
-          transferCurrency: data.currency,
-        };
-      }
-      // If buyer is an existing partner, increase their share
-      if (data.toPartnerId && p.id === data.toPartnerId) {
-        return {
-          ...p,
-          sharePercentage: (p.sharePercentage || 0) + data.transferredPercentage,
-        };
-      }
-      return p;
-    }));
-
-    // If buyer is a new partner (no toPartnerId or transferType === 'new_partner'), create new partner
-    if (!data.toPartnerId && data.transferType === 'new_partner') {
-      const newPartnerId = 'pp-' + Date.now();
-      const createdBuyer: ProjectPartner = {
-        id: newPartnerId,
-        projectId: data.projectId,
-        name: data.toPartnerName,
-        sharePercentage: data.transferredPercentage,
-        initialInvestment: data.transferPrice,
-        currency: data.currency,
-        investmentDate: data.transferDate,
-        notes: `خرید سهم از ${data.fromPartnerName} (سند صلح: ${data.deedNumber || '—'})`,
-        status: 'active',
-        createdAt: new Date().toISOString()
-      };
-      setProjectPartners(prev => [...prev, createdBuyer]);
+  const transferPartnerEquity = (data: Omit<PartnerEquityTransfer, 'id' | 'createdAt'>): { success: boolean; error?: string; record?: PartnerEquityTransfer } => {
+    if (!guard('projects', 'edit')) return { success: false, error: 'access-denied' };
+    const seller = projectPartners.find(p => p.id === data.fromPartnerId);
+    const v = validateEquityTransfer({ ...data, transferPrice: Number(data.transferPrice) || 0, transferredPercentage: Number(data.transferredPercentage) || 0 }, seller, projectPartners);
+    if (!v.ok) {
+      logAudit('denied', 'project', data.projectId, 'Blocked invalid equity transfer', v.error || '');
+      return { success: false, error: v.error };
     }
+    const clean = { ...data, transferPrice: Number(data.transferPrice) || 0, transferredPercentage: Number(data.transferredPercentage) || 0 };
+    const id = 'eq-tr-' + Date.now();
+    const newTransfer: PartnerEquityTransfer = { ...clean, id, createdAt: new Date().toISOString() };
+    const applied = applyEquityTransfer(projectPartners, clean);
+    setPartnerEquityTransfers(prev => [newTransfer, ...prev]);
+    setProjectPartners(applied.createdBuyer ? [...applied.partners, applied.createdBuyer] : applied.partners);
+    logAudit('create', 'project', data.projectId, data.fromPartnerName, `انتقال ${clean.transferredPercentage}٪ سهم‌الشرکه از ${data.fromPartnerName} به ${data.toPartnerName} به مبلغ ${clean.transferPrice} ${data.currency}`, undefined, undefined, data.projectId);
+    return { success: true, record: newTransfer };
+  };
 
-    logAudit('create', 'project', data.projectId, data.fromPartnerName, `انتقال ${data.transferredPercentage}٪ سهم‌الشرکه از ${data.fromPartnerName} به ${data.toPartnerName} به مبلغ ${data.transferPrice} ${data.currency}`, undefined, undefined, data.projectId);
+  // Wave 21: inter-project money/material ledger with owner approval
+  const requestInterProjectTransfer = (t: Omit<InterProjectTransfer, 'id' | 'createdAt' | 'status'>): { success: boolean; error?: string; record?: InterProjectTransfer } => {
+    if (!guard('projects', 'create')) return { success: false, error: 'access-denied' };
+    const amount = Number(t.amount) || 0;
+    if (!t.fromProjectId || !t.toProjectId || t.fromProjectId === t.toProjectId) {
+      return { success: false, error: 'پروژه مبدأ و مقصد نباید یکسان باشند.' };
+    }
+    if (!projects.some(p => p.id === t.fromProjectId) || !projects.some(p => p.id === t.toProjectId)) {
+      return { success: false, error: 'پروژه مبدأ یا مقصد یافت نشد.' };
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return { success: false, error: 'مبلغ انتقال باید بزرگتر از صفر باشد.' };
+    }
+    if (t.date && Number.isNaN(new Date(t.date).getTime())) {
+      return { success: false, error: 'تاریخ انتقال نامعتبر است.' };
+    }
+    const rec: InterProjectTransfer = {
+      ...t,
+      amount,
+      date: t.date || new Date().toISOString().split('T')[0],
+      status: 'pending',
+      requestedBy: currentUser?.name || currentUser?.username,
+      id: 'ipt-' + Date.now(),
+      createdAt: new Date().toISOString(),
+    };
+    setInterProjectTransfers(prev => [rec, ...prev]);
+    logAudit('create', 'project', t.fromProjectId, `Inter-project transfer request → ${t.toProjectId}`, `${t.kind} • ${amount} ${t.currency}`, undefined, undefined, t.fromProjectId);
+    return { success: true, record: rec };
+  };
 
-    return newTransfer;
+  const approveInterProjectTransfer = (id: string) => {
+    if (!guard('projects', 'approve')) return;
+    setInterProjectTransfers(prev => prev.map(x => (x.id === id && x.status === 'pending'
+      ? { ...x, status: 'approved' as const, approvedBy: currentUser?.name || currentUser?.username, approvedAt: new Date().toISOString() }
+      : x)));
+    logAudit('update', 'project', id, 'Approved inter-project transfer', `By ${currentUser?.name || currentUser?.username || 'unknown'}`);
+  };
+
+  const rejectInterProjectTransfer = (id: string) => {
+    if (!guard('projects', 'approve')) return;
+    setInterProjectTransfers(prev => prev.map(x => (x.id === id && x.status === 'pending'
+      ? { ...x, status: 'rejected' as const, approvedBy: currentUser?.name || currentUser?.username, approvedAt: new Date().toISOString() }
+      : x)));
+    logAudit('update', 'project', id, 'Rejected inter-project transfer', `By ${currentUser?.name || currentUser?.username || 'unknown'}`);
   };
 
   const getProjectPartners = (projectId: string): ProjectPartner[] => {
@@ -3564,6 +3579,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deleteProjectInvestment,
       partnerEquityTransfers,
       transferPartnerEquity,
+      interProjectTransfers,
+      requestInterProjectTransfer,
+      approveInterProjectTransfer,
+      rejectInterProjectTransfer,
       getProjectPartners,
       getProjectInvestments,
       expenses,

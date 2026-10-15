@@ -32,6 +32,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
   const [units, setUnits] = useState('32');
   const [buildingArea, setBuildingArea] = useState('4500');
   const [landInfo, setLandInfo] = useState('');
+  const [landAreaM2, setLandAreaM2] = useState('');
+  const [deedNumber, setDeedNumber] = useState('');
   const [currency, setCurrency] = useState<'USD' | 'AFN'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number>(70);
   const [projectImage, setProjectImage] = useState<string>('https://images.unsplash.com/photo-1541888946425-d0fbb18615f3?w=800&auto=format&fit=crop&q=80');
@@ -149,6 +151,13 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
       return;
     }
 
+    const shareSum = initialPartners.reduce((s, p) => s + (typeof p.sharePercentage === 'number' ? p.sharePercentage : 0), 0);
+    if (shareSum - 100 > 1e-9) {
+      setFormError(`مجموع درصد سهم شرکا (${Math.round(shareSum * 100) / 100}٪) از ۱۰۰٪ بیشتر است.`);
+      setActiveStep('partners');
+      return;
+    }
+
     setIsSubmitting(true);
 
     const validExpenses = generalExpenses
@@ -189,6 +198,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
       expectedCompletionDate: new Date(Date.now() + 365*24*3600*1000).toISOString().split('T')[0],
       projectImage: projectImage || 'https://images.unsplash.com/photo-1541888946425-d0fbb18615f3?w=800&auto=format&fit=crop&q=80',
       landInfo: landInfo.trim() || 'زمین ملکیت پروژه',
+      landAreaM2: landAreaM2.trim() ? parseFloat(landAreaM2) : undefined,
+      deedNumber: deedNumber.trim() || undefined,
       description: 'پروژه ساختمانی جدید',
       status: 'in_construction',
       currency,
@@ -450,6 +461,31 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                 />
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">مساحت زمین (متر مربع)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="مثال: 1200"
+                    value={landAreaM2}
+                    onChange={(e) => setLandAreaM2(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono focus:ring-2 focus:ring-amber-500/20"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">نمبر قباله / سند زمین</label>
+                  <input
+                    type="text"
+                    placeholder="مثال: QB-1398-4421"
+                    value={deedNumber}
+                    onChange={(e) => setDeedNumber(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono focus:ring-2 focus:ring-amber-500/20"
+                  />
+                </div>
+              </div>
+
               <div className="pt-2 flex justify-end">
                 <button
                   type="button"
@@ -636,6 +672,18 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
                   </p>
                 </div>
               </div>
+
+              {(() => {
+                const sum = initialPartners.reduce((s, p) => s + (typeof p.sharePercentage === 'number' ? p.sharePercentage : 0), 0);
+                const rounded = Math.round(sum * 100) / 100;
+                const over = sum - 100 > 1e-9;
+                return (
+                  <div className={`flex items-center justify-between px-3.5 py-2 rounded-2xl border text-xs font-black ${over ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'}`}>
+                    <span>مجموع سهم تخصیص‌یافته: {rounded}٪ از ۱۰۰٪</span>
+                    <span>{over ? '⚠️ بیشتر از سقف مجاز!' : `آزاد: ${Math.round((100 - sum) * 100) / 100}٪`}</span>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-3">
                 {initialPartners.map((partner, index) => (

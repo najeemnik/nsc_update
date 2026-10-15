@@ -19,6 +19,8 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ isOpen, onCl
   const [units, setUnits] = useState('');
   const [buildingArea, setBuildingArea] = useState('');
   const [landInfo, setLandInfo] = useState('');
+  const [landAreaM2, setLandAreaM2] = useState('');
+  const [deedNumber, setDeedNumber] = useState('');
   const [status, setStatus] = useState<ProjectStatus>('in_construction');
   const [currency, setCurrency] = useState<'USD' | 'AFN'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number>(70);
@@ -37,6 +39,8 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ isOpen, onCl
       setUnits(project.units.toString());
       setBuildingArea(project.buildingArea.toString());
       setLandInfo(project.landInfo || '');
+      setLandAreaM2(project.landAreaM2 ? String(project.landAreaM2) : '');
+      setDeedNumber(project.deedNumber || '');
       setStatus(project.status);
       setCurrency((project.currency as any) || 'USD');
       setExchangeRate(project.defaultExchangeRate || 70);
@@ -84,6 +88,8 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ isOpen, onCl
       units: parseInt(units) || project.units,
       buildingArea: parseFloat(buildingArea) || project.buildingArea,
       landInfo: landInfo.trim(),
+      landAreaM2: landAreaM2.trim() ? parseFloat(landAreaM2) : undefined,
+      deedNumber: deedNumber.trim() || undefined,
       status,
       currency,
       defaultExchangeRate: exchangeRate,
@@ -286,6 +292,29 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ isOpen, onCl
               onChange={(e) => setLandInfo(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink"
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">مساحت زمین (متر مربع)</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={landAreaM2}
+                onChange={(e) => setLandAreaM2(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">نمبر قباله / سند زمین</label>
+              <input
+                type="text"
+                value={deedNumber}
+                onChange={(e) => setDeedNumber(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-ink font-mono"
+              />
+            </div>
           </div>
 
           <div>

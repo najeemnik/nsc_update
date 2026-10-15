@@ -319,6 +319,26 @@ export interface ProjectInvestment {
   createdAt: string;
 }
 
+/** Wave 21: local inter-project money/material ledger with approval workflow. */
+export interface InterProjectTransfer {
+  id: string;
+  fromProjectId: string;
+  toProjectId: string;
+  kind: 'funds' | 'materials' | 'equipment';
+  amount: number;
+  currency: 'USD' | 'AFN' | string;
+  materialDetail?: string;
+  fromAccount?: string;
+  toAccount?: string;
+  date: string;
+  reason?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedBy?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  createdAt: string;
+}
+
 export interface ProjectTransferEvent {
   id: string;
   projectId: string;
@@ -349,6 +369,8 @@ export interface Project {
   initialOwner?: string;
   currentOwner?: string;
   landInfo: string;
+  landAreaM2?: number;
+  deedNumber?: string;
   floors: number;
   units: number;
   buildingArea: number;

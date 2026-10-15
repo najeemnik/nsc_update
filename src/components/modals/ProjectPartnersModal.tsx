@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Project, ProjectPartner, ProjectInvestment, PartnerEquityTransfer } from '../../types';
+import { projectProfitUSD, companyShare, shareFits } from '../../utils/partnerFinance';
 import { 
   Users, 
   X, 
@@ -50,7 +51,14 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
     deleteProjectInvestment,
     formatNumber,
     t,
-    currentUser
+    currentUser,
+    printIfAllowed,
+    expenses,
+    steelRecords,
+    concreteRecords,
+    laborRecords,
+    apartments,
+    payments
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'partners' | 'investments' | 'distribution' | 'transfers'>('partners');
@@ -135,7 +143,7 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
   }, [currentPartners, currentInvestments]);
 
   const totalStats = useMemo(() => {
-    const totalShare = currentPartners.reduce((sum, p) => sum + (p.sharePercentage || 0), 0);
+    const totalShare = currentPartners.filter(p => p.status !== 'exited').reduce((sum, p) => sum + (p.sharePercentage || 0), 0);
     const totalAFN = currentInvestments
       .filter(i => i.currency === 'AFN')
       .reduce((sum, i) => sum + i.amount, 0);
@@ -151,6 +159,21 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
       investmentCount: currentInvestments.length,
     };
   }, [currentPartners, currentInvestments]);
+
+  const projRate = project?.defaultExchangeRate && project.defaultExchangeRate > 0 ? project.defaultExchangeRate : 70;
+  const realProfit = useMemo(() => {
+    if (!project) return null;
+    return projectProfitUSD({
+      projectId: project.id,
+      rate: projRate,
+      expenses: expenses || [],
+      steelRecords: steelRecords || [],
+      concreteRecords: concreteRecords || [],
+      laborRecords: laborRecords || [],
+      apartments: apartments || [],
+      payments: payments || [],
+    });
+  }, [project, projRate, expenses, steelRecords, concreteRecords, laborRecords, apartments, payments]);
 
   if (!isOpen || !project) return null;
 
@@ -188,6 +211,11 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
 
     if (share !== undefined && (isNaN(share) || share < 0 || share > 100)) {
       setPartnerFormError('فیصدی سهم باید بین ۰ تا ۱۰۰ باشد.');
+      return;
+    }
+    if (share !== undefined && project && !shareFits(currentPartners, project.id, share, editingPartner?.id)) {
+      const used = currentPartners.filter(p => p.status !== 'exited' && p.id !== editingPartner?.id).reduce((s, p) => s + (p.sharePercentage || 0), 0);
+      setPartnerFormError(`سقف ۱۰۰٪ رعایت نشده است (تخصیص‌یافته فعلی: ${used}٪).`);
       return;
     }
     if (initialInv !== undefined && (isNaN(initialInv) || initialInv < 0)) {
@@ -329,6 +357,10 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
         setTransferError('لطفاً شریک خریدار را از لیست انتخاب کنید.');
         return;
       }
+      if (existingBuyer.id === transferringPartner.id) {
+        setTransferError('خریدار نمی‌تواند خود فروشنده باشد.');
+        return;
+      }
       buyerName = existingBuyer.name;
       buyerId = existingBuyer.id;
     } else if (transferType === 'company_buyout') {
@@ -340,7 +372,7 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
       }
     }
 
-    const record = transferPartnerEquity({
+    const res = transferPartnerEquity({
       projectId: project.id,
       fromPartnerId: transferringPartner.id,
       fromPartnerName: transferringPartner.name,
@@ -354,8 +386,12 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
       deedNumber: transferDeedNumber.trim() || undefined,
       notes: transferNotes.trim() || undefined,
     });
+    if (!res.success || !res.record) {
+      setTransferError(res.error === 'access-denied' ? 'شما مجوز ثبت واگذاری سهم را ندارید.' : (res.error || 'خطا در ثبت واگذاری.'));
+      return;
+    }
 
-    setPrintedTransferDeed(record);
+    setPrintedTransferDeed(res.record);
     setIsTransferModalOpen(false);
   };
 
@@ -630,6 +666,21 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
                               {partner.totalInvAFN === 0 && partner.totalInvUSD === 0 && '۰'}
                             </span>
                           </div>
+                          {(() => {
+                            const sold = partnerEquityTransfers.filter(tr => tr.projectId === project.id && tr.fromPartnerId === partner.id).reduce((s, tr) => s + tr.transferredPercentage, 0);
+                            const bought = partnerEquityTransfers.filter(tr => tr.projectId === project.id && tr.toPartnerId === partner.id).reduce((s, tr) => s + tr.transferredPercentage, 0);
+                            return (
+                              <div className="col-span-2 pt-1.5 mt-0.5 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                                <span className="text-slate-400 text-[10px]">نقل‌وانتقالات سهم:</span>
+                                <span className="font-mono font-bold">
+                                  {sold > 0 && <span className="text-rose-600 dark:text-rose-400">فروش {Math.round(sold * 100) / 100}٪</span>}
+                                  {sold > 0 && bought > 0 && <span className="text-slate-400"> • </span>}
+                                  {bought > 0 && <span className="text-emerald-600 dark:text-emerald-400">خرید {Math.round(bought * 100) / 100}٪</span>}
+                                  {sold === 0 && bought === 0 && <span className="text-slate-400">بدون واگذاری</span>}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {partner.notes && (
@@ -809,7 +860,7 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => printIfAllowed('projects')}
                   className="flex items-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shrink-0"
                 >
                   <Printer className="w-3.5 h-3.5" />
@@ -865,6 +916,29 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
                 </div>
               </div>
 
+              {realProfit && (
+                <div className="p-4 bg-surface-2/50 rounded-2xl border border-line flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+                  <div className="text-[11px] text-slate-500 leading-relaxed">
+                    <span className="font-black text-ink">سود واقعی محاسبه‌شده از اسناد: </span>
+                    <span className="font-mono font-bold">درآمد {formatNumber(profitCurrency === 'USD' ? realProfit.revenueUSD : realProfit.revenueAFN, 0)}</span>
+                    {' − '}
+                    <span className="font-mono font-bold">مصارف {formatNumber(profitCurrency === 'USD' ? realProfit.costUSD : realProfit.costAFN, 0)}</span>
+                    {' = '}
+                    <span className={`font-mono font-black ${(profitCurrency === 'USD' ? realProfit.profitUSD : realProfit.profitAFN) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {formatNumber(profitCurrency === 'USD' ? realProfit.profitUSD : realProfit.profitAFN, 0)} {profitCurrency}
+                    </span>
+                    <span className="block text-[10px] mt-0.5">درآمد = فروش قطعی آپارتمان‌ها + رسیدهای نقدی • مصارف = بل‌های غیرمردود + آهن + کانکریت + دستمزد ناخالص (پرداخت‌ها چون تسویه همان بل‌ها هستند، دوباره حساب نشده‌اند)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDistributableProfit(String(Math.max(0, Math.round(profitCurrency === 'USD' ? realProfit.profitUSD : realProfit.profitAFN))))}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black shadow-xs shrink-0 transition"
+                  >
+                    استفاده از سود واقعی
+                  </button>
+                </div>
+              )}
+
               {/* Partners Profit Table */}
               <div className="bg-surface rounded-2xl border border-line overflow-hidden shadow-xs">
                 <div className="overflow-x-auto">
@@ -905,9 +979,15 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
                                 {partner.sharePercentage || 0}٪
                               </td>
                               <td className="py-2.5 px-3 text-left font-mono">
-                                {profitCurrency === 'USD' 
+                                {profitCurrency === 'USD'
                                   ? `$${formatNumber(partner.totalInvUSD, 0)}`
                                   : `${formatNumber(partner.totalInvAFN, 0)} AFN`}
+                                {(() => {
+                                  const capUSD = (partner.totalInvUSD || 0) + (partner.totalInvAFN || 0) / projRate;
+                                  const profUSD = profitCurrency === 'USD' ? partnerProfit : partnerProfit / projRate;
+                                  if (!(capUSD > 0)) return null;
+                                  return <div className="text-[10px] text-slate-400 font-bold">ROI: {((profUSD / capUSD) * 100).toFixed(1)}٪</div>;
+                                })()}
                               </td>
                               <td className="py-2.5 px-3 text-left font-mono font-bold text-emerald-600">
                                 +{formatNumber(partnerProfit, 0)} {profitCurrency}
@@ -922,6 +1002,22 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
                           );
                         })
                       )}
+                      {(() => {
+                        const pNum = parseFloat(distributableProfit) || 0;
+                        const coShare = companyShare(currentPartners);
+                        const coProfit = (coShare / 100) * pNum;
+                        return (
+                          <tr className="bg-amber-500/5">
+                            <td className="py-2.5 px-3 font-mono text-amber-600">★</td>
+                            <td className="py-2.5 px-3 font-black text-ink">خزانه شرکت / سهم باقی‌مانده</td>
+                            <td className="py-2.5 px-3 text-center font-mono font-black text-amber-600">{coShare}٪</td>
+                            <td className="py-2.5 px-3 text-left font-mono text-slate-400">—</td>
+                            <td className="py-2.5 px-3 text-left font-mono font-bold text-emerald-600">+{formatNumber(coProfit, 0)} {profitCurrency}</td>
+                            <td className="py-2.5 px-3 text-left font-mono font-black text-ink">{formatNumber(coProfit, 0)} {profitCurrency}</td>
+                            <td className="py-2.5 px-3"></td>
+                          </tr>
+                        );
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -1595,7 +1691,7 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => printIfAllowed('projects')}
                   className="px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-xl font-bold flex items-center gap-1.5"
                 >
                   <Printer className="w-3.5 h-3.5" />
