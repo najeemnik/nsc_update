@@ -672,8 +672,8 @@ export const SettingsView: React.FC = () => {
         )}
       </div>
 
-      {/* Test version (separate playground data) */}
-      {(isTestMode || currentUser?.isMasterSuperAdmin || (currentUser?.role === 'admin' && !currentUser?.ownerAdminId)) && (
+      {/* Test version (separate playground data; entry hidden in production) */}
+      {(isTestMode || (import.meta.env.VITE_SHOW_DEMO_LOGINS !== 'false' && (currentUser?.isMasterSuperAdmin || (currentUser?.role === 'admin' && !currentUser?.ownerAdminId)))) && (
         <div className={`p-6 rounded-3xl border shadow-sm space-y-4 ${isTestMode ? 'bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-800' : 'bg-surface border-line'}`}>
           <h3 className="font-bold text-base text-ink flex items-center gap-2">
             <FlaskConical className="w-5 h-5 text-violet-600" />

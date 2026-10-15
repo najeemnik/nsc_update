@@ -120,6 +120,9 @@ interface AppContextType {
   requestPasswordReset: (email: string) => { success: boolean; otpCode?: string; error?: string };
   completePasswordReset: (email: string, otpCode: string, newPassword: string) => { success: boolean; error?: string };
   changeOwnPassword: (currentPassword: string, newPassword: string) => { success: boolean; error?: string };
+  changeOwnUsername: (newUsername: string) => { success: boolean; error?: string };
+  bootstrapMasterAdmin: (data: { name: string; username: string; email: string; password: string; companyName: string }) => { success: boolean; error?: string };
+  factoryReset: () => { success: boolean; error?: string };
   chargeUserSubscription: (userId: string, durationMonths: number) => void;
   toggleLockUserBySuperAdmin: (userId: string) => void;
   createTenantCompanyOwnerBySuperAdmin: (data: {
@@ -392,10 +395,14 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // Wave 35: separate test version — own localStorage namespace, empty data, no-login demo user.
 const TEST_MODE_KEY = 'nsc_test_mode';
+// Wave 37 go-live: production builds start with ZERO seed data (no demo users,
+// no sample transactions). Dev builds keep seeds for development. Fresh
+// production shows the first-run setup screen (bootstrapMasterAdmin).
 export const isTestModeActive = (): boolean => {
   try { return localStorage.getItem(TEST_MODE_KEY) === '1'; } catch { return false; }
 };
 const TEST_MODE = isTestModeActive();
+const EMPTY_SEED = import.meta.env.PROD === true;
 
 // Audit fix: local-login brute-force throttle (5 fails -> 60s lockout, per username).
 const LOGIN_FAIL_PREFIX = 'nsc_login_fails_';
@@ -471,20 +478,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [language, setLanguageState] = useState<Language>(() => {
     return normalizeLang(loadFromStorage<Language>('lang', 'en'));
   });
-  const [users, setUsers] = useState<User[]>(() => loadFromStorage('users', TEST_MODE ? [TEST_USER] : initialUsers));
+  const [users, setUsers] = useState<User[]>(() => loadFromStorage('users', TEST_MODE ? [TEST_USER] : (EMPTY_SEED ? [] : initialUsers)));
   const [accessNotice, setAccessNotice] = useState<{ section: string; action: string; at: number } | null>(null);
   const clearAccessNotice = () => setAccessNotice(null);
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     return loadFromStorage<User | null>('currentUser', TEST_MODE ? TEST_USER : null);
   });
-  const [projects, setProjects] = useState<Project[]>(() => loadFromStorage('projects', TEST_MODE ? [TEST_PROJECT] : initialProjects));
-  const [currentProjectId, setCurrentProjectIdState] = useState<string>(() => loadFromStorage('currentProjId', TEST_MODE ? TEST_PROJECT.id : (initialProjects[0]?.id || '')));
-  const [expenses, setExpenses] = useState<Expense[]>(() => loadFromStorage('expenses', TEST_MODE ? [] : initialExpenses));
-  const [steelRecords, setSteelRecords] = useState<SteelRecord[]>(() => loadFromStorage('steel', TEST_MODE ? [] : initialSteelRecords));
-  const [concreteRecords, setConcreteRecords] = useState<ConcreteRecord[]>(() => loadFromStorage('concrete', TEST_MODE ? [] : initialConcreteRecords));
-  const [contractors, setContractors] = useState<Contractor[]>(() => loadFromStorage('contractors', TEST_MODE ? [] : initialContractors));
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadFromStorage('suppliers', TEST_MODE ? [] : initialSuppliers));
-  const [apartments, setApartments] = useState<ApartmentUnit[]>(() => loadFromStorage('apartments', TEST_MODE ? [] : initialApartments));
+  const [projects, setProjects] = useState<Project[]>(() => loadFromStorage('projects', TEST_MODE ? [TEST_PROJECT] : (EMPTY_SEED ? [] : initialProjects)));
+  const [currentProjectId, setCurrentProjectIdState] = useState<string>(() => loadFromStorage('currentProjId', TEST_MODE ? TEST_PROJECT.id : (EMPTY_SEED ? '' : (initialProjects[0]?.id || ''))));
+  const [expenses, setExpenses] = useState<Expense[]>(() => loadFromStorage('expenses', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialExpenses)));
+  const [steelRecords, setSteelRecords] = useState<SteelRecord[]>(() => loadFromStorage('steel', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialSteelRecords)));
+  const [concreteRecords, setConcreteRecords] = useState<ConcreteRecord[]>(() => loadFromStorage('concrete', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialConcreteRecords)));
+  const [contractors, setContractors] = useState<Contractor[]>(() => loadFromStorage('contractors', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialContractors)));
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadFromStorage('suppliers', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialSuppliers)));
+  const [apartments, setApartments] = useState<ApartmentUnit[]>(() => loadFromStorage('apartments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialApartments)));
   const initialLaborRecords: LaborRecord[] = [
     {
       id: 'lab-1',
@@ -628,11 +635,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   ];
 
-  const [assets, setAssets] = useState<FixedAsset[]>(() => loadFromStorage('assets', TEST_MODE ? [] : initialAssets));
-  const [laborRecords, setLaborRecords] = useState<LaborRecord[]>(() => loadFromStorage('labor', TEST_MODE ? [] : initialLaborRecords));
-  const [payments, setPayments] = useState<Payment[]>(() => loadFromStorage('payments', TEST_MODE ? [] : initialPayments));
-  const [documents, setDocuments] = useState<DocumentRecord[]>(() => loadFromStorage('documents', TEST_MODE ? [] : initialDocuments));
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => loadFromStorage('auditLogs', TEST_MODE ? [] : initialAuditLogs));
+  const [assets, setAssets] = useState<FixedAsset[]>(() => loadFromStorage('assets', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialAssets)));
+  const [laborRecords, setLaborRecords] = useState<LaborRecord[]>(() => loadFromStorage('labor', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialLaborRecords)));
+  const [payments, setPayments] = useState<Payment[]>(() => loadFromStorage('payments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialPayments)));
+  const [documents, setDocuments] = useState<DocumentRecord[]>(() => loadFromStorage('documents', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialDocuments)));
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => loadFromStorage('auditLogs', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialAuditLogs)));
   const [activityEvents, setActivityEvents] = useState<UserActivityEvent[]>(() => loadFromStorage('activityEvents', []));
   const [notifications, setNotifications] = useState<SystemReminderNotification[]>(() => loadFromStorage('notifications', []));
   const [customAccounts, setCustomAccountsState] = useState<Account[]>(() => {
@@ -672,11 +679,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       categories: { ...DEFAULT_NOTIFICATION_PREFS.categories, ...(loaded.categories || {}) },
     };
   });
-  const [projectPartners, setProjectPartners] = useState<ProjectPartner[]>(() => loadFromStorage('projectPartners', TEST_MODE ? [] : initialProjectPartners));
-  const [projectInvestments, setProjectInvestments] = useState<ProjectInvestment[]>(() => loadFromStorage('projectInvestments', TEST_MODE ? [] : initialProjectInvestments));
+  const [projectPartners, setProjectPartners] = useState<ProjectPartner[]>(() => loadFromStorage('projectPartners', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectPartners)));
+  const [projectInvestments, setProjectInvestments] = useState<ProjectInvestment[]>(() => loadFromStorage('projectInvestments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectInvestments)));
   const [partnerEquityTransfers, setPartnerEquityTransfers] = useState<PartnerEquityTransfer[]>(() => loadFromStorage('partnerEquityTransfers', []));
   const [interProjectTransfers, setInterProjectTransfers] = useState<InterProjectTransfer[]>(() => loadFromStorage('interProjectTransfers', []));
-  const [projectBudgets, setProjectBudgets] = useState<ProjectBudget[]>(() => loadFromStorage('projectBudgets', TEST_MODE ? [] : initialProjectBudgets));
+  const [projectBudgets, setProjectBudgets] = useState<ProjectBudget[]>(() => loadFromStorage('projectBudgets', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectBudgets)));
 
   // Google Drive state (in-memory token cached in googleDriveAuth)
   const [isGoogleDriveConnected, setIsGoogleDriveConnected] = useState<boolean>(false);
@@ -1568,6 +1575,117 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(updated);
     saveToStorage('currentUser', updated);
     logAudit('update', 'user', fresh.id, `Self password change for ${fresh.email}`, 'Password changed successfully');
+    return { success: true };
+  };
+
+  // Wave 37 go-live: master changes their own login username from Office7.
+  const changeOwnUsername = (newUsername: string): { success: boolean; error?: string } => {
+    if (!currentUser) {
+      return { success: false, error: 'No active session / نشست فعال یافت نشد' };
+    }
+    const clean = (newUsername || '').trim().toLowerCase();
+    if (clean.length < 3) {
+      return { success: false, error: 'Username must be at least 3 characters / نام کاربری حداقل ۳ کاراکتر باشد' };
+    }
+    if (!/^[a-z0-9._-]+$/.test(clean)) {
+      return { success: false, error: 'Username may only contain latin letters, digits, . _ - / نام کاربری فقط حروف لاتین و عدد باشد' };
+    }
+    const taken = users.some(u => u.id !== currentUser.id && u.username.toLowerCase() === clean);
+    if (taken) {
+      return { success: false, error: 'This username is already taken / این نام کاربری قبلاً استفاده شده است' };
+    }
+    const old = currentUser.username;
+    const updated = { ...currentUser, username: clean };
+    setUsers(prev => prev.map(u => u.id === currentUser.id ? updated : u));
+    setCurrentUser(updated);
+    saveToStorage('currentUser', updated);
+    logAudit('update', 'user', currentUser.id, `Username changed ${old} -> ${clean}`, 'Self username change from Office7');
+    return { success: true };
+  };
+
+  // Wave 37 go-live: first-run setup — creates the ONE master owner when the
+  // database is completely empty (fresh production). Refuses otherwise.
+  const bootstrapMasterAdmin = (data: { name: string; username: string; email: string; password: string; companyName: string }): { success: boolean; error?: string } => {
+    if (TEST_MODE) {
+      return { success: false, error: 'Not available in test version / در نسخه تست در دسترس نیست' };
+    }
+    if (users.length > 0) {
+      return { success: false, error: 'System is already initialized / سیستم قبلاً راه‌اندازی شده است' };
+    }
+    const cleanUsername = (data.username || '').trim().toLowerCase();
+    const cleanEmail = (data.email || '').trim().toLowerCase();
+    const cleanName = (data.name || '').trim();
+    const cleanCompany = (data.companyName || '').trim() || 'My Company';
+    const pw = (data.password || '').trim();
+    if (cleanName.length < 2) {
+      return { success: false, error: 'Please enter your full name / لطفاً نام کامل را وارد کنید' };
+    }
+    if (cleanUsername.length < 3 || !/^[a-z0-9._-]+$/.test(cleanUsername)) {
+      return { success: false, error: 'Username: min 3 chars, latin letters/digits only / نام کاربری: حداقل ۳ کاراکتر لاتین' };
+    }
+    if (!cleanEmail.includes('@')) {
+      return { success: false, error: 'Please enter a valid email / ایمیل معتبر وارد کنید' };
+    }
+    if (pw.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters / رمز حداقل ۶ کاراکتر باشد' };
+    }
+    const master: User = {
+      id: 'usr-master-' + Date.now(),
+      name: cleanName,
+      username: cleanUsername,
+      email: cleanEmail,
+      password: hashPassword(pw, cleanUsername),
+      phone: '',
+      companyName: cleanCompany,
+      role: 'admin',
+      isMasterSuperAdmin: true,
+      active: true,
+      verified: true,
+      subscriptionPlan: 'lifetime',
+      subscriptionExpiresAt: '2099-12-31T23:59:59Z',
+      createdAt: new Date().toISOString(),
+    };
+    setUsers([master]);
+    setCurrentUser(master);
+    saveToStorage('users', [master]);
+    saveToStorage('currentUser', master);
+    setAppSettings(prev => ({ ...prev, companyName: cleanCompany }));
+    logAudit('create', 'user', master.id, `Master owner initialized: ${master.username}`, `Company: ${cleanCompany}`);
+    return { success: true };
+  };
+
+  // Wave 37 go-live: factory reset — auto-backup, then wipe ALL users and ALL
+  // transactional data (production namespace only; test playground untouched).
+  // Master super admin only. After reset the first-run setup screen appears.
+  const factoryReset = (): { success: boolean; error?: string } => {
+    if (!currentUser?.isMasterSuperAdmin) { denyAccess('factory_reset', 'del'); return { success: false, error: 'forbidden' }; }
+    try { exportJsonBackup(); } catch { /* best effort */ }
+    try {
+      const doomed: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('nik_smart_count_') && !k.startsWith(TEST_PREFIX)) doomed.push(k);
+      }
+      doomed.forEach(k => localStorage.removeItem(k));
+    } catch { /* ignore */ }
+    setUsers([]);
+    setProjects([]);
+    setCurrentProjectIdState('');
+    setExpenses([]);
+    setSteelRecords([]);
+    setConcreteRecords([]);
+    setContractors([]);
+    setSuppliers([]);
+    setApartments([]);
+    setAssets([]);
+    setLaborRecords([]);
+    setPayments([]);
+    setDocuments([]);
+    setAuditLogs([]);
+    setProjectPartners([]);
+    setProjectInvestments([]);
+    setProjectBudgets([]);
+    setCurrentUser(null);
     return { success: true };
   };
 
@@ -4057,6 +4175,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       requestPasswordReset,
       completePasswordReset,
       changeOwnPassword,
+      changeOwnUsername,
+      bootstrapMasterAdmin,
+      factoryReset,
       chargeUserSubscription,
       toggleLockUserBySuperAdmin,
       createEmployeeAccount,

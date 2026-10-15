@@ -58,6 +58,8 @@ import {
   Eye,
   LogIn,
   LogOut,
+  Trash2,
+  AtSign,
   HardHat,
   Plus,
   Crown,
@@ -134,6 +136,9 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     toggleAiForUser, 
     updateTenantByMasterAdmin,
     changeOwnPassword,
+    changeOwnUsername,
+    factoryReset,
+    currentUser,
     notificationPrefs,
     setNotificationPrefs,
     aiGlobal,
@@ -268,6 +273,10 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
   const snapshotFileRef = useRef<HTMLInputElement>(null);
   // Wave 31: self password change + private link
   const [selfPwdCurrent, setSelfPwdCurrent] = useState('');
+  const [selfUnameNext, setSelfUnameNext] = useState('');
+  const [selfUnameMsg, setSelfUnameMsg] = useState<string | null>(null);
+  const [selfUnameOk, setSelfUnameOk] = useState(false);
+  const [factoryMsg, setFactoryMsg] = useState<string | null>(null);
   const [selfPwdNext, setSelfPwdNext] = useState('');
   const [selfPwdRepeat, setSelfPwdRepeat] = useState('');
   const [selfPwdMsg, setSelfPwdMsg] = useState<string | null>(null);
@@ -640,6 +649,30 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
       setSelfPwdCurrent('');
       setSelfPwdNext('');
       setSelfPwdRepeat('');
+    }
+  };
+
+  const handleSelfUsername = (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = changeOwnUsername(selfUnameNext);
+    setSelfUnameOk(res.success);
+    setSelfUnameMsg(res.success
+      ? tp('Your username was changed. Use it on next login.', 'نام کاربری شما تغییر کرد. در ورود بعدی از آن استفاده کنید.', 'ستاسو کارن نوم بدل شو. په راتلونکي ننوتلو کې ترې کار واخلئ.')
+      : (res.error || 'Failed.'));
+    if (res.success) setSelfUnameNext('');
+  };
+
+  const handleFactoryReset = () => {
+    setFactoryMsg(null);
+    const ok = confirm(tp(
+      'FACTORY RESET: a backup will download first, then ALL users and ALL data (projects, transactions, documents) will be PERMANENTLY deleted. Continue?',
+      'ریست کارخانه: اول بکاپ دانلود می‌شود، بعد تمام کاربران و تمام دیتا (پروژه‌ها، معاملات، اسناد) برای همیشه حذف می‌شود. ادامه می‌دهید؟',
+      'فابریکه ریسیټ: لومړی بکاپ ښکته کېږي، بیا ټول کاروونکي او ټول معلومات (پروژې، معاملې، سندونه) د تل لپاره ړنګېږي. دوام ورکړئ؟'
+    ));
+    if (!ok) return;
+    const res = factoryReset();
+    if (!res.success) {
+      setFactoryMsg(res.error || 'Failed.');
     }
   };
 
@@ -3168,6 +3201,68 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                       {tp('Change my password', 'تغییر رمز من', 'زما پټ نوم بدل کړه')}
                     </button>
                   </form>
+                </div>
+
+                {/* Wave 37: master self username change */}
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2">
+                    <AtSign className="w-5 h-5 text-blue-600" />
+                    <h4 className="text-sm font-black text-slate-800">{tp('Change my username (master)', 'تغییر نام کاربری خودم (مالک ارشد)', 'خپل کارن نوم بدل کړه (مشر خاوند)')}</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    {tp('Current:', 'فعلی:', 'اوسنی:')} <span className="font-mono font-black text-slate-800" dir="ltr">{currentUser?.username}</span>
+                  </p>
+                  <form onSubmit={handleSelfUsername} className="space-y-2.5">
+                    <input
+                      type="text"
+                      required
+                      value={selfUnameNext}
+                      onChange={e => setSelfUnameNext(e.target.value)}
+                      placeholder={tp('New username (latin, min 3 chars)…', 'نام کاربری جدید (لاتین، حداقل ۳ حرف)…', 'نوی کارن نوم (لاتین، لږ تر لږه ۳ توري)…') as string}
+                      dir="ltr"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    />
+                    {selfUnameMsg && (
+                      <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                        selfUnameOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
+                      }`}>
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>{selfUnameMsg}</span>
+                      </div>
+                    )}
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 bg-gradient-to-l from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-500/30 transition-all"
+                    >
+                      {tp('Change my username', 'تغییر نام کاربری من', 'زما کارن نوم بدل کړه')}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Wave 37: factory reset danger zone */}
+                <div className="p-5 rounded-2xl bg-rose-50 border border-rose-300 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-rose-600" />
+                    <h4 className="text-sm font-black text-rose-800">{tp('Factory reset — wipe everything', 'ریست کارخانه — حذف همه‌چیز', 'فابریکه ریسیټ — هرڅه ړنګول')}</h4>
+                  </div>
+                  <p className="text-[11px] text-rose-700 leading-relaxed">
+                    {tp('Downloads a JSON backup first, then PERMANENTLY deletes ALL users and ALL data (projects, transactions, documents). The first-run setup screen appears afterwards. Test playground is untouched.',
+                      'اول بکاپ JSON دانلود می‌کند، بعد تمام کاربران و تمام دیتا (پروژه‌ها، معاملات، اسناد) را برای همیشه حذف می‌کند. سپس صفحه راه‌اندازی اول نمایش داده می‌شود. محیط تست دست‌نخورده می‌ماند.',
+                      'لومړی JSON بکاپ ښکته کوي، بیا ټول کاروونکي او ټول معلومات (پروژې، معاملې، سندونه) د تل لپاره ړنګوي. وروسته د لومړي ځل د برابرولو پاڼه ښکاري. د ټسټ چاپېریال نه خوځېږي.')}
+                  </p>
+                  {factoryMsg && (
+                    <div className="p-3 rounded-xl border text-xs bg-white border-rose-300 text-rose-700">
+                      {factoryMsg}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleFactoryReset}
+                    className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-lg shadow-rose-500/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>{tp('Backup & wipe everything', 'بکاپ و حذف همه‌چیز', 'بکاپ او هرڅه ړنګول')}</span>
+                  </button>
                 </div>
               </div>
             )}

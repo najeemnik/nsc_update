@@ -523,7 +523,8 @@ export const LoginView: React.FC = () => {
             </motion.div>
             )}
 
-            {/* Test version entry (separate data, no login needed) */}
+            {/* Test version entry (hidden in production via VITE_SHOW_DEMO_LOGINS=false) */}
+            {import.meta.env.VITE_SHOW_DEMO_LOGINS !== 'false' && (
             <motion.div
               initial={{ opacity: 0, y: 30, scale: 0.98 }}
               whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -549,6 +550,7 @@ export const LoginView: React.FC = () => {
                 <span>{tp('Enter test version', 'ورود به نسخه تست', 'ټسټ بڼې ته ننوتل')}</span>
               </button>
             </motion.div>
+            )}
           </div>
 
           {/* Right Column: High-Contrast Auth Card */}

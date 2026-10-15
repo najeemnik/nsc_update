@@ -87,9 +87,10 @@ function main() {
   check('test-flag', ctx.includes("TEST_MODE_KEY = 'nsc_test_mode'"));
   check('test-prefix', ctx.includes("TEST_PREFIX = 'nik_smart_count_test_'")
     && ctx.includes("STORAGE_PREFIX = TEST_MODE ? TEST_PREFIX : 'nik_smart_count_'"));
-  check('test-empty-fallbacks', ctx.includes("TEST_MODE ? [] : initialExpenses")
-    && ctx.includes("TEST_MODE ? [TEST_USER] : initialUsers")
-    && ctx.includes("TEST_MODE ? [TEST_PROJECT] : initialProjects"));
+  // Wave 37: prod defaults wrapped with EMPTY_SEED, test fallbacks unchanged.
+  check('test-empty-fallbacks', ctx.includes("TEST_MODE ? [] : (EMPTY_SEED ? [] : initialExpenses)")
+    && ctx.includes("TEST_MODE ? [TEST_USER] : (EMPTY_SEED ? [] : initialUsers)")
+    && ctx.includes("TEST_MODE ? [TEST_PROJECT] : (EMPTY_SEED ? [] : initialProjects)"));
   check('test-tab-lock', ctx.includes("if (TEST_MODE && (section === 'apartments' || section === 'payments')) return false"));
   check('test-logout-exits', ctx.includes('if (TEST_MODE) { exitTestMode(); return; }'));
   check('test-ctx-api', ctx.includes('isTestMode: boolean') && ctx.includes('enterTestMode: () => void')

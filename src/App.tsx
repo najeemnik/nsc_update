@@ -10,6 +10,7 @@ import { Navbar } from './components/Navbar';
 import { MobileNav } from './components/MobileNav';
 import { MobileMenuDrawer } from './components/MobileMenuDrawer';
 import { LoginView } from './components/LoginView';
+import { FirstRunSetupView } from './components/FirstRunSetupView';
 
 // Views
 import { DashboardView } from './components/views/DashboardView';
@@ -61,8 +62,10 @@ import { Project } from './types';
 import { resolveWallpaper, wallpaperLayerStyle } from './utils/projectBranding';
 
 function MainApp() {
-  const { 
-    currentUser, 
+  const {
+    currentUser,
+    users,
+    isTestMode,
     isDarkMode, 
     language, tp, 
     isAiAssistantOpen, 
@@ -184,6 +187,10 @@ function MainApp() {
   // Pre-selected payment payee if opened from contractor/supplier card
   const [paymentRecipient, setPaymentRecipient] = useState<{ id: string; name: string } | null>(null);
 
+  // Wave 37 go-live: fresh production (zero users) -> first-run setup, not login.
+  if (!isTestMode && users.length === 0) {
+    return <FirstRunSetupView />;
+  }
   if (!currentUser) {
     return <LoginView />;
   }
