@@ -67,6 +67,7 @@ import type { Account } from '../data/chartOfAccounts';
 import { computeBudgetReport, findUpdatableBudgetLine } from '../utils/budgetUtils';
 import { isOffice7Theme } from '../utils/configSnapshots';
 import { humanizeKey, labelPaymentMethod, labelExpenseCategory, labelUnit, DOC_CATEGORY_TKEY, normalizeLang, type StoredKind } from '../utils/displayLabels';
+import { hashPassword, verifyPassword, isPasswordHash } from '../utils/hash';
 import { sanitizeLayout, savePublishedLayout, clearDraftLayout } from '../utils/pageBuilder';
 import {
   AI_GLOBAL_KEY, AI_LIMITS_KEY, DEFAULT_AI_GLOBAL, checkAiAccess, countUsage, loadUsageLog,
@@ -395,6 +396,25 @@ export const isTestModeActive = (): boolean => {
   try { return localStorage.getItem(TEST_MODE_KEY) === '1'; } catch { return false; }
 };
 const TEST_MODE = isTestModeActive();
+
+// Audit fix: local-login brute-force throttle (5 fails -> 60s lockout, per username).
+const LOGIN_FAIL_PREFIX = 'nsc_login_fails_';
+const readLoginFails = (key: string): { n: number; until: number } => {
+  try {
+    const raw = localStorage.getItem(LOGIN_FAIL_PREFIX + key);
+    if (raw) { const o = JSON.parse(raw); return { n: Number(o.n) || 0, until: Number(o.until) || 0 }; }
+  } catch { /* ignore */ }
+  return { n: 0, until: 0 };
+};
+const writeLoginFails = (key: string, n: number, until: number): void => {
+  try { localStorage.setItem(LOGIN_FAIL_PREFIX + key, JSON.stringify({ n, until })); } catch { /* ignore */ }
+};
+const OTP_TTL_MS = 10 * 60 * 1000;
+const isOtpExpired = (issuedAt?: string): boolean => {
+  if (!issuedAt) return true;
+  const ms = new Date(issuedAt).getTime();
+  return Number.isNaN(ms) || (Date.now() - ms) > OTP_TTL_MS;
+};
 const TEST_PREFIX = 'nik_smart_count_test_';
 const STORAGE_PREFIX = TEST_MODE ? TEST_PREFIX : 'nik_smart_count_';
 
@@ -887,9 +907,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const unlockSection = (sectionId: string, passwordAttempt: string): boolean => {
-    const configuredPwd = appSettings.sectionProtection?.passwords?.[sectionId] ?? (sectionId === 'apartments' ? '22277512' : '');
+    // Audit fix: the old default PIN must NOT work after the admin changes it
+    // (the `|| attempt === DEFAULT` backdoor is removed); PINs are hash-verified.
+    const stored = appSettings.sectionProtection?.passwords?.[sectionId] ?? (sectionId === 'apartments' ? '22277512' : '');
     const cleanAttempt = passwordAttempt.trim();
-    if ((configuredPwd && cleanAttempt === configuredPwd.trim()) || cleanAttempt === '22277512') {
+    if (!stored || !cleanAttempt) return false;
+    const ok = isPasswordHash(stored)
+      ? verifyPassword(cleanAttempt, stored, `section:${sectionId}`)
+      : cleanAttempt === stored.trim();
+    if (ok) {
+      if (!isPasswordHash(stored)) {
+        const hashed = hashPassword(cleanAttempt, `section:${sectionId}`);
+        setAppSettings(prev => ({
+          ...prev,
+          sectionProtection: {
+            passwords: { ...(prev.sectionProtection?.passwords || {}), [sectionId]: hashed },
+            enabled: { ...(prev.sectionProtection?.enabled || {}) },
+          },
+        }));
+      }
       setUnlockedSections(prev => ({ ...prev, [sectionId]: true }));
       return true;
     }
@@ -903,13 +939,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setSectionPassword = (sectionId: string, newPassword: string, isEnabled?: boolean) => {
     setAppSettings(prev => {
       const current = prev.sectionProtection || defaultAppSettings.sectionProtection!;
+      const trimmed = newPassword.trim();
       return {
         ...prev,
         sectionProtection: {
           passwords: {
             ...current.passwords,
-            [sectionId]: newPassword,
-          },
+            ...(trimmed ? { [sectionId]: hashPassword(trimmed, `section:${sectionId}`) } : {}),
+          }, 
           enabled: {
             ...current.enabled,
             [sectionId]: isEnabled !== undefined ? isEnabled : (newPassword.trim().length > 0),
@@ -1207,11 +1244,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!found.active) {
       return { success: false, error: 'حساب مسدود است / Account is disabled' };
     }
+    const fails = readLoginFails(trimmedInput);
+    if (fails.until > Date.now()) {
+      const secs = Math.ceil((fails.until - Date.now()) / 1000);
+      return { success: false, error: tp(`Too many failed attempts. Try again in ${secs}s.`, `تلاش‌های ناموفق زیاد است. ${secs} ثانیه بعد تلاش کنید.`, `ناسمې هڅې ډېرې شوې. ${secs} ثانیې وروسته بیا هڅه وکړئ.`) };
+    }
     if (found.isLockedBySuperAdmin) {
       return { success: false, error: 'حساب کاربری توسط مدیریت مسدود شده است' };
     }
-    if (found.password && password && found.password !== password) {
+    if (!password || !found.password || !verifyPassword(password, found.password, found.username)) {
+      const n = fails.n + 1;
+      writeLoginFails(trimmedInput, n, n >= 5 ? Date.now() + 60000 : 0);
+      if (!password || !found.password) {
+        return { success: false, error: tp('Password is required.', 'رمز عبور الزامی است.', 'پټ نوم اړین دی.') };
+      }
       return { success: false, error: 'رمز عبور اشتباه است / Incorrect password' };
+    }
+    writeLoginFails(trimmedInput, 0, 0);
+    // Upgrade legacy plaintext passwords to salted hashes on successful login.
+    if (!isPasswordHash(found.password)) {
+      const upgraded = hashPassword(password, found.username);
+      setUsers(prev => prev.map(u => u.id === found.id ? { ...u, password: upgraded } : u));
+      found.password = upgraded;
     }
     if (!found.isMasterSuperAdmin && found.subscriptionExpiresAt) {
       const now = new Date().getTime();
@@ -1320,7 +1374,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: data.name.trim(),
       username: cleanUsername,
       email: cleanEmail,
-      password: data.password,
+      password: hashPassword(data.password, cleanUsername),
       phone: data.phone.trim(),
       companyName: data.companyName.trim(),
       companyAddress: data.companyAddress?.trim() || '',
@@ -1395,7 +1449,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: 'usr-' + Date.now(),
       username: data.email.split('@')[0],
       email: data.email.trim(),
-      password: data.password,
+      password: hashPassword(data.password, data.email.split('@')[0]),
       name: data.name.trim(),
       phone: data.phone.trim(),
       companyName: data.companyName.trim(),
@@ -1404,6 +1458,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       active: true,
       verified: false,
       otpCode: generatedOtp,
+      otpIssuedAt: new Date().toISOString(),
       subscriptionPlan: 'trial',
       subscriptionExpiresAt: sixMonthsLater,
       createdAt: new Date().toISOString(),
@@ -1419,6 +1474,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       receiptFooter: `اسناد رسمی شرکت ساختمانی ${data.companyName.trim()} با امضا و مهر معتبر است.`,
     }));
 
+    // Safety: auto-download a JSON backup before resetting local data for the new tenant.
+    try { exportJsonBackup(); } catch { /* best effort */ }
     setProjects([]);
     setExpenses([]);
     setSteelRecords([]);
@@ -1440,10 +1497,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user.otpCode || user.otpCode !== otpCode.trim()) {
       return { success: false, error: 'کد تایید OTP نادرست است' };
     }
+    if (isOtpExpired(user.otpIssuedAt)) {
+      return { success: false, error: 'کد تایید منقضی شده است، دوباره درخواست دهید / Code expired, request a new one' };
+    }
     const verifiedUser: User = {
       ...user,
       verified: true,
       otpCode: undefined,
+      otpIssuedAt: undefined,
       lastLoginAt: new Date().toISOString(),
     };
     setUsers(prev => prev.map(u => u.id === user.id ? verifiedUser : u));
@@ -1459,7 +1520,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'حسابی با این ایمیل یافت نشد' };
     }
     const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, otpCode: resetOtp } : u));
+    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, otpCode: resetOtp, otpIssuedAt: new Date().toISOString() } : u));
     logAudit('update', 'user', user.id, `Password reset requested for ${user.email}`, `Reset OTP issued`);
     return { success: true, otpCode: resetOtp };
   };
@@ -1472,7 +1533,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user.otpCode || user.otpCode !== otpCode.trim()) {
       return { success: false, error: 'کد تایید نادرست است' };
     }
-    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, password: newPassword, otpCode: undefined } : u));
+    if (isOtpExpired(user.otpIssuedAt)) {
+      return { success: false, error: 'کد تایید منقضی شده است، دوباره درخواست دهید / Code expired, request a new one' };
+    }
+    const nextPw = (newPassword || '').trim();
+    if (nextPw.length < 6) {
+      return { success: false, error: 'رمز جدید باید حداقل ۶ کاراکتر باشد / New password must be at least 6 characters' };
+    }
+    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, password: hashPassword(nextPw, user.username), otpCode: undefined, otpIssuedAt: undefined } : u));
     logAudit('update', 'user', user.id, `Password updated for ${user.email}`, 'Password changed successfully');
     return { success: true };
   };
@@ -1487,7 +1555,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!fresh) {
       return { success: false, error: 'User not found / کاربر یافت نشد' };
     }
-    if ((fresh.password || '') !== (currentPassword || '')) {
+    if (!verifyPassword(currentPassword || '', fresh.password, fresh.username)) {
       logAudit('update', 'user', fresh.id, `Failed self password change for ${fresh.email}`, 'Current password mismatch');
       return { success: false, error: 'Current password is incorrect / رمز فعلی اشتباه است' };
     }
@@ -1495,7 +1563,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (next.length < 6) {
       return { success: false, error: 'New password must be at least 6 characters / رمز جدید باید حداقل ۶ کاراکتر باشد' };
     }
-    const updated = { ...fresh, password: next };
+    const updated = { ...fresh, password: hashPassword(next, fresh.username) };
     setUsers(prev => prev.map(u => u.id === fresh.id ? updated : u));
     setCurrentUser(updated);
     saveToStorage('currentUser', updated);
@@ -1587,7 +1655,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           name: updates.name !== undefined ? updates.name.trim() : u.name,
           email: updates.email !== undefined ? updates.email.trim() : u.email,
           phone: updates.phone !== undefined ? updates.phone.trim() : u.phone,
-          password: updates.password && updates.password.trim() ? updates.password.trim() : u.password,
+          password: updates.password && updates.password.trim() ? (isPasswordHash(updates.password.trim()) ? updates.password.trim() : hashPassword(updates.password.trim(), u.username)) : u.password,
           permissions: updates.permissions !== undefined ? updates.permissions : u.permissions,
           active: updates.active !== undefined ? updates.active : u.active,
         };
@@ -1660,7 +1728,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           phone: updates.phone !== undefined ? updates.phone : u.phone,
           companyName: updates.companyName !== undefined ? updates.companyName : u.companyName,
           companyAddress: updates.companyAddress !== undefined ? updates.companyAddress : u.companyAddress,
-          password: updates.password !== undefined && updates.password.trim() ? updates.password.trim() : u.password,
+          password: updates.password !== undefined && updates.password.trim() ? (isPasswordHash(updates.password.trim()) ? updates.password.trim() : hashPassword(updates.password.trim(), u.username)) : u.password,
           customLogoUrl: updates.customLogoUrl !== undefined ? updates.customLogoUrl : u.customLogoUrl,
           customBillDesign: updates.customBillDesign !== undefined ? updates.customBillDesign : u.customBillDesign,
           customButtonConfig: updates.customButtonConfig !== undefined ? updates.customButtonConfig : u.customButtonConfig,
@@ -1817,6 +1885,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addUser = (userData: Omit<User, 'id' | 'createdAt'>): { success: boolean; error?: string } => {
     if (!guard('users', 'create')) return { success: false, error: 'access-denied' };
+    const rawPw = (userData.password || '').trim();
+    if (!rawPw) {
+      return { success: false, error: 'رمز عبور الزامی است / Password is required' };
+    }
     const cleanUsername = userData.username.trim().toLowerCase();
     const cleanEmail = userData.email.trim().toLowerCase();
     const duplicate = users.find(u =>
@@ -1835,6 +1907,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...userData,
       username: userData.username.trim(),
       email: userData.email.trim(),
+      password: isPasswordHash(rawPw) ? rawPw : hashPassword(rawPw, cleanUsername),
       id: 'user-' + Date.now(),
       createdAt: new Date().toISOString(),
     };
@@ -1847,8 +1920,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const keys = Object.keys(updates);
     const selfPasswordOnly = currentUser && id === currentUser.id && keys.length > 0 && keys.every(k => k === 'password');
     if (!selfPasswordOnly && !guard('users', 'edit')) return;
-    setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...updates } : u)));
-    logAudit('update', 'user', id, `Updated user profile`, JSON.stringify(updates));
+    const target = users.find(u => u.id === id);
+    const safe: Partial<User> = { ...updates };
+    if (typeof safe.password === 'string' && safe.password.trim() && target && !isPasswordHash(safe.password.trim())) {
+      safe.password = hashPassword(safe.password.trim(), target.username);
+    }
+    setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...safe } : u)));
+    const logged: Record<string, unknown> = { ...safe };
+    if ('password' in logged) logged.password = '[redacted]';
+    logAudit('update', 'user', id, `Updated user profile`, JSON.stringify(logged));
   };
 
   const toggleUserActive = (id: string) => {

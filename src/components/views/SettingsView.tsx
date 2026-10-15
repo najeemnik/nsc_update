@@ -27,6 +27,7 @@ import { AppTheme, CustomBillDesign } from '../../types';
 import { DocDesignEditor } from '../docs/DocDesignEditor';
 import { backendApi } from '../../services/backendApi';
 import { GoogleDriveModal } from '../modals/GoogleDriveModal';
+import { usePwaInstall } from '../../hooks/usePwaInstall';
 
 const THEME_OPTIONS: { id: AppTheme; labelKey: string; swatch: string }[] = [
   { id: 'glassmorphism',   labelKey: 'themeGlassmorphism',   swatch: 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(191,219,254,0.85))' },
@@ -62,6 +63,9 @@ export const SettingsView: React.FC = () => {
     themeSchedule,
     setThemeSchedule,
     logout,
+    setSectionPassword,
+    unlockApartments,
+    lockApartments,
     clearSampleData,
     isTestMode,
     enterTestMode,
@@ -83,6 +87,53 @@ export const SettingsView: React.FC = () => {
   const [designSaved, setDesignSaved] = useState(false);
   const [driveModalOpen, setDriveModalOpen] = useState(false);
   const [driveBusy, setDriveBusy] = useState(false);
+  const { canInstall, isInstalled, promptInstall } = usePwaInstall();
+  const [installStatus, setInstallStatus] = useState<string | null>(null);
+
+  const handleInstallApp = async () => {
+    setInstallStatus(null);
+    const outcome = await promptInstall();
+    if (outcome === 'accepted') {
+      setInstallStatus(tp('Installing… check your home screen.', 'در حال نصب… صفحه اصلی گوشی را بررسی کنید.', 'په نصبېدو کې… د ټلیفون اصلي پاڼه وګورئ.'));
+    } else if (outcome === 'dismissed') {
+      setInstallStatus(tp('Install dismissed. You can try again anytime.', 'نصب لغو شد. هر وقت خواستید دوباره تلاش کنید.', 'نصب لغوه شو. هر وخت وغواړئ بیا هڅه وکړئ.'));
+    } else {
+      setInstallStatus(tp('Direct install is not available in this browser — use the browser menu → "Add to Home screen".', 'نصب مستقیم در این مرورگر پشتیبانی نمی‌شود — از منوی مرورگر گزینه "افزودن به صفحه اصلی" را بزنید.', 'مستقیم نصب په دې براوزر کې نشته — د براوزر له مینو څخه "په اصلي پاڼه کې اضافه کول" وټاکئ.'));
+    }
+    setTimeout(() => setInstallStatus(null), 6000);
+  };
+  const [pinCurrent, setPinCurrent] = useState('');
+  const [pinNext, setPinNext] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinEnabled, setPinEnabled] = useState(() => appSettings.sectionProtection?.enabled?.apartments !== false);
+  const [pinStatus, setPinStatus] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const handleSavePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinStatus(null);
+    if (!unlockApartments(pinCurrent)) {
+      lockApartments();
+      setPinStatus({ ok: false, message: tp('Current PIN is incorrect.', 'رمز فعلی بخش آپارتمان‌ها اشتباه است.', 'د اپارټمنټونو د برخې اوسنی پین سم نه دی.') });
+      return;
+    }
+    lockApartments();
+    if (pinEnabled) {
+      if (pinNext.trim().length < 4) {
+        setPinStatus({ ok: false, message: tp('New PIN must be at least 4 characters.', 'رمز جدید باید حداقل ۴ کاراکتر باشد.', 'نوی پین باید لږ تر لږه ۴ توري وي.') });
+        return;
+      }
+      if (pinNext.trim() !== pinConfirm.trim()) {
+        setPinStatus({ ok: false, message: tp('New PIN and confirmation do not match.', 'رمز جدید با تکرار آن مطابقت ندارد.', 'نوی پین له تکرار سره سمون نه خوري.') });
+        return;
+      }
+      setSectionPassword('apartments', pinNext.trim(), true);
+    } else {
+      setSectionPassword('apartments', '', false);
+    }
+    setPinCurrent(''); setPinNext(''); setPinConfirm('');
+    setPinStatus({ ok: true, message: tp('Apartments section protection updated.', 'محافظت بخش آپارتمان‌ها به‌روزرسانی شد.', 'د اپارټمنټونو د برخې ساتنه تازه شوه.') });
+    setTimeout(() => setPinStatus(null), 4000);
+  };
 
   const handleSaveDesign = () => {
     updateAppSettings({ billDesign: docDesign, logoUrl: docLogoUrl || undefined });
@@ -746,6 +797,95 @@ export const SettingsView: React.FC = () => {
           }`}>
             <ShieldCheck className="w-4 h-4 shrink-0" />
             <span>{dbStatus.message}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Audit fix: apartments section PIN — changeable, no hardcoded master backdoor */}
+      <div className="p-6 rounded-3xl bg-surface border border-line shadow-sm space-y-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-violet-500/15 text-violet-600 dark:text-violet-400 flex items-center justify-center font-bold">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-bold text-base text-ink">
+              {tp('Apartments Section PIN', 'رمز بخش آپارتمان‌ها', 'د اپارټمنټونو د برخې پین')}
+            </h3>
+            <p className="text-xs text-ink-muted">
+              {tp('Gate that protects apartment sales data. Change it regularly.', 'قفل محافظ معلومات فروش آپارتمان‌ها. به‌صورت دوره‌ای تغییر دهید.', 'هغه قلف چې د اپارټمنټونو د پلور معلومات ساتي. په منظم ډول یې بدل کړئ.')}
+            </p>
+          </div>
+        </div>
+        <form onSubmit={handleSavePin} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <label className="flex items-center gap-2 sm:col-span-2 font-bold text-ink cursor-pointer">
+            <input type="checkbox" checked={pinEnabled} onChange={e => setPinEnabled(e.target.checked)} className="w-4 h-4 accent-violet-600" />
+            {tp('Enable PIN protection for Apartments', 'فعال بودن قفل رمز برای آپارتمان‌ها', 'د اپارټمنټونو لپاره د پین قلف فعالول')}
+          </label>
+          <div>
+            <span className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">{tp('Current PIN', 'رمز فعلی', 'اوسنی پین')}</span>
+            <input type="password" required value={pinCurrent} onChange={e => setPinCurrent(e.target.value)} autoComplete="off"
+              className="w-full px-3.5 py-2.5 bg-surface-2 border border-line rounded-xl text-ink font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30" />
+          </div>
+          <div>
+            <span className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">{tp('New PIN (min 4 chars)', 'رمز جدید (حداقل ۴ کاراکتر)', 'نوی پین (لږ تر لږه ۴ توري)')}</span>
+            <input type="password" value={pinNext} onChange={e => setPinNext(e.target.value)} autoComplete="new-password" disabled={!pinEnabled}
+              className="w-full px-3.5 py-2.5 bg-surface-2 border border-line rounded-xl text-ink font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 disabled:opacity-50" />
+          </div>
+          <div>
+            <span className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">{tp('Confirm New PIN', 'تکرار رمز جدید', 'د نوي پین تکرار')}</span>
+            <input type="password" value={pinConfirm} onChange={e => setPinConfirm(e.target.value)} autoComplete="new-password" disabled={!pinEnabled}
+              className="w-full px-3.5 py-2.5 bg-surface-2 border border-line rounded-xl text-ink font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 disabled:opacity-50" />
+          </div>
+          <div className="flex items-end">
+            <button type="submit" className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold shadow-md transition active:scale-95">
+              <Save className="w-4 h-4" />
+              <span>{tp('Save PIN', 'ذخیره رمز', 'پین خوندي کول')}</span>
+            </button>
+          </div>
+        </form>
+        {pinStatus && (
+          <div className={`p-3.5 rounded-2xl text-xs font-semibold flex items-center gap-2 ${pinStatus.ok
+            ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+            : 'bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'}`}>
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            <span>{pinStatus.message}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Audit fix: in-app PWA install */}
+      <div className="p-6 rounded-3xl bg-surface border border-line shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold">
+              <Download className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-ink">
+                {tp('Install App on This Device', 'نصب اپلیکیشن روی این دستگاه', 'په دې دستګاه اپلیکیشن نصبول')}
+              </h3>
+              <p className="text-xs text-ink-muted">
+                {tp('Add NIK SMART COUNT to your home screen for faster offline access.', 'نیک اسمارت کانت را به صفحه اصلی اضافه کنید تا آفلاین و سریع باز شود.', 'NIK SMART COUNT په اصلي پاڼه کې اضافه کړئ څو آفلاین او چټک خلاص شي.')}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleInstallApp}
+            disabled={isInstalled}
+            className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md transition active:scale-95 disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            <span>{isInstalled
+              ? tp('Installed ✓', 'نصب شده ✓', 'نصب شوی ✓')
+              : canInstall
+                ? tp('Install Now', 'نصب کنید', 'همدا اوس نصب کړئ')
+                : tp('How to Install', 'راهنمای نصب', 'د نصب لارښود')}</span>
+          </button>
+        </div>
+        {installStatus && (
+          <div className="p-3.5 rounded-2xl text-xs font-semibold bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-300">
+            {installStatus}
           </div>
         )}
       </div>

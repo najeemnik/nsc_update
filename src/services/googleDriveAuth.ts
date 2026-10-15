@@ -7,7 +7,19 @@ import {
   signOut,
   User 
 } from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
+import firebaseConfigFallback from '../../firebase-applet-config.json';
+
+// Audit fix: per-deploy override via build-time env; the committed JSON stays
+// only as a fallback so existing installs keep working.
+const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env || {};
+const firebaseConfig = {
+  apiKey: env.VITE_FIREBASE_API_KEY || firebaseConfigFallback.apiKey,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigFallback.authDomain,
+  projectId: env.VITE_FIREBASE_PROJECT_ID || firebaseConfigFallback.projectId,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigFallback.storageBucket,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigFallback.messagingSenderId,
+  appId: env.VITE_FIREBASE_APP_ID || firebaseConfigFallback.appId,
+};
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);

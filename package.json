@@ -27,7 +27,8 @@
     "test:builder": "esbuild scripts/verify-builder.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-builder.cjs --log-level=error && node node_modules/.cache/verify-builder.cjs",
     "test:i18n": "esbuild scripts/verify-i18n.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-i18n.cjs --log-level=error && node node_modules/.cache/verify-i18n.cjs",
     "test:aigov": "esbuild scripts/verify-ai-governance.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-aigov.cjs --log-level=error && node node_modules/.cache/verify-aigov.cjs",
-    "test:wave35": "esbuild scripts/verify-wave35.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave35.cjs --log-level=error && node node_modules/.cache/verify-wave35.cjs"
+    "test:wave35": "esbuild scripts/verify-wave35.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave35.cjs --log-level=error && node node_modules/.cache/verify-wave35.cjs",
+    "test:wave36": "esbuild scripts/verify-wave36.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave36.cjs --log-level=error && node node_modules/.cache/verify-wave36.cjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -16,14 +16,14 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
   defaultMaterialName,
   defaultSupplierId,
 }) => {
-  const { currentProject, projects, suppliers, formatCurrency, t, language, tp } = useApp();
+  const { currentProject, projects, suppliers, formatCurrency, t, language, tp, addExpense } = useApp();
   const [projectId, setProjectId] = useState<string>(currentProject?.id || (projects[0]?.id || ''));
   const [materialName, setMaterialName] = useState(defaultMaterialName || '');
-  const [category, setCategory] = useState('مصالح عمومی ساختمانی');
-  const [quantity, setQuantity] = useState('100');
+  const [category, setCategory] = useState('تجهیزات و مصالح متفرقه');
+  const [quantity, setQuantity] = useState('');
   const [unitOfMeasure, setUnitOfMeasure] = useState('بوجی (کیسه)');
-  const [unitPrice, setUnitPrice] = useState('520');
-  const [supplierName, setSupplierName] = useState('شرکت تأمین مصالح ABC');
+  const [unitPrice, setUnitPrice] = useState('');
+  const [supplierName, setSupplierName] = useState('');
   const [supplierId, setSupplierId] = useState(defaultSupplierId || '');
   const [isPaid, setIsPaid] = useState(true);
   const [invoiceNo, setInvoiceNo] = useState(`INV-${Date.now().toString().slice(-5)}`);
@@ -72,21 +72,48 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const res = await backendApi.createMaterialProcurement({
+      // Audit fix: local-first — creates the expense AND its payment leg (via addExpense)
+      // so the purchase truly lands in project costs even when offline.
+      const cleanSupplier = supplierName.trim();
+      addExpense({
+        projectId,
+        category,
+        description: `${materialName.trim()} — ${numQty} ${unitOfMeasure} × ${numUnitPrice.toLocaleString()} AFN`,
+        item: materialName.trim(),
+        quantity: numQty,
+        unit: unitOfMeasure,
+        unitPrice: numUnitPrice,
+        date: purchaseDate,
+        amount: Math.round(totalCost * 100) / 100,
+        currency: 'AFN',
+        partyType: 'supplier',
+        partyId: supplierId || undefined,
+        partyName: cleanSupplier || undefined,
+        paymentStatus: isPaid ? 'paid' : 'unpaid',
+        paidAmount: isPaid ? Math.round(totalCost * 100) / 100 : 0,
+        billNumber: invoiceNo,
+        invoiceNumber: invoiceNo,
+        notes: notes.trim() || undefined,
+      });
+      try {
+        const res = await backendApi.createMaterialProcurement({
         projectId,
         materialName: materialName.trim(),
         materialCategory: category,
         quantity: numQty,
         unitOfMeasure,
         unitPrice: numUnitPrice,
-        supplierName: supplierName.trim(),
+        supplierName: supplierName.trim() || '—',
         supplierId: supplierId || undefined,
         isPaid,
         purchaseDate,
         notes: notes.trim() || undefined,
-      });
-      if (!res.success) {
-        throw new Error(res.error || 'خطا در ثبت خرید مصالح');
+        });
+        if (!res.success) {
+          console.warn('[material] backend sync failed (kept locally):', res.error);
+        }
+      } catch (syncErr) {
+        console.warn('[material] backend sync failed (kept locally):', syncErr);
       }
 
       setSuccessNotice(true);

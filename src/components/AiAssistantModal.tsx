@@ -159,7 +159,7 @@ export const AiAssistantModal: React.FC<{ isOpen: boolean; onClose: () => void }
     setLoading(true);
     setTimeout(() => {
       recordAiUse();
-      pushAi(answerProjectQuestionLocally(query, summary, scopedProjects));
+      pushAi(answerProjectQuestionLocally(query, summary, scopedProjects, language));
       setLoading(false);
     }, 350);
   };

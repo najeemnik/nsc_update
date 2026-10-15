@@ -17,7 +17,7 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
   defaultPayerName,
   defaultAmount
 }) => {
-  const { currentProject, projects, formatCurrency, t, language, tp } = useApp();
+  const { currentProject, projects, formatCurrency, t, language, tp, addPayment } = useApp();
   const [projectId, setProjectId] = useState<string>(currentProject?.id || (projects[0]?.id || ''));
   const [payerName, setPayerName] = useState(defaultPayerName || '');
   const [incomeType, setIncomeType] = useState<string>('client_installment');
@@ -70,7 +70,32 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const res = await backendApi.createIncome({
+      // Audit fix: local-first — the income MUST exist in local ledger even offline.
+      const methodMap: Record<string, 'Cash' | 'Bank Transfer' | 'Hawala / Sarafi' | 'Cheque'> = {
+        cash: 'Cash',
+        bank_transfer: 'Bank Transfer',
+        hawala: 'Hawala / Sarafi',
+        cheque: 'Cheque',
+      };
+      addPayment({
+        projectId,
+        date,
+        amount: numAmount,
+        currency,
+        exchangeRate,
+        method: methodMap[paymentMethod] || 'Bank Transfer',
+        paymentType: 'income',
+        relatedType: incomeType === 'client_installment' || incomeType === 'advance_payment' ? 'apartment_sale' : 'other',
+        partyName: payerName.trim(),
+        recipientName: payerName.trim(),
+        receiptNumber: referenceNo,
+        referenceNumber: referenceNo,
+        bankOrSarafiName: targetAccount,
+        description: `${incomeType}: ${payerName.trim()} → ${targetAccount}`,
+        notes: notes.trim() || undefined,
+      });
+      try {
+        const res = await backendApi.createIncome({
         projectId,
         receivedFrom: payerName.trim(),
         incomeType,
@@ -82,9 +107,12 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
         referenceDoc: referenceNo,
         date,
         notes: notes.trim() || undefined,
-      });
-      if (!res.success) {
-        throw new Error(res.error || 'خطا در ثبت عواید');
+        });
+        if (!res.success) {
+          console.warn('[income] backend sync failed (kept locally):', res.error);
+        }
+      } catch (syncErr) {
+        console.warn('[income] backend sync failed (kept locally):', syncErr);
       }
 
       setSuccessNotice(true);

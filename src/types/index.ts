@@ -231,6 +231,7 @@ export interface User {
   active: boolean;
   verified?: boolean;
   otpCode?: string;
+  otpIssuedAt?: string;
   subscriptionPlan?: 'trial' | '6_months' | '1_year' | 'lifetime';
   subscriptionExpiresAt?: string;
   isLockedBySuperAdmin?: boolean;

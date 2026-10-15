@@ -15,6 +15,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/png" href="/assets/logo.png" />
     <link rel="apple-touch-icon" href="/assets/logo.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -22,7 +23,9 @@
       // Anti-FOUC: apply saved theme + day/night mode before first paint.
       (function () {
         try {
-          var raw = localStorage.getItem('nik_smart_count_appSettings');
+          var testMode = false;
+          try { testMode = localStorage.getItem('nsc_test_mode') === '1'; } catch (e) {}
+          var raw = localStorage.getItem((testMode ? 'nik_smart_count_test_' : 'nik_smart_count_') + 'appSettings');
           var s = raw ? JSON.parse(raw) : {};
           var schedule = s.themeSchedule || 'auto';
           var hour = new Date().getHours();
