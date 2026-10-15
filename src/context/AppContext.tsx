@@ -65,6 +65,9 @@ import { buildJournal, computeAccountBalances, buildTrialBalance } from '../util
 import { getAccount, getAccountName, getFullChart, nextLeafCode, sanitizeCustomAccounts, setCustomAccounts as setRegistryAccounts, accountDeleteBlocker } from '../data/chartOfAccounts';
 import type { Account } from '../data/chartOfAccounts';
 import { computeBudgetReport, findUpdatableBudgetLine } from '../utils/budgetUtils';
+import { isOffice7Theme } from '../utils/configSnapshots';
+import { sanitizeLayout, savePublishedLayout, clearDraftLayout } from '../utils/pageBuilder';
+import type { PageLayout } from '../utils/pageBuilder';
 import { canDo, grantedProjectIds } from '../utils/permissions';
 import { validateEquityTransfer, applyEquityTransfer } from '../utils/partnerFinance';
 import { canonicalMoney, isLockedDoc, expenseReversalMoney, paymentReversalMoney, payUSD } from '../utils/docFinance';
@@ -98,6 +101,7 @@ interface AppContextType {
   verifyOtpAndActivate: (email: string, otpCode: string) => { success: boolean; error?: string };
   requestPasswordReset: (email: string) => { success: boolean; otpCode?: string; error?: string };
   completePasswordReset: (email: string, otpCode: string, newPassword: string) => { success: boolean; error?: string };
+  changeOwnPassword: (currentPassword: string, newPassword: string) => { success: boolean; error?: string };
   chargeUserSubscription: (userId: string, durationMonths: number) => void;
   toggleLockUserBySuperAdmin: (userId: string) => void;
   createTenantCompanyOwnerBySuperAdmin: (data: {
@@ -145,6 +149,8 @@ interface AppContextType {
     subscriptionExpiresAt?: string;
     isLockedBySuperAdmin?: boolean;
     active?: boolean;
+    subscriptionPlan?: User['subscriptionPlan'];
+    customTheme?: AppTheme;
     /** Master-level permission merge (tab access, manage flags) */
     permissions?: Partial<UserPermissions>;
     projectGrants?: ProjectGrant[];
@@ -245,6 +251,8 @@ interface AppContextType {
   markAllNotificationsRead: () => void;
   clearReadNotifications: () => void;
   setNotificationPrefs: (patch: Partial<NotificationPrefs>) => void;
+  builderRev: number;
+  publishPageLayout: (pageKey: string, layout: PageLayout) => void;
   payments: Payment[];
   addPayment: (payment: Omit<Payment, 'id' | 'createdAt' | 'createdBy'>) => void;
   updatePayment: (id: string, updates: Partial<Payment>) => void;
@@ -552,6 +560,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRegistryAccounts(clean);
     return clean;
   });
+  // Wave 32: bumped on every builder publish so live pages re-resolve layouts.
+  const [builderRev, setBuilderRev] = useState(0);
   const [notificationPrefs, setNotificationPrefsState] = useState<NotificationPrefs>(() => {
     const loaded = loadFromStorage<Partial<NotificationPrefs>>('notificationPrefs', {});
     return {
@@ -1119,6 +1129,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       receiptContact: brandDesign?.receiptContact || '',
       enabledModules: found.customEnabledModules ? { ...prev.enabledModules, ...found.customEnabledModules } : prev.enabledModules,
       aiEnabled: found.permissions?.aiEnabled !== false,
+      // Wave 31: per-user theme assigned by Office7 (validated allow-list; legacy users keep current theme).
+      ...(isOffice7Theme(found.customTheme) ? { theme: found.customTheme as AppTheme } : {}),
     }));
     logAudit('login', 'user', found.id, `User ${found.name} logged in (${found.role})`, 'Authenticated successfully');
     // همگام‌سازی توکن سرور در پس‌زمینه؛ فقط قفل موقت (429) را به کاربر نشان بده
@@ -1323,6 +1335,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
+  // Wave 31: Office7 self-service password change — verifies the CURRENT
+  // password first (master approval of identity), enforces min length.
+  const changeOwnPassword = (currentPassword: string, newPassword: string): { success: boolean; error?: string } => {
+    if (!currentUser) {
+      return { success: false, error: 'No active session / نشست فعال یافت نشد' };
+    }
+    const fresh = users.find(u => u.id === currentUser.id);
+    if (!fresh) {
+      return { success: false, error: 'User not found / کاربر یافت نشد' };
+    }
+    if ((fresh.password || '') !== (currentPassword || '')) {
+      logAudit('update', 'user', fresh.id, `Failed self password change for ${fresh.email}`, 'Current password mismatch');
+      return { success: false, error: 'Current password is incorrect / رمز فعلی اشتباه است' };
+    }
+    const next = (newPassword || '').trim();
+    if (next.length < 6) {
+      return { success: false, error: 'New password must be at least 6 characters / رمز جدید باید حداقل ۶ کاراکتر باشد' };
+    }
+    const updated = { ...fresh, password: next };
+    setUsers(prev => prev.map(u => u.id === fresh.id ? updated : u));
+    setCurrentUser(updated);
+    saveToStorage('currentUser', updated);
+    logAudit('update', 'user', fresh.id, `Self password change for ${fresh.email}`, 'Password changed successfully');
+    return { success: true };
+  };
+
   const chargeUserSubscription = (userId: string, durationMonths: number) => {
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
@@ -1449,6 +1487,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     subscriptionExpiresAt?: string;
     isLockedBySuperAdmin?: boolean;
     active?: boolean;
+    subscriptionPlan?: User['subscriptionPlan'];
+    customTheme?: AppTheme;
     /** Master-level permission merge (tab access, manage flags) */
     permissions?: Partial<UserPermissions>;
     projectGrants?: ProjectGrant[];
@@ -1475,9 +1515,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           customBillDesign: updates.customBillDesign !== undefined ? updates.customBillDesign : u.customBillDesign,
           customButtonConfig: updates.customButtonConfig !== undefined ? updates.customButtonConfig : u.customButtonConfig,
           customEnabledModules: updates.customEnabledModules !== undefined ? updates.customEnabledModules : u.customEnabledModules,
+          subscriptionPlan: updates.subscriptionPlan !== undefined ? updates.subscriptionPlan : u.subscriptionPlan,
           subscriptionExpiresAt: updates.subscriptionExpiresAt !== undefined ? updates.subscriptionExpiresAt : u.subscriptionExpiresAt,
           isLockedBySuperAdmin: updates.isLockedBySuperAdmin !== undefined ? updates.isLockedBySuperAdmin : u.isLockedBySuperAdmin,
           active: updates.active !== undefined ? updates.active : u.active,
+          customTheme: updates.customTheme !== undefined ? updates.customTheme : u.customTheme,
           permissions: newPermissions,
           projectGrants: updates.projectGrants !== undefined ? updates.projectGrants : u.projectGrants,
           accessExpiresAt: updates.accessExpiresAt !== undefined ? updates.accessExpiresAt : u.accessExpiresAt,
@@ -3539,6 +3581,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearReadNotifications = () => {
     setNotifications(prev => prev.filter(n => !n.read && !n.dismissed));
   };
+  // Wave 32: publish a builder layout (sanitized) + clear its draft.
+  const publishPageLayout = (pageKey: string, layout: PageLayout): void => {
+    const clean = sanitizeLayout(layout);
+    savePublishedLayout(pageKey, clean);
+    clearDraftLayout(pageKey);
+    setBuilderRev(r => r + 1);
+    logAudit('update', 'builder', pageKey, `Builder layout published for ${pageKey}`, `Blocks: ${clean.blocks.length}`);
+  };
+
   const setNotificationPrefs = (patch: Partial<NotificationPrefs>) => {
     setNotificationPrefsState(prev => ({
       ...prev,
@@ -3698,6 +3749,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       markAllNotificationsRead,
       clearReadNotifications,
       setNotificationPrefs,
+      builderRev,
+      publishPageLayout,
       updateUser,
       toggleUserActive,
       createTenantCompanyOwnerBySuperAdmin,
@@ -3705,6 +3758,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       verifyOtpAndActivate,
       requestPasswordReset,
       completePasswordReset,
+      changeOwnPassword,
       chargeUserSubscription,
       toggleLockUserBySuperAdmin,
       createEmployeeAccount,

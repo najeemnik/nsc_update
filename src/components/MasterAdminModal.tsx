@@ -4,6 +4,10 @@ import { backendApi } from '../services/backendApi';
 import { User, UserActivityEvent, CustomActionButton, CustomBillDesign, DEFAULT_ACTION_BUTTONS, ProjectGrant } from '../types';
 import { AccessMatrix } from './AccessMatrix';
 import { contractorPayout } from '../utils/opsMath';
+import {
+  OFFICE7_THEME_OPTIONS, isOffice7Theme, listSnapshots, saveSnapshot, deleteSnapshot,
+  downloadSnapshot, parseSnapshotFile, remainingDays as licenseRemainingDays, type ConfigSnapshot,
+} from '../utils/configSnapshots';
 
 /** Wave 30: sample contractor statement — computed (was hard-coded strings). */
 const SAMPLE_PAYOUT = contractorPayout(200000, 10, 2);
@@ -13,7 +17,7 @@ import {
   parseTemplateJson, exportTemplate, qrPayload, fontStackOf, paperOptionOf,
 } from '../utils/docDesign';
 import { sniffImageMime } from '../utils/scanEngine';
-import type { DocSectionId } from '../types';
+import type { DocSectionId, AppTheme, NotificationType, NotificationPrefs } from '../types';
 import { 
   ShieldCheck, 
   Lock, 
@@ -77,7 +81,9 @@ import {
   Printer,
   Palette,
   Download,
-  Type
+  Type,
+  Bell,
+  Link2
 } from 'lucide-react';
 
 interface MasterAdminModalProps {
@@ -112,6 +118,7 @@ const TAB_OPTIONS: Array<{ id: string; label: string }> = [
   { id: 'journal',     label: 'اسناد روزنامچه' },
   { id: 'documents',   label: 'اسناد و بِل‌ها' },
   { id: 'reports',     label: 'گزارشات' },
+  { id: 'builder',     label: 'بیلدر تصویری' },
   { id: 'settings',    label: 'تنظیمات' },
   { id: 'users',       label: 'مدیریت کارمندان' },
   { id: 'audit_logs',  label: 'ثبت رویدادها' },
@@ -125,6 +132,9 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     toggleLockUserBySuperAdmin, 
     toggleAiForUser, 
     updateTenantByMasterAdmin,
+    changeOwnPassword,
+    notificationPrefs,
+    setNotificationPrefs,
     impersonateTenant,
     addUser,
     activityEvents,
@@ -148,7 +158,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'expired' | 'locked' | 'ai'>('all');
 
   const [selectedTenant, setSelectedTenant] = useState<User | null>(null);
-  const [inspectorTab, setInspectorTab] = useState<'profile' | 'modules' | 'buttons' | 'bill' | 'subscription' | 'access'>('profile');
+  const [inspectorTab, setInspectorTab] = useState<'profile' | 'modules' | 'buttons' | 'bill' | 'subscription' | 'access' | 'backup'>('profile');
 
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
@@ -237,6 +247,21 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
   const [editAllowedTabs, setEditAllowedTabs] = useState<string[]>([]);
   const [editGrants, setEditGrants] = useState<ProjectGrant[]>([]);
   const [editAccessExpiresAt, setEditAccessExpiresAt] = useState('');
+  // Wave 31: account status + per-user theme + license plan editors
+  const [editActive, setEditActive] = useState(true);
+  const [editTheme, setEditTheme] = useState<AppTheme>('glassmorphism');
+  const [editPlan, setEditPlan] = useState<NonNullable<User['subscriptionPlan']>>('trial');
+  // Wave 31: config snapshots
+  const [snapshots, setSnapshots] = useState<ConfigSnapshot[]>([]);
+  const [snapshotNotice, setSnapshotNotice] = useState<string | null>(null);
+  const snapshotFileRef = useRef<HTMLInputElement>(null);
+  // Wave 31: self password change + private link
+  const [selfPwdCurrent, setSelfPwdCurrent] = useState('');
+  const [selfPwdNext, setSelfPwdNext] = useState('');
+  const [selfPwdRepeat, setSelfPwdRepeat] = useState('');
+  const [selfPwdMsg, setSelfPwdMsg] = useState<string | null>(null);
+  const [selfPwdOk, setSelfPwdOk] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [saveErrorNotice, setSaveErrorNotice] = useState<string | null>(null);
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string | null>(null);
 
@@ -252,7 +277,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
   const [newOwner, setNewOwner] = useState(emptyNewOwner);
 
   // دفتر هفت SaaS dashboard internals
-  const [officeTab, setOfficeTab] = useState<'dashboard' | 'owners' | 'security'>('dashboard');
+  const [officeTab, setOfficeTab] = useState<'dashboard' | 'owners' | 'security' | 'system'>('dashboard');
   const [newGateKey, setNewGateKey] = useState('');
   const [newGateKeyRepeat, setNewGateKeyRepeat] = useState('');
   const [gateKeyMsg, setGateKeyMsg] = useState<string | null>(null);
@@ -328,6 +353,11 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     setEditCompanyName(user.companyName || '');
     setEditCompanyAddress(user.companyAddress || '');
     setEditPassword('');
+    setEditActive(user.active !== false);
+    setEditTheme(isOffice7Theme(user.customTheme) ? user.customTheme : 'glassmorphism');
+    setEditPlan(user.subscriptionPlan || 'trial');
+    setSnapshots(listSnapshots(user.id));
+    setSnapshotNotice(null);
     setEditLogoUrl(user.customLogoUrl || '');
 
     const bill = user.customBillDesign || {};
@@ -483,6 +513,139 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     });
   };
 
+  // ---- Wave 31: license cancel + snapshots + self password + private link ----
+  const handleCancelLicense = () => {
+    if (!selectedTenant) return;
+    const ok = window.confirm(tp(
+      `Cancel the license of ${selectedTenant.companyName || selectedTenant.name}? The account will be locked immediately.`,
+      `اشتراک «${selectedTenant.companyName || selectedTenant.name}» لغو و حساب فوراً قفل شود؟`,
+      `د «${selectedTenant.companyName || selectedTenant.name}» جواز لغوه او حساب سمدستي و تړل شي؟`
+    ));
+    if (!ok) return;
+    updateTenantByMasterAdmin(selectedTenant.id, {
+      subscriptionPlan: 'trial',
+      subscriptionExpiresAt: new Date(Date.now() - 86400000).toISOString(),
+      isLockedBySuperAdmin: true,
+    });
+    const updated = users.find(u => u.id === selectedTenant.id);
+    if (updated) {
+      handleOpenTenantInspector({ ...updated, subscriptionPlan: 'trial', isLockedBySuperAdmin: true });
+      setInspectorTab('subscription');
+    }
+    setSaveSuccessNotice(tp('License cancelled and account locked.', 'اشتراک لغو و حساب قفل شد.', 'جواز لغوه او حساب و تړل شو.'));
+    setTimeout(() => setSaveSuccessNotice(null), 4000);
+  };
+
+  const handleSaveSnapshot = () => {
+    if (!selectedTenant) return;
+    const masterEmail = users.find(u => u.isMasterSuperAdmin)?.email || 'master';
+    const snap = saveSnapshot(selectedTenant, masterEmail);
+    if (!snap) {
+      setSnapshotNotice(tp('Snapshot too large (over 500 KB).', 'حجم نسخه بیش از ۵۰۰ کیلوبایت است.', 'د نسخې حجم له ۵۰۰ کیلوبایټو ډېر دی.'));
+      return;
+    }
+    setSnapshots(listSnapshots(selectedTenant.id));
+    setSnapshotNotice(tp('Snapshot saved.', 'نسخهٔ پشتیبان ذخیره شد.', 'نسخه خوندي شوه.'));
+  };
+
+  const handleRestoreSnapshot = (snap: ConfigSnapshot) => {
+    if (!selectedTenant) return;
+    if (snap.userId !== selectedTenant.id) {
+      setSnapshotNotice(tp('This snapshot belongs to another account.', 'این نسخه متعلق به حساب دیگری است.', 'دا نسخه د بل حساب ده.'));
+      return;
+    }
+    const ok = window.confirm(tp(
+      'Restore this snapshot? Current settings of this account will be overwritten.',
+      'این نسخه بازیابی شود؟ تنظیمات فعلی این حساب بازنویسی می‌شود.',
+      'دا نسخه راوګرځول شي؟ د دې حساب اوسني امستنې به له سره ولیکل شي.'
+    ));
+    if (!ok) return;
+    const d = snap.data;
+    const res = updateTenantByMasterAdmin(selectedTenant.id, {
+      customLogoUrl: d.customLogoUrl,
+      customBillDesign: d.customBillDesign,
+      customButtonConfig: d.customButtonConfig,
+      customEnabledModules: d.customEnabledModules,
+      permissions: d.permissions,
+      aiEnabled: d.aiEnabled,
+      projectGrants: d.projectGrants,
+      accessExpiresAt: d.accessExpiresAt,
+      subscriptionPlan: d.subscriptionPlan,
+      subscriptionExpiresAt: d.subscriptionExpiresAt,
+      isLockedBySuperAdmin: d.isLockedBySuperAdmin,
+      active: d.active,
+      customTheme: d.customTheme,
+    });
+    if (res.success) {
+      const clean = Object.fromEntries(Object.entries(d).filter(([, v]) => v !== undefined));
+      handleOpenTenantInspector({
+        ...selectedTenant,
+        ...clean,
+        permissions: { ...(selectedTenant.permissions || {}), ...(d.permissions || {}) },
+      } as User);
+      setInspectorTab('backup');
+      setSnapshotNotice(tp('Configuration restored from snapshot.', 'تنظیمات از نسخهٔ پشتیبان بازیابی شد.', 'امستنې له نسخې څخه راوګرځېدې.'));
+    } else {
+      setSnapshotNotice(res.error || 'Restore failed.');
+    }
+  };
+
+  const handleDeleteSnapshot = (id: string) => {
+    deleteSnapshot(id);
+    if (selectedTenant) setSnapshots(listSnapshots(selectedTenant.id));
+    setSnapshotNotice(tp('Snapshot deleted.', 'نسخه حذف شد.', 'نسخه ړنګه شوه.'));
+  };
+
+  const handleSnapshotFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !selectedTenant) return;
+    try {
+      const raw = await file.text();
+      const snap = parseSnapshotFile(raw);
+      handleRestoreSnapshot(snap);
+    } catch (err) {
+      setSnapshotNotice(err instanceof Error ? err.message : 'Invalid file.');
+    }
+  };
+
+  const handleSelfPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selfPwdNext !== selfPwdRepeat) {
+      setSelfPwdOk(false);
+      setSelfPwdMsg(tp('New passwords do not match.', 'تکرار رمز جدید مطابقت ندارد.', 'د نوي پټ نوم تکرار سمون نه خوري.'));
+      return;
+    }
+    const res = changeOwnPassword(selfPwdCurrent, selfPwdNext);
+    setSelfPwdOk(res.success);
+    setSelfPwdMsg(res.success
+      ? tp('Your password was changed successfully.', 'رمز شما با موفقیت تغییر کرد.', 'ستاسو پټ نوم په بریالیتوب بدل شو.')
+      : (res.error || 'Failed.'));
+    if (res.success) {
+      setSelfPwdCurrent('');
+      setSelfPwdNext('');
+      setSelfPwdRepeat('');
+    }
+  };
+
+  const privateLinkOf = () => `${window.location.origin}${window.location.pathname}#/office7`;
+
+  const handleCopyPrivateLink = async () => {
+    const link = privateLinkOf();
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = link;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2500);
+  };
+
   const handleSaveTenantChanges = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!selectedTenant) return;
@@ -499,6 +662,9 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
       customButtonConfig: editButtonConfig,
       customEnabledModules: editModules,
       aiEnabled: editAiEnabled,
+      active: editActive,
+      customTheme: editTheme,
+      subscriptionPlan: editPlan,
       subscriptionExpiresAt: editExpiresAt ? new Date(editExpiresAt).toISOString() : undefined,
       projectGrants: editGrants,
       accessExpiresAt: editAccessExpiresAt ? new Date(editAccessExpiresAt).toISOString() : undefined,
@@ -957,6 +1123,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                   { id: 'buttons', label: 'دکمه‌ها و اکشن‌بار', icon: Sliders },
                   { id: 'bill', label: 'استودیوی بل و واچر', icon: Receipt },
                   { id: 'subscription', label: 'تمدید و قفل اشتراک', icon: Calendar },
+                  { id: 'backup', label: 'بکاپ و نسخه‌ها', icon: Database },
                 ].map(t => {
                   const Icon = t.icon;
                   return (
@@ -1049,11 +1216,66 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-amber-400 rounded-xl text-slate-900 font-mono text-xs"
                     />
                   </div>
+
+                  {/* Wave 31: account active switch (saved with the main save button) */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800">{tp('Account status', 'وضعیت حساب', 'د حساب حالت')}</h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{tp('Inactive = login fully blocked (separate from the license lock).', 'غیرفعال = ورود کاملاً بسته می‌شود (جدا از قفل اشتراک).', 'غیرفعال = ننوتل بشپړ تړل کېږي (د جواز له قلفه جلا).')}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditActive(v => !v)}
+                      className={`relative w-14 h-8 rounded-full transition-colors shrink-0 ${editActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                      title={editActive ? tp('Active — click to deactivate', 'فعال — برای غیرفعال‌سازی کلیک کنید', 'فعال — د غیرفعالولو لپاره کلیک وکړئ') : tp('Inactive — click to activate', 'غیرفعال — برای فعال‌سازی کلیک کنید', 'غیرفعال — د فعالولو لپاره کلیک وکړئ')}
+                    >
+                      <span className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all ${editActive ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
+
+                  {/* Wave 31: per-user theme (applies on the user's next login) */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                    <h3 className="text-xs font-black text-slate-800 flex items-center gap-2">
+                      <Palette className="w-4 h-4 text-violet-500" />
+                      <span>{tp('Assigned theme', 'تم اختصاصی کاربر', 'د کارونکي ځانګړې بڼه')}</span>
+                    </h3>
+                    <select
+                      value={editTheme}
+                      onChange={(e) => setEditTheme(e.target.value as AppTheme)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold"
+                    >
+                      {OFFICE7_THEME_OPTIONS.map(th => (
+                        <option key={th} value={th}>{th}</option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-slate-500">{tp('Applies on the next login of this user (and their view only).', 'در لاگین بعدی همین کاربر اعمال می‌شود (فقط نمای او).', 'د دې کارونکي په راتلونکي ننوتلو کې پلې کېږي (یوازې د هغه لید).')}</p>
+                  </div>
                 </div>
               )}
 
               {inspectorTab === 'access' && (
                 <div className="space-y-4 max-w-3xl mx-auto">
+                  {/* Wave 31: per-user AI access (applies immediately) */}
+                  <div className="p-4 bg-violet-500/10 border border-violet-500/30 rounded-2xl flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-violet-500" />
+                        <span>{tp('AI access for this user', 'دسترسی هوش مصنوعی این کاربر', 'د دې کارونکي لپاره د مصنوعي ځیرکتیا لاسرسی')}</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{tp('Applies instantly; also stored by Save changes.', 'بلافاصله اعمال می‌شود؛ با «ذخیره تغییرات» نیز ثبت می‌گردد.', 'سمدستي پلې کېږي؛ د «بدلونونو خوندي کولو» سره هم ثبتېږي.')}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const v = !editAiEnabled;
+                        setEditAiEnabled(v);
+                        toggleAiForUser(selectedTenant.id, v);
+                      }}
+                      className={`relative w-14 h-8 rounded-full transition-colors shrink-0 ${editAiEnabled ? 'bg-violet-500' : 'bg-slate-300'}`}
+                    >
+                      <span className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all ${editAiEnabled ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
                   {(selectedTenant.role === 'admin' && !selectedTenant.ownerAdminId) ? (
                     <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
                       <div className="flex items-center gap-2 text-amber-300 text-xs font-black">
@@ -2103,6 +2325,45 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                     </div>
                   </div>
 
+                  {/* Wave 31: license plan + remaining days + cancel */}
+                  <div className="p-4 bg-indigo-50/60 rounded-2xl border border-indigo-200 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block text-slate-500 font-bold mb-1">{tp('License plan', 'پلن اشتراک', 'د جواز پلان')}</label>
+                        <select
+                          value={editPlan}
+                          onChange={(e) => setEditPlan(e.target.value as NonNullable<User['subscriptionPlan']>)}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-bold text-xs"
+                        >
+                          <option value="trial">{tp('Trial', 'آزمایشی', 'آزمېښتي')}</option>
+                          <option value="6_months">{tp('6 months', '۶ ماهه', '۶ میاشتې')}</option>
+                          <option value="1_year">{tp('1 year', '۱ ساله', '۱ کال')}</option>
+                          <option value="lifetime">{tp('Lifetime', 'مادام‌العمر', 'د تل لپاره')}</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col justify-end">
+                        <span className="text-[11px] text-slate-500 mb-1">{tp('Remaining days', 'روزهای باقیمانده', 'پاتې ورځې')}</span>
+                        <span className="px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono font-black text-slate-900">
+                          {(() => {
+                            const src = editExpiresAt || selectedTenant.subscriptionExpiresAt;
+                            const left = licenseRemainingDays(src ? new Date(src).toISOString() : undefined);
+                            if (left === null) return '—';
+                            return left >= 0
+                              ? tp(`${left} days`, `${left} روز`, `${left} ورځې`)
+                              : tp(`Expired ${Math.abs(left)} days ago`, `${Math.abs(left)} روز از انقضا گذشته`, `${Math.abs(left)} ورځې له پای څخه تېرې شوې`);
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCancelLicense}
+                      className="w-full py-2 rounded-xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-500/40 text-rose-700 text-xs font-black transition-colors"
+                    >
+                      {tp('Cancel license & lock account', 'لغو اشتراک و قفل حساب', 'جواز لغوه او حساب قفل کړه')}
+                    </button>
+                  </div>
+
                   <div className="p-4 bg-emerald-50 rounded-2xl border border-slate-200 flex items-center justify-between">
                     <div>
                       <h4 className="text-xs font-bold text-slate-900">قفل کردن یا بازگشایی حساب شرکت</h4>
@@ -2127,6 +2388,67 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                 </div>
               )}
             </div>
+
+              {inspectorTab === 'backup' && selectedTenant && (
+                <div className="space-y-4 max-w-3xl mx-auto">
+                  <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl">
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      {tp('Snapshots store this account\u2019s design + system settings (logo, bill studio, buttons, modules, access, license, lock, theme). Restore overwrites current settings.',
+                        'نسخه‌ها، تنظیمات طراحی و سیستمی این حساب را نگه می‌دارند (لوگو، استودیوی بل، دکمه‌ها، ماژول‌ها، دسترسی، اشتراک، قفل، تم). بازیابی، تنظیمات فعلی را بازنویسی می‌کند.',
+                        'نسخې د دې حساب ډیزاین او سیسټم امستنې ساتي (لوګو، بل سټوډیو، تڼۍ، ماډلونه، لاسرسی، جواز، قفل، بڼه). راوګرځول اوسنۍ امستنې له سره لیکي.')}
+                    </p>
+                  </div>
+                  {snapshotNotice && (
+                    <div className="p-3 rounded-xl border text-xs font-bold bg-indigo-50 border-indigo-200 text-indigo-700 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>{snapshotNotice}</span>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveSnapshot}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black flex items-center gap-2 transition-colors"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{tp('Save snapshot of current settings', 'ذخیرهٔ نسخه از تنظیمات فعلی', 'د اوسنیو امستنو نسخه خوندي کړه')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => snapshotFileRef.current?.click()}
+                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black flex items-center gap-2 transition-colors border border-slate-300"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>{tp('Restore from file…', 'بازیابی از فایل…', 'له فایل څخه راوګرځوه…')}</span>
+                    </button>
+                    <input ref={snapshotFileRef} type="file" accept="application/json,.json" className="hidden" onChange={handleSnapshotFile} />
+                  </div>
+                  {snapshots.length === 0 && (
+                    <p className="text-[11px] text-slate-400 text-center py-6">{tp('No snapshots yet.', 'هنوز نسخه‌ای ذخیره نشده است.', 'تر اوسه هېڅ نسخه نشته.')}</p>
+                  )}
+                  <div className="space-y-2">
+                    {snapshots.map(snap => (
+                      <div key={snap.id} className="p-3 bg-white border border-slate-200 rounded-2xl flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-[11px]">
+                          <div className="font-black text-slate-800">{new Date(snap.createdAt).toLocaleString()}</div>
+                          <div className="text-slate-500">{tp('by', 'توسط', 'لخوا')} {snap.createdBy || '—'} · {(snap.byteSize / 1024).toFixed(1)} KB</div>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button type="button" onClick={() => handleRestoreSnapshot(snap)} className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black transition-colors">
+                            {tp('Restore', 'بازیابی', 'راوګرځوه')}
+                          </button>
+                          <button type="button" onClick={() => downloadSnapshot(snap)} title={tp('Download', 'دانلود', 'ښکته کړه')} className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors">
+                            <Download className="w-4 h-4" />
+                          </button>
+                          <button type="button" onClick={() => handleDeleteSnapshot(snap.id)} title={tp('Delete', 'حذف', 'ړنګ کړه')} className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
               <button
@@ -2174,6 +2496,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                 { id: 'dashboard', label: 'داشبورد نظارت', icon: LayoutDashboard },
                 { id: 'owners', label: 'مالک‌ها و کارمندان', icon: Crown },
                 { id: 'security', label: 'امنیت و رمز', icon: KeyRound },
+                { id: 'system', label: 'سیستم و اعلان‌ها', icon: Bell },
               ] as Array<{ id: typeof officeTab; label: string; icon: any }>).map(tab => {
                 const TabIcon = tab.icon;
                 const active = officeTab === tab.id;
@@ -2519,6 +2842,71 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
               </div>
             )}
 
+            {officeTab === 'system' && (
+              <div className="max-w-2xl space-y-4 animate-in fade-in">
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Bell className="w-5 h-5 text-indigo-600" />
+                    <h4 className="text-sm font-black text-slate-800">{tp('Notification settings (global)', 'تنظیمات اعلان‌ها (سراسری)', 'د خبرتیاوو امستنې (ټولیز)')}</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    {tp('Applies to every company. Per-user AI access is managed from Owners → inspector → Access tab.',
+                      'روی همهٔ شرکت‌ها اعمال می‌شود. دسترسی هوش مصنوعی هر کاربر از مسیر مالک‌ها ← بازرس ← برگهٔ دسترسی مدیریت می‌شود.',
+                      'په ټولو شرکتونو پلې کېږي. د هر کارونکي د مصنوعي ځیرکتیا لاسرسی له خاوندانو ← څارونکي ← د لاسرسي له پاڼې څخه مدیریت کېږي.')}
+                  </p>
+                  <label className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                    <span className="text-xs font-black text-slate-800">{tp('Enable notifications', 'فعال‌سازی اعلان‌ها', 'خبرتیاوې فعالې کړه')}</span>
+                    <input
+                      type="checkbox"
+                      checked={notificationPrefs.enabled}
+                      onChange={(e) => setNotificationPrefs({ enabled: e.target.checked })}
+                      className="w-5 h-5 accent-indigo-600"
+                    />
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {([
+                      ['installment_overdue', 'اقساط معوق / Overdue'],
+                      ['installment_due_soon', 'سررسید نزدیک / Due soon'],
+                      ['installment_paid', 'پرداخت اقساط / Paid'],
+                      ['unpaid_purchase', 'خرید نسیه / Unpaid buys'],
+                      ['outstanding_debt', 'بدهی معوق / Debts'],
+                      ['missing_document', 'اسناد ناقص / Missing docs'],
+                      ['project_inactivity', 'رکود پروژه / Inactivity'],
+                      ['general_financial', 'مالی عمومی / General'],
+                    ] as Array<[NotificationType, string]>).map(([key, label]) => (
+                      <label key={key} className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer text-xs font-bold text-slate-700">
+                        <span>{label}</span>
+                        <input
+                          type="checkbox"
+                          checked={notificationPrefs.categories?.[key] !== false}
+                          onChange={(e) => setNotificationPrefs({ categories: { ...notificationPrefs.categories, [key]: e.target.checked } })}
+                          className="w-4 h-4 accent-indigo-600"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div>
+                      <label className="block text-slate-500 font-bold mb-1">{tp('Quiet from', 'سکوت از', 'چوپتیا له')}</label>
+                      <input type="time" value={notificationPrefs.quietStart} onChange={(e) => setNotificationPrefs({ quietStart: e.target.value })} className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono" />
+                    </div>
+                    <div>
+                      <label className="block text-slate-500 font-bold mb-1">{tp('Quiet to', 'سکوت تا', 'چوپتیا تر')}</label>
+                      <input type="time" value={notificationPrefs.quietEnd} onChange={(e) => setNotificationPrefs({ quietEnd: e.target.value })} className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono" />
+                    </div>
+                    <div>
+                      <label className="block text-slate-500 font-bold mb-1">{tp('Due-soon (days)', 'مهلت سررسید (روز)', 'نېږدې نېټه (ورځې)')}</label>
+                      <input type="number" min={1} max={30} value={notificationPrefs.dueSoonDays} onChange={(e) => setNotificationPrefs({ dueSoonDays: Math.max(1, Math.min(30, Number(e.target.value) || 7)) })} className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono" />
+                    </div>
+                    <div>
+                      <label className="block text-slate-500 font-bold mb-1">{tp('Inactivity (days)', 'رکود (روز)', 'بې‌فعالیتي (ورځې)')}</label>
+                      <input type="number" min={1} max={90} value={notificationPrefs.inactivityDays} onChange={(e) => setNotificationPrefs({ inactivityDays: Math.max(1, Math.min(90, Number(e.target.value) || 14)) })} className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {officeTab === 'security' && (
               <div className="max-w-xl space-y-4 animate-in fade-in">
                 <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
@@ -2566,6 +2954,82 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
 
                 <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-relaxed">
                   <span className="font-black">نکتهٔ امنیتی:</span> ۵ تلاش غلط متوالی دروازه را ۳۰ ثانیه می‌بندد و هر ورود در ثبت رویدادها با نشست و ساعت ذخیره می‌شود.
+                </div>
+
+                {/* Wave 31: private entry link (link alone is NOT enough — gate key still required) */}
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="w-5 h-5 text-indigo-600" />
+                    <h4 className="text-sm font-black text-slate-800">{tp('Private Office 7 entry link', 'لینک خصوصی ورود دفتر هفت', 'د دفتر اووه د ننوتلو خصوصي لینک')}</h4>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={privateLinkOf()}
+                      onFocus={(e) => e.target.select()}
+                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-[11px] font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyPrivateLink}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black transition-colors shrink-0"
+                    >
+                      {linkCopied ? tp('Copied!', 'کپی شد!', 'کاپي شو!') : tp('Copy', 'کپی', 'کاپي')}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    {tp('Opening this link still asks for the gate key or master password — the link alone grants nothing. Share it only with the master owner.',
+                      'باز کردن این لینک همچنان کلید امنیتی یا رمز مالک را می‌خواهد — لینک به‌تنهایی هیچ دسترسی نمی‌دهد. فقط به مالک ارشد بدهید.',
+                      'د دې لینک پرانیستل بیا هم امنیتي کیلي یا د خاوند پټ نوم غواړي — یوازې لینک هېڅ لاسرسی نه ورکوي. یوازې مشر خاوند ته یې ورکړئ.')}
+                  </p>
+                </div>
+
+                {/* Wave 31: master self password change (current password required) */}
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="w-5 h-5 text-emerald-600" />
+                    <h4 className="text-sm font-black text-slate-800">{tp('Change my password (master)', 'تغییر رمز خودم (مالک ارشد)', 'خپل پټ نوم بدل کړه (مشر خاوند)')}</h4>
+                  </div>
+                  <form onSubmit={handleSelfPassword} className="space-y-2.5">
+                    <input
+                      type="password"
+                      required
+                      value={selfPwdCurrent}
+                      onChange={e => setSelfPwdCurrent(e.target.value)}
+                      placeholder={tp('Current password…', 'رمز فعلی…', 'اوسنی پټ نوم…') as string}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    />
+                    <input
+                      type="password"
+                      required
+                      value={selfPwdNext}
+                      onChange={e => setSelfPwdNext(e.target.value)}
+                      placeholder={tp('New password (min 6 chars)…', 'رمز جدید (حداقل ۶ کاراکتر)…', 'نوی پټ نوم (لږ تر لږه ۶ توري)…') as string}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    />
+                    <input
+                      type="password"
+                      required
+                      value={selfPwdRepeat}
+                      onChange={e => setSelfPwdRepeat(e.target.value)}
+                      placeholder={tp('Repeat new password…', 'تکرار رمز جدید…', 'نوی پټ نوم تکرار کړه…') as string}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    />
+                    {selfPwdMsg && (
+                      <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                        selfPwdOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
+                      }`}>
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>{selfPwdMsg}</span>
+                      </div>
+                    )}
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-500/30 transition-all"
+                    >
+                      {tp('Change my password', 'تغییر رمز من', 'زما پټ نوم بدل کړه')}
+                    </button>
+                  </form>
                 </div>
               </div>
             )}

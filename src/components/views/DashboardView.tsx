@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { resolveDashboardBlocks } from '../../utils/pageBuilder';
+import { BlockView } from '../builder/BlockView';
 import { useApp } from '../../context/AppContext';
 import { expUSD, payUSD, isCountedDoc } from '../../utils/docFinance';
 import { 
@@ -45,6 +47,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   setActiveTab
 }) => {
   const { 
+    currentUser, 
+    builderRev, 
     currentProject, 
     projects, 
     expenses, 
@@ -113,8 +117,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  return (
-    <div className="space-y-6 animate-fade-in">
+  // Wave 32: dashboard sections as addressable nodes — the visual builder
+  // reorders/shows/hides them and injects content blocks between them.
+  // With no published layout, render order is identical to the legacy page.
+  const sectionNodes: Record<string, React.ReactNode> = {
+    banner: (
+<>
       {/* Top Banner / Project Welcome */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white p-6 sm:p-8 shadow-xl">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -202,6 +210,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* KPI Stats Grid */}
+</>
+    ),
+    statCards: (
+<>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Total Expenses Card */}
         <div 
@@ -285,10 +297,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
-
+</>
+    ),
+    charts: (
+<>
       {/* Main Charts & Visual Analytics */}
       <DashboardCharts />
-
+</>
+    ),
+    recentGrid: (
+<>
       {/* Recent Activity / Recent Bills & Payments Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Expenses / Bills */}
@@ -383,6 +401,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
+</>
+    ),
+  };
+  const builderBlocks = useMemo(
+    () => resolveDashboardBlocks(currentUser?.companyName || currentUser?.username),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [builderRev, currentUser?.id],
+  );
+  const liveStats = { expenses: totalExpenseUSD, paid: totalPaidUSD, debt: totalDebtUSD, sales: totalSalesUSD };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {builderBlocks.map(b => (b.type === 'dashboard_section' && b.refId ? (
+        <React.Fragment key={b.id}>{sectionNodes[b.refId] || null}</React.Fragment>
+      ) : (
+        <BlockView
+          key={b.id}
+          block={b}
+          stats={liveStats}
+          formatMoney={(v) => formatCurrency(v, 'USD')}
+          onNavigate={(tab) => { if (setActiveTab) setActiveTab(tab); }}
+        />
+      )))}
     </div>
   );
 };

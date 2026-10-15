@@ -25,6 +25,7 @@ import { ApartmentsView } from './components/views/ApartmentsView';
 import { PaymentsView } from './components/views/PaymentsView';
 import { DocumentsView } from './components/views/DocumentsView';
 import { ReportsView } from './components/views/ReportsView';
+import { BuilderView } from './components/views/BuilderView';
 import { BudgetView } from './components/views/BudgetView';
 import { AccountingView } from './components/views/AccountingView';
 import { UsersView } from './components/views/UsersView';
@@ -112,6 +113,22 @@ function MainApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]);
 
+  // Wave 31: private Office7 entry link (#/office7) — opens the panel only for
+  // the master account; everyone else (and logged-out visitors) still faces
+  // the login screen, and the panel itself still demands the gate key.
+  useEffect(() => {
+    const openFromHash = () => {
+      if (window.location.hash === '#/office7' && currentUser?.isMasterSuperAdmin) {
+        setMasterDirectAccess(true);
+        setIsMasterAdminOpen(true);
+      }
+    };
+    openFromHash();
+    window.addEventListener('hashchange', openFromHash);
+    return () => window.removeEventListener('hashchange', openFromHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
   // نشست مرده سرور (401/403): خروج اجباری + پیام ورود مجدد
   useEffect(() => {
     const onSessionExpired = () => {
@@ -127,7 +144,7 @@ function MainApp() {
     const VALID_TABS = new Set([
       'dashboard', 'projects', 'apartments', 'expenses', 'payments', 'suppliers',
       'contractors', 'labor', 'steel', 'concrete', 'assets', 'documents',
-      'budget', 'accounting', 'reports', 'users', 'settings', 'audit_logs',
+      'budget', 'accounting', 'reports', 'users', 'settings', 'audit_logs', 'builder',
     ]);
     const onGotoTab = (e: Event) => {
       const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
@@ -376,6 +393,10 @@ function MainApp() {
 
               {activeTab === 'reports' && (
                 <ReportsView />
+              )}
+
+              {activeTab === 'builder' && (
+                <BuilderView setActiveTab={setActiveTab} />
               )}
 
               {activeTab === 'users' && (
