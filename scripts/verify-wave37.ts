@@ -61,6 +61,9 @@ function main() {
   check('env-production', exists('.env.production') && read('.env.production').includes('VITE_SHOW_DEMO_LOGINS=false'));
   check('env-versioned', read('.gitignore').includes('!.env.production'));
 
+  // --- 6b. service worker must not hijack .php navigations ---
+  check('sw-php-denylist', read('vite.config.ts').includes('/\\.php([?#]|$)/'));
+
   // --- 6. deploy guide ---
   check('guide-golive', read('SHAHHOST_DEPLOYMENT_GUIDE.md').includes('Go-Live') && read('SHAHHOST_DEPLOYMENT_GUIDE.md').includes('password_hash'));
 

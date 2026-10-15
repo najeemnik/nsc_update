@@ -34,7 +34,8 @@ export default defineConfig(() => {
         },
         workbox: {
           navigateFallback: '/index.html',
-          navigateFallbackDenylist: [/^\/api\//],
+          // Go-live fix: never hijack same-domain .php navigations (e.g. /gen.php tools).
+          navigateFallbackDenylist: [/^\/api\//, /\.php([?#]|$)/],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
