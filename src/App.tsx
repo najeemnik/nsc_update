@@ -55,6 +55,7 @@ import { AddAssetModal } from './components/modals/AddAssetModal';
 import { MasterAdminModal } from './components/MasterAdminModal';
 import { AiAssistantModal } from './components/AiAssistantModal';
 import { CameraModal } from './components/CameraModal';
+import { PwaManager } from './components/PwaManager';
 import { Project } from './types';
 
 function MainApp() {
@@ -482,6 +483,8 @@ function MainApp() {
       />
 
       <CameraModal />
+
+      <PwaManager />
     </div>
   );
 }

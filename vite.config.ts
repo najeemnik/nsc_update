@@ -2,10 +2,61 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
+import {VitePWA} from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      // Wave 10: installable PWA shell — precached app shell, offline page,
+      // cached fonts, network-first API reads. Mutations queue via offlineQueue.
+      VitePWA({
+        registerType: 'autoUpdate',
+        injectRegister: 'auto',
+        includeAssets: ['assets/logo.png'],
+        manifest: {
+          name: 'NIK SMART COUNT - Database & Accounting',
+          short_name: 'NIK COUNT',
+          description: 'Building Project Management & Construction Accounting System',
+          start_url: '/',
+          scope: '/',
+          display: 'standalone',
+          orientation: 'any',
+          background_color: '#faf5ef',
+          theme_color: '#4f46e5',
+          lang: 'fa',
+          dir: 'rtl',
+          icons: [
+            { src: 'assets/logo.png', sizes: 'any', type: 'image/png', purpose: 'any' },
+            { src: 'assets/logo.png', sizes: 'any', type: 'image/png', purpose: 'maskable' },
+          ],
+        },
+        workbox: {
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/api\//],
+          runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'nsc-fonts',
+                expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              },
+            },
+            {
+              urlPattern: ({ url, request }) => url.pathname.startsWith('/api/') && request.method === 'GET',
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'nsc-api-get',
+                networkTimeoutSeconds: 8,
+                expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
+              },
+            },
+          ],
+        },
+      }),
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

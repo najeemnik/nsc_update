@@ -4,7 +4,32 @@
  * Fully compatible with Offline-First caching and Office 7 Master Gate
  */
 
+import {
+  createIndexedDbAdapter,
+  createLocalStorageAdapter,
+  createMemoryAdapter,
+  createOutbox,
+  syncOutbox,
+  type Outbox,
+  type QueuedMutation,
+  type SyncResult,
+} from './offlineQueue';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+/** Default persistent outbox: IndexedDB → localStorage → memory. */
+let defaultOutbox: Outbox | null = null;
+function outbox(): Outbox {
+  if (!defaultOutbox) {
+    const hasIdb = typeof indexedDB !== 'undefined';
+    let hasLs = false;
+    try { hasLs = typeof localStorage !== 'undefined'; } catch { hasLs = false; }
+    defaultOutbox = createOutbox(
+      hasIdb ? createIndexedDbAdapter() : hasLs ? createLocalStorageAdapter() : createMemoryAdapter(),
+    );
+  }
+  return defaultOutbox;
+}
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -12,6 +37,10 @@ export interface ApiResponse<T = any> {
   error?: string;
   /** HTTP status code (0 = network failure) */
   status?: number;
+  /** True when the mutation was queued offline and NOT yet sent to the server */
+  queued?: boolean;
+  /** True when the device was offline at call time */
+  offline?: boolean;
 }
 
 class BackendApiService {
@@ -56,6 +85,13 @@ class BackendApiService {
       headers['X-Office7-Gate-Key'] = this.office7GateKey;
     }
 
+    const method = (options.method || 'GET').toUpperCase();
+
+    // Wave 11: device is offline — queue mutations instead of failing.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false && this.isQueueable(endpoint, method)) {
+      return this.enqueueOffline(endpoint, method, options);
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
         ...options,
@@ -79,12 +115,89 @@ class BackendApiService {
 
       return json;
     } catch (err: any) {
+      // Wave 11: network failure mid-flight — queue mutations for later replay.
+      if (this.isQueueable(endpoint, method)) {
+        return this.enqueueOffline(endpoint, method, options, err);
+      }
       return {
         success: false,
         error: err.message || 'خطا در برقراری ارتباط با سرور هاست',
         status: 0,
       };
     }
+  }
+
+  // --- صف آفلاین / Offline outbox (Wave 11) ---
+
+  /** Reads are never queued; auth must always be live (never queue credentials). */
+  private isQueueable(endpoint: string, method: string): boolean {
+    if (method === 'GET' || method === 'HEAD') return false;
+    if (endpoint.startsWith('auth.php')) return false;
+    return true;
+  }
+
+  private async enqueueOffline<T>(
+    endpoint: string,
+    method: string,
+    options: RequestInit,
+    originalError?: any,
+  ): Promise<ApiResponse<T>> {
+    try {
+      await outbox().enqueue({
+        endpoint,
+        method,
+        body: typeof options.body === 'string' ? options.body : undefined,
+      });
+      // success:true = saved locally (AppContext already updated local state);
+      // queued:true = NOT yet on the server. Callers must check `queued`.
+      return { success: true, queued: true, offline: true, status: 0 };
+    } catch {
+      return {
+        success: false,
+        error: originalError?.message || 'خطا در برقراری ارتباط با سرور هاست',
+        status: 0,
+      };
+    }
+  }
+
+  /** Replay one queued mutation with FRESH headers (current token + gate key). */
+  private async replaySend(m: QueuedMutation): Promise<boolean> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      };
+      if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+      if (this.office7GateKey) headers['X-Office7-Gate-Key'] = this.office7GateKey;
+      const res = await fetch(`${API_BASE_URL}/${m.endpoint}`, {
+        method: m.method,
+        headers,
+        body: m.body,
+      });
+      if ((res.status === 401 || res.status === 403) && this.token) {
+        this.setToken(null);
+        window.dispatchEvent(new CustomEvent('nsc:session-expired'));
+        return false; // keep queued — will replay after next login
+      }
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  public getOfflinePendingCount(): Promise<number> {
+    return outbox().count().catch(() => 0);
+  }
+
+  public onOfflineQueueChange(listener: (count: number) => void): () => void {
+    return outbox().subscribe(listener);
+  }
+
+  public async syncOfflineQueue(): Promise<SyncResult> {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return { sent: 0, failed: 0, remaining: await this.getOfflinePendingCount() };
+    }
+    return syncOutbox(outbox(), m => this.replaySend(m));
   }
 
   // --- احراز هویت (Auth) ---
