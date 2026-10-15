@@ -32,7 +32,8 @@ import {
   ArrowLeftRight,
   Wallet,
   Scale,
-  Settings
+  Settings,
+  FlaskConical
 } from 'lucide-react';
 import { Language, DEFAULT_ACTION_BUTTONS, CustomActionButton } from '../types';
 
@@ -54,7 +55,6 @@ interface NavbarProps {
   onOpenAddTransfer?: () => void;
   onOpenAddPettyCash?: () => void;
   onOpenAddAsset?: () => void;
-  onOpenDrive?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -75,7 +75,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAddTransfer,
   onOpenAddPettyCash,
   onOpenAddAsset,
-  onOpenDrive,
 }) => {
   const {
     t,
@@ -97,10 +96,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     toggleDarkMode,
     themeSchedule,
     cycleThemeSchedule,
-    isGoogleDriveConnected,
-    connectGoogleDrive,
-    disconnectGoogleDrive,
-    setIsMasterAdminOpen
+    setIsMasterAdminOpen,
+    isTestMode,
+    exitTestMode
   } = useApp();
 
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
@@ -151,6 +149,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 no-print px-2 sm:px-4 pt-2 transition-all duration-300">
+      {isTestMode && (
+        <div className="max-w-7xl mx-auto mb-1.5 flex items-center justify-center gap-2 px-3 py-1.5 rounded-xl bg-violet-600 text-white text-[11px] font-bold shadow-md">
+          <FlaskConical className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{tp('TEST VERSION — separate empty data. Apartments & payments are locked.', 'نسخه تست — دیتای جداگانه و خالی. آپارتمان و پرداخت قفل است.', 'ټسټ بڼه — جلا تش معلومات. اپارتمان او تادیې بندې دي.')}</span>
+          <button
+            type="button"
+            onClick={exitTestMode}
+            className="shrink-0 px-2.5 py-0.5 bg-white/20 hover:bg-white/30 rounded-lg text-[10px] font-black transition"
+          >
+            {tp('Exit test', 'خروج از تست', 'له ټسټ وتل')}
+          </button>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         <div className="bg-[#e9e9ed] dark:bg-slate-800/95 border border-black/5 dark:border-white/10 shadow-sm rounded-2xl px-2.5 sm:px-4">
         <div className="flex items-center justify-between h-14 gap-2 min-w-0">
@@ -537,27 +548,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {moreMenuOpen && (
                 <div className="absolute top-full mt-1.5 end-0 w-60 max-w-[85vw] bg-surface rounded-2xl shadow-2xl border border-line py-1.5 z-50 animate-in fade-in zoom-in-95">
-                  {/* Google Drive Status & Connection */}
-                  <button
-                    onClick={() => { setMoreMenuOpen(false); isGoogleDriveConnected ? setActiveTab('documents') : connectGoogleDrive(); }}
-                    className="w-full text-start px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold text-slate-700 dark:text-slate-200 flex items-center space-x-2 rtl:space-x-reverse transition-colors"
-                  >
-                    <Cloud className={`w-4 h-4 shrink-0 ${isGoogleDriveConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`} />
-                    <span className="flex-1">{isGoogleDriveConnected ? tp('Google Drive connected', 'Google Drive متصل است', 'Google Drive وصل دی') : tp('Connect Google Drive', 'اتصال به Google Drive', 'له Google Drive سره وصلېدل')}</span>
-                    {isGoogleDriveConnected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>}
-                  </button>
-
-                  {/* Google Drive Cloud Storage */}
-                  {onOpenDrive && (
-                    <button
-                      onClick={() => { setMoreMenuOpen(false); onOpenDrive(); }}
-                      className="w-full text-start px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold text-slate-700 dark:text-slate-200 flex items-center space-x-2 rtl:space-x-reverse transition-colors"
-                    >
-                      <Cloud className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                      <span className="flex-1">{tp('Drive', 'درایو', 'ډرایو')}</span>
-                      {isGoogleDriveConnected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                    </button>
-                  )}
                 </div>
               )}
             </div>

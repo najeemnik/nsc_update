@@ -569,7 +569,7 @@ export const AccountingView: React.FC = () => {
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="جستجوی کد یا نام حساب..."
+                placeholder={tp('Search account code or name...', 'جستجوی کد یا نام حساب...', 'د حساب کوډ یا نوم لټون...')}
                 value={coaSearch}
                 onChange={(e) => setCoaSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-surface-2/80 border border-line rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20"
@@ -582,14 +582,14 @@ export const AccountingView: React.FC = () => {
                 onChange={(e) => setCoaGroup(e.target.value)}
                 className="px-3 py-2 bg-surface-2/80 border border-line rounded-xl text-xs focus:outline-none"
               >
-                <option value="all">همه طبقات حساب‌ها (All Groups)</option>
-                <option value="1">۱۰۰۰ - دارایی‌ها (Assets)</option>
-                <option value="2">۲۰۰۰ - بدهی‌ها (Liabilities)</option>
-                <option value="3">۳۰۰۰ - حقوق صاحبان سهام و سرمایه (Equity)</option>
-                <option value="4">۴۰۰۰ - درآمدها و فروش (Revenue)</option>
-                <option value="5">۵۰۰۰ - بهای تمام‌شده و مصارف ساخت (Project Costs)</option>
-                <option value="6">۶۰۰۰ - مصارف عمومی و اداری (Operating Expenses)</option>
-                <option value="7">۷۰۰۰ - هزینه‌های مالی (Finance Costs)</option>
+                <option value="all">{tp('All account groups', 'همه طبقات حساب‌ها', 'د حسابونو ټولې ډلې')}</option>
+                <option value="1">{tp('1000 - Assets', '۱۰۰۰ - دارایی‌ها', '1000 - شتمنۍ')}</option>
+                <option value="2">{tp('2000 - Liabilities', '۲۰۰۰ - بدهی‌ها', '2000 - پورونه')}</option>
+                <option value="3">{tp('3000 - Equity', '۳۰۰۰ - حقوق صاحبان سهام و سرمایه', '3000 - پانګه')}</option>
+                <option value="4">{tp('4000 - Revenue', '۴۰۰۰ - درآمدها و فروش', '4000 - عواید')}</option>
+                <option value="5">{tp('5000 - Project costs', '۵۰۰۰ - بهای تمام‌شده و مصارف ساخت', '5000 - د پروژې لګښتونه')}</option>
+                <option value="6">{tp('6000 - Operating expenses', '۶۰۰۰ - مصارف عمومی و اداری', '6000 - عمومي لګښتونه')}</option>
+                <option value="7">{tp('7000 - Finance costs', '۷۰۰۰ - هزینه‌های مالی', '7000 - مالي لګښتونه')}</option>
               </select>
 
               {canManageCoa && (
@@ -608,7 +608,7 @@ export const AccountingView: React.FC = () => {
                 className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition shrink-0"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>چاپ درخت حساب‌ها</span>
+                <span>{tp('Print chart of accounts', 'چاپ درخت حساب‌ها', 'د حسابونو ونې چاپ')}</span>
               </button>
             </div>
           </div>
@@ -618,12 +618,12 @@ export const AccountingView: React.FC = () => {
               <table className="w-full text-xs text-right border-collapse">
                 <thead className="bg-surface-2/60 text-slate-500 font-bold border-b border-line print:bg-slate-100">
                   <tr>
-                    <th className="py-3 px-3 w-24">کد حساب</th>
-                    <th className="py-3 px-3">عنوان حسابداری (دری / فارسی)</th>
-                    <th className="py-3 px-3">نام لاتین (English)</th>
-                    <th className="py-3 px-3 text-center">ماهیت استاندارد</th>
-                    <th className="py-3 px-3 text-center">سطح درخت</th>
-                    <th className="py-3 px-3 text-left">مانده زنده در دفاتر ($)</th>
+                    <th className="py-3 px-3 w-24">{tp('Account code', 'کد حساب', 'د حساب کوډ')}</th>
+                    <th className="py-3 px-3">{tp('Account title (Dari)', 'عنوان حسابداری (دری / فارسی)', 'حسابي سرلیک (دري)')}</th>
+                    <th className="py-3 px-3">{tp('Latin name (English)', 'نام لاتین (English)', 'لاتین نوم (English)')}</th>
+                    <th className="py-3 px-3 text-center">{tp('Normal balance', 'ماهیت استاندارد', 'نورمال بیلانس')}</th>
+                    <th className="py-3 px-3 text-center">{tp('Tree level', 'سطح درخت', 'د ونې کچه')}</th>
+                    <th className="py-3 px-3 text-left">{tp('Live ledger balance ($)', 'مانده زنده در دفاتر ($)', 'په دفترونو کې ژوندی بیلانس ($)')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -660,11 +660,11 @@ export const AccountingView: React.FC = () => {
                                 ? 'bg-amber-500/10 text-amber-600'
                                 : 'bg-emerald-500/10 text-emerald-600'
                             }`}>
-                              {a.normalBalance === 'debit' ? 'بدهکار (Dr)' : 'بستانکار (Cr)'}
+                              {a.normalBalance === 'debit' ? tp('Debit (Dr)', 'بدهکار (Dr)', 'پوروری (Dr)') : tp('Credit (Cr)', 'بستانکار (Cr)', 'پور ورکوونکی (Cr)')}
                             </span>
                           </td>
                           <td className="py-2.5 px-3 text-center text-[10px] text-slate-400">
-                            {isHeader ? 'گروه / کل' : (a.system === false ? 'معین • کاربر ✏️' : 'معین')}
+                            {isHeader ? tp('Group / Total', 'گروه / کل', 'ډله / ټول') : (a.system === false ? tp('Sub-ledger • user ✏️', 'معین • کاربر ✏️', 'فرعي • کاروونکی ✏️') : tp('Sub-ledger', 'معین', 'فرعي'))}
                           </td>
                           <td className="py-2.5 px-3 text-left font-mono font-bold text-ink">
                             {balance ? fmt(balance.netUSD) : '—'}

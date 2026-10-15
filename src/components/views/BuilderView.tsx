@@ -45,26 +45,82 @@ interface BuilderViewProps {
 
 type Device = 'desktop' | 'tablet' | 'mobile';
 
-const BLOCK_LABEL: Record<BuilderBlockType, string> = {
-  dashboard_section: 'بخش داشبورد',
-  heading: 'عنوان',
-  text: 'متن',
-  image: 'تصویر',
-  button: 'دکمه',
-  divider: 'خط جداکننده',
-  spacer: 'فاصله',
-  stat: 'آمار زنده',
+type Lang3 = 'en' | 'fa' | 'ps';
+const BLOCK_LABEL: Record<Lang3, Record<BuilderBlockType, string>> = {
+  en: {
+    dashboard_section: 'Dashboard section',
+    heading: 'Heading',
+    text: 'Text',
+    image: 'Image',
+    button: 'Button',
+    divider: 'Divider',
+    spacer: 'Spacer',
+    stat: 'Live stat',
+  },
+  fa: {
+    dashboard_section: 'بخش داشبورد',
+    heading: 'عنوان',
+    text: 'متن',
+    image: 'تصویر',
+    button: 'دکمه',
+    divider: 'خط جداکننده',
+    spacer: 'فاصله',
+    stat: 'آمار زنده',
+  },
+  ps: {
+    dashboard_section: 'د ډشبورډ برخه',
+    heading: 'سرلیک',
+    text: 'متن',
+    image: 'انځور',
+    button: 'تڼۍ',
+    divider: 'بېلوونکې کرښه',
+    spacer: 'واټن',
+    stat: 'ژوندی شمېره',
+  },
 };
 
-const PALETTE: Array<{ type: BuilderBlockType; icon: React.ReactNode; hint: string }> = [
-  { type: 'heading', icon: <Heading1 className="w-4 h-4" />, hint: 'عنوان H1/H2/H3' },
-  { type: 'text', icon: <Type className="w-4 h-4" />, hint: 'پاراگراف متن' },
-  { type: 'image', icon: <ImageIcon className="w-4 h-4" />, hint: 'تصویر + کپشن' },
-  { type: 'button', icon: <MousePointerClick className="w-4 h-4" />, hint: 'دکمهٔ ناوبری' },
-  { type: 'stat', icon: <BarChart3 className="w-4 h-4" />, hint: 'عدد زندهٔ مالی' },
-  { type: 'divider', icon: <Minus className="w-4 h-4" />, hint: 'خط' },
-  { type: 'spacer', icon: <MoveVertical className="w-4 h-4" />, hint: 'فاصلهٔ عمودی' },
+const PALETTE: Array<{ type: BuilderBlockType; icon: React.ReactNode }> = [
+  { type: 'heading', icon: <Heading1 className="w-4 h-4" /> },
+  { type: 'text', icon: <Type className="w-4 h-4" /> },
+  { type: 'image', icon: <ImageIcon className="w-4 h-4" /> },
+  { type: 'button', icon: <MousePointerClick className="w-4 h-4" /> },
+  { type: 'stat', icon: <BarChart3 className="w-4 h-4" /> },
+  { type: 'divider', icon: <Minus className="w-4 h-4" /> },
+  { type: 'spacer', icon: <MoveVertical className="w-4 h-4" /> },
 ];
+
+const PALETTE_HINT: Record<Lang3, Record<BuilderBlockType, string>> = {
+  en: {
+    dashboard_section: 'Dashboard section block',
+    heading: 'H1/H2/H3 heading',
+    text: 'Text paragraph',
+    image: 'Image + caption',
+    button: 'Navigation button',
+    stat: 'Live finance number',
+    divider: 'Line',
+    spacer: 'Vertical space',
+  },
+  fa: {
+    dashboard_section: 'بلوک بخش داشبورد',
+    heading: 'عنوان H1/H2/H3',
+    text: 'پاراگراف متن',
+    image: 'تصویر + کپشن',
+    button: 'دکمهٔ ناوبری',
+    stat: 'عدد زندهٔ مالی',
+    divider: 'خط',
+    spacer: 'فاصلهٔ عمودی',
+  },
+  ps: {
+    dashboard_section: 'د ډشبورډ برخې بلاک',
+    heading: 'H1/H2/H3 سرلیک',
+    text: 'متن پاراګراف',
+    image: 'انځور + سرلیک',
+    button: 'ګرځېدنې تڼۍ',
+    stat: 'ژوندۍ مالي شمېره',
+    divider: 'کرښه',
+    spacer: 'عمودي واټن',
+  },
+};
 
 const DEVICE_WIDTH: Record<Device, string> = {
   desktop: 'max-w-4xl',
@@ -74,6 +130,7 @@ const DEVICE_WIDTH: Record<Device, string> = {
 
 export const BuilderView: React.FC<BuilderViewProps> = ({ setActiveTab }) => {
   const { currentUser, publishPageLayout, builderRev, tp, language } = useApp();
+  const lang3: Lang3 = language === 'ps' ? 'ps' : language === 'en' ? 'en' : 'fa';
   const pageKey = useMemo(
     () => dashboardPageKey(currentUser?.companyName || currentUser?.username),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -231,10 +288,10 @@ export const BuilderView: React.FC<BuilderViewProps> = ({ setActiveTab }) => {
             <h3 className="text-[11px] font-black text-ink-muted uppercase">{tp('Add block', 'افزودن بلاک', 'بلاک ورګډوه')}</h3>
             <div className="grid grid-cols-2 lg:grid-cols-1 gap-1.5">
               {PALETTE.map(p => (
-                <button key={p.type} type="button" onClick={() => addBlock(p.type)} title={p.hint}
+                <button key={p.type} type="button" onClick={() => addBlock(p.type)} title={PALETTE_HINT[lang3][p.type]}
                   className="flex items-center gap-2 p-2 rounded-xl border border-line hover:border-indigo-400 hover:bg-indigo-500/5 text-xs font-bold text-ink transition-colors">
                   <span className="text-indigo-500">{p.icon}</span>
-                  <span>{BLOCK_LABEL[p.type]}</span>
+                  <span>{BLOCK_LABEL[lang3][p.type]}</span>
                 </button>
               ))}
             </div>
@@ -266,7 +323,7 @@ export const BuilderView: React.FC<BuilderViewProps> = ({ setActiveTab }) => {
                   <span className="flex-1 truncate">
                     {b.type === 'dashboard_section'
                       ? (DASHBOARD_SECTIONS.find(s => s.id === b.refId)?.labelFa || b.refId)
-                      : `${BLOCK_LABEL[b.type]}${b.text ? ` — ${b.text.slice(0, 14)}` : ''}`}
+                      : `${BLOCK_LABEL[lang3][b.type]}${b.text ? ` — ${b.text.slice(0, 14)}` : ''}`}
                   </span>
                   <button type="button" title={b.hidden ? 'show' : 'hide'}
                     onClick={(e) => { e.stopPropagation(); commit(layout.blocks.map(x => x.id === b.id ? { ...x, hidden: !x.hidden } : x)); }}
@@ -368,13 +425,14 @@ const Inspector: React.FC<{
   onPatch: (patch: Partial<BuilderBlock>) => void;
   onStyle: (patch: Partial<BuilderBlockStyle>) => void;
 }> = ({ block: b, onPatch, onStyle }) => {
-  const { tp } = useApp();
+  const { tp, language } = useApp();
+  const lang3: Lang3 = language === 'ps' ? 'ps' : language === 'en' ? 'en' : 'fa';
   const inputCls = 'w-full px-2.5 py-1.5 bg-surface-2/60 border border-line rounded-lg text-ink text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/40';
   const labelCls = 'block text-[11px] font-bold text-ink-muted mb-1';
   return (
     <div className="space-y-3">
       <div className="text-xs font-black text-ink px-2 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
-        {BLOCK_LABEL[b.type]}
+        {BLOCK_LABEL[lang3][b.type]}
       </div>
       {(b.type === 'heading' || b.type === 'text' || b.type === 'button') && (
         <div>
@@ -421,10 +479,10 @@ const Inspector: React.FC<{
         <div>
           <label className={labelCls}>{tp('Metric', 'شاخص', 'شاخص')}</label>
           <select value={b.statKind || 'expenses'} onChange={(e) => onPatch({ statKind: e.target.value as BuilderBlock['statKind'] })} className={inputCls}>
-            <option value="expenses">مصارف</option>
-            <option value="paid">پرداخت‌ها</option>
-            <option value="debt">بدهی</option>
-            <option value="sales">فروش</option>
+            <option value="expenses">{tp('Expenses', 'مصارف', 'لګښتونه')}</option>
+            <option value="paid">{tp('Payments', 'پرداخت‌ها', 'تادیې')}</option>
+            <option value="debt">{tp('Debt', 'بدهی', 'پور')}</option>
+            <option value="sales">{tp('Sales', 'فروش', 'پلور')}</option>
           </select>
         </div>
       )}
@@ -450,9 +508,9 @@ const Inspector: React.FC<{
             <div>
               <label className={labelCls}>{tp('Align', 'تراز', 'برابرول')}</label>
               <select value={b.style?.align || 'start'} onChange={(e) => onStyle({ align: e.target.value as BuilderBlockStyle['align'] })} className={inputCls}>
-                <option value="start">راست</option>
-                <option value="center">وسط</option>
-                <option value="end">چپ</option>
+                <option value="start">{tp('Start', 'راست', 'پیل')}</option>
+                <option value="center">{tp('Center', 'وسط', 'منځ')}</option>
+                <option value="end">{tp('End', 'چپ', 'پای')}</option>
               </select>
             </div>
           </div>

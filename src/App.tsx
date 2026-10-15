@@ -45,7 +45,6 @@ import { AddSupplierModal } from './components/modals/AddSupplierModal';
 import { AddApartmentModal } from './components/modals/AddApartmentModal';
 import { AddPaymentModal } from './components/modals/AddPaymentModal';
 import { AddDocumentModal } from './components/modals/AddDocumentModal';
-import { GoogleDriveModal } from './components/modals/GoogleDriveModal';
 import { SystemGuideModal } from './components/modals/SystemGuideModal';
 import { AddIncomeModal } from './components/modals/AddIncomeModal';
 import { AddMaterialModal } from './components/modals/AddMaterialModal';
@@ -174,7 +173,6 @@ function MainApp() {
   const [isAddApartmentOpen, setIsAddApartmentOpen] = useState(false);
   const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false);
   const [isAddDocumentOpen, setIsAddDocumentOpen] = useState(false);
-  const [isGoogleDriveOpen, setIsGoogleDriveOpen] = useState(false);
   const [isSystemGuideOpen, setIsSystemGuideOpen] = useState(false);
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false);
   const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
@@ -288,7 +286,6 @@ function MainApp() {
             onOpenAddTransfer={() => openGuarded('projects', () => setIsAddInterProjectTransferOpen(true))}
             onOpenAddPettyCash={() => openGuarded('expenses', () => setIsAddPettyCashOpen(true))}
             onOpenAddAsset={() => openGuarded('assets', () => setIsAddAssetOpen(true))}
-            onOpenDrive={() => setIsGoogleDriveOpen(true)}
             onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
 
@@ -303,7 +300,6 @@ function MainApp() {
                   onOpenAddSteel={() => openGuarded('steel', () => setIsAddSteelOpen(true))}
                   onOpenAddConcrete={() => openGuarded('concrete', () => setIsAddConcreteOpen(true))}
                   onOpenAddApartment={() => openGuarded('apartments', () => setIsAddApartmentOpen(true))}
-                  onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
                   setActiveTab={setActiveTab}
                 />
               )}
@@ -387,7 +383,6 @@ function MainApp() {
               {activeTab === 'documents' && (
                 <DocumentsView 
                   onOpenAddDocument={() => openGuarded('documents', () => setIsAddDocumentOpen(true))}
-                  onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
                 />
               )}
 
@@ -408,9 +403,7 @@ function MainApp() {
               )}
 
               {activeTab === 'settings' && (
-                <SettingsView 
-                  onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
-                />
+                <SettingsView />
               )}
             </div>
           </main>
@@ -531,10 +524,7 @@ function MainApp() {
         onClose={() => setIsAddAssetOpen(false)}
       />
 
-      <GoogleDriveModal 
-        isOpen={isGoogleDriveOpen} 
-        onClose={() => setIsGoogleDriveOpen(false)} 
-      />
+
 
       <SystemGuideModal 
         isOpen={isSystemGuideOpen} 

@@ -22,6 +22,7 @@ import {
   Coins
 } from 'lucide-react';
 import { ApartmentUnit } from '../../types';
+import { aptUSD } from '../../utils/docFinance';
 import { SaleContractDoc } from '../docs/printDocs';
 
 interface ApartmentsViewProps {
@@ -39,6 +40,7 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
     isApartmentsUnlocked, 
     unlockApartments, 
     t, 
+    tp, 
     language 
   ,
     printIfAllowed,
@@ -136,10 +138,10 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
   const soldUnits = projectApartments.filter(a => a.status === 'sold').length;
   const totalSalesRevenueUSD = projectApartments
     .filter(a => a.status === 'sold')
-    .reduce((sum, a) => sum + (a.totalPriceUSD || 0), 0);
+    .reduce((sum, a) => sum + aptUSD(a), 0);
   const totalCashCollectedUSD = projectApartments
     .filter(a => a.status === 'sold')
-    .reduce((sum, a) => sum + (a.downPaymentUSD || 0) + (a.paidAmountUSD || 0), 0);
+    .reduce((sum, a) => sum + ((a.downPayment ?? 0) + Math.max(0, (a.amountReceived || 0) - (a.downPayment || 0))), 0);
   const totalUnpaidInstallmentsUSD = Math.max(0, totalSalesRevenueUSD - totalCashCollectedUSD);
 
   return (
@@ -260,18 +262,18 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
               <div className="p-3.5 rounded-2xl bg-surface-2/50 border border-line space-y-2 text-xs mb-4">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">{t('totalPrice') || 'Total Price'}:</span>
-                  <span className="font-black text-ink">{formatCurrency(apt.totalPriceUSD, 'USD')}</span>
+                  <span className="font-black text-ink">{formatCurrency(aptUSD(apt), 'USD')}</span>
                 </div>
 
                 {apt.status === 'sold' && (
                   <>
                     <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400">
                       <span>{t('paidAmount') || 'Collected'}:</span>
-                      <span className="font-bold">{formatCurrency((apt.downPaymentUSD || 0) + (apt.paidAmountUSD || 0), 'USD')}</span>
+                      <span className="font-bold">{formatCurrency((apt.downPayment ?? 0) + Math.max(0, (apt.amountReceived || 0) - (apt.downPayment || 0)), 'USD')}</span>
                     </div>
                     <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 font-semibold pt-1 border-t border-line/60">
                       <span>{t('remainingDue') || 'Remaining'}:</span>
-                      <span>{formatCurrency(Math.max(0, (apt.totalPriceUSD || 0) - (apt.downPaymentUSD || 0) - (apt.paidAmountUSD || 0)), 'USD')}</span>
+                      <span>{formatCurrency(Math.max(0, aptUSD(apt) - (apt.downPayment ?? 0) - Math.max(0, (apt.amountReceived || 0) - (apt.downPayment || 0))), 'USD')}</span>
                     </div>
                   </>
                 )}
@@ -302,16 +304,16 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-fuchsia-50 hover:bg-fuchsia-100 dark:bg-fuchsia-950/40 dark:hover:bg-fuchsia-900/40 text-fuchsia-700 dark:text-fuchsia-300 rounded-xl text-xs font-bold transition"
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>دفترچه اقساط و حساب</span>
+                  <span>{tp('Installment ledger', 'دفترچه اقساط و حساب', 'د قسطونو کتابچه')}</span>
                 </button>
               ) : (
-                <span className="text-[11px] text-slate-400 font-semibold">آماده واگذاری و فروش</span>
+                <span className="text-[11px] text-slate-400 font-semibold">{tp('Ready for handover & sale', 'آماده واگذاری و فروش', 'سپارلو او پلور ته چمتو')}</span>
               )}
 
               <button
                 onClick={() => handleDelete(apt.id, apt.unitNumber)}
                 className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                title="حذف واحد"
+                title={tp('Delete unit', 'حذف واحد', 'واحد ړنګول')}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -322,20 +324,20 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
 
       {/* Apartment Installment Schedule & Financial Ledger Modal */}
       {selectedApartment && (() => {
-        const totalCost = selectedApartment.totalPriceUSD || 0;
-        const downPay = selectedApartment.downPaymentUSD || 0;
-        const paidInst = selectedApartment.paidAmountUSD || 0;
+        const totalCost = aptUSD(selectedApartment);
+        const downPay = selectedApartment.downPayment || 0;
+        const paidInst = Math.max(0, (selectedApartment.amountReceived || 0) - downPay);
         const totalPaid = downPay + paidInst;
         const remainingDue = Math.max(0, totalCost - totalPaid);
         const percentCollected = totalCost > 0 ? Math.min(100, Math.round((totalPaid / totalCost) * 100)) : 0;
 
         // Realistic Construction Installment Milestones
         const milestones = [
-          { phase: 'پیش‌پرداخت عقد قرارداد (Initial Down Payment)', percent: 30, amount: totalCost * 0.30, status: 'paid', date: 'در بدو قرارداد' },
-          { phase: 'اتمام اسکلت بتنی و سقف طبقات (Concrete Structure)', percent: 25, amount: totalCost * 0.25, status: totalPaid >= (totalCost * 0.55) ? 'paid' : 'pending', date: 'تکمیل اسکلت' },
-          { phase: 'اتمام دیوارچینی و تأسیسات (Masonry & MEP)', percent: 20, amount: totalCost * 0.20, status: totalPaid >= (totalCost * 0.75) ? 'paid' : 'pending', date: 'تکمیل سفت‌کاری' },
-          { phase: 'گچ‌کاری، کاشی و نازک‌کاری (Finishing & Tiles)', percent: 15, amount: totalCost * 0.15, status: totalPaid >= (totalCost * 0.90) ? 'paid' : 'pending', date: 'تکمیل نازک‌کاری' },
-          { phase: 'تحویل کلید و اسناد رسمی (Handover & Final Deed)', percent: 10, amount: totalCost * 0.10, status: remainingDue === 0 ? 'paid' : 'pending', date: 'زمان تحویل کلید' },
+          { phase: tp('Contract down payment (Initial)', 'پیش‌پرداخت عقد قرارداد', 'د قرارداد لومړنۍ تادیه'), percent: 30, amount: totalCost * 0.30, status: 'paid', date: tp('At contract signing', 'در بدو قرارداد', 'د قرارداد پر مهال') },
+          { phase: tp('Concrete structure & floor slabs', 'اتمام اسکلت بتنی و سقف طبقات', 'د کانکریټو اسکلېټ او چتونه'), percent: 25, amount: totalCost * 0.25, status: totalPaid >= (totalCost * 0.55) ? 'paid' : 'pending', date: tp('Structure done', 'تکمیل اسکلت', 'اسکلېټ بشپړ') },
+          { phase: tp('Masonry & MEP', 'اتمام دیوارچینی و تأسیسات', 'دیوالونه او تاسیسات'), percent: 20, amount: totalCost * 0.20, status: totalPaid >= (totalCost * 0.75) ? 'paid' : 'pending', date: tp('Rough works done', 'تکمیل سفت‌کاری', 'شاقې چارې بشپړې') },
+          { phase: tp('Plaster, tiles & finishing', 'گچ‌کاری، کاشی و نازک‌کاری', 'ګچ، کاشي او نازک کارونه'), percent: 15, amount: totalCost * 0.15, status: totalPaid >= (totalCost * 0.90) ? 'paid' : 'pending', date: tp('Finishing done', 'تکمیل نازک‌کاری', 'نازک کارونه بشپړ') },
+          { phase: tp('Key handover & final deed', 'تحویل کلید و اسناد رسمی', 'کیلي سپارل او رسمي سندونه'), percent: 10, amount: totalCost * 0.10, status: remainingDue === 0 ? 'paid' : 'pending', date: tp('At key handover', 'زمان تحویل کلید', 'د کیلي سپارلو پر مهال') },
         ];
 
         return (
@@ -349,13 +351,13 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
                   </div>
                   <div>
                     <h2 className="text-base font-black text-ink flex items-center gap-2">
-                      <span>کارنامه مالی واحد {selectedApartment.unitNumber} (طبقه {selectedApartment.floor})</span>
+                      <span>{tp(`Unit ${selectedApartment.unitNumber} financial record (floor ${selectedApartment.floor})`, `کارنامه مالی واحد ${selectedApartment.unitNumber} (طبقه ${selectedApartment.floor})`, `د ${selectedApartment.unitNumber} واحد مالي کارنامه (پوړ ${selectedApartment.floor})`)}</span>
                       <span className="text-xs px-2.5 py-0.5 rounded-full bg-fuchsia-500/15 text-fuchsia-600 font-bold">
-                        {selectedApartment.areaSqm} متر مربع
+                        {selectedApartment.areaSqm} {tp('sqm', 'متر مربع', 'متر مربع')}
                       </span>
                     </h2>
                     <p className="text-xs text-ink-muted">
-                      خریدار: <strong className="text-ink">{selectedApartment.buyerName || 'ثبت نشده'}</strong> ({selectedApartment.buyerPhone || 'بدون تماس'}) • پروژه {currentProject?.name}
+                      {tp('Buyer', 'خریدار', 'پېرودونکی')}: <strong className="text-ink">{selectedApartment.buyerName || tp('Not registered', 'ثبت نشده', 'نه دی ثبت شوی')}</strong> ({selectedApartment.buyerPhone || tp('No contact', 'بدون تماس', 'اړیکه نشته')}) • {tp('Project', 'پروژه', 'پروژه')} {currentProject?.name}
                     </p>
                   </div>
                 </div>
@@ -370,7 +372,7 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition"
                   >
                     <FileText className="w-4 h-4" />
-                    <span className="hidden sm:inline">قرارداد فروش</span>
+                    <span className="hidden sm:inline">{tp('Sale contract', 'قرارداد فروش', 'د پلور قرارداد')}</span>
                   </button>
                   <button
                     type="button"
@@ -378,7 +380,7 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 transition"
                   >
                     <Printer className="w-4 h-4 text-slate-500" />
-                    <span className="hidden sm:inline">چاپ کارنامه</span>
+                    <span className="hidden sm:inline">{tp('Print record', 'چاپ کارنامه', 'کارنامه چاپ')}</span>
                   </button>
                   <button
                     type="button"
@@ -395,43 +397,43 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
                 {/* 4 Financial Cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="p-4 rounded-2xl bg-surface-2/60 border border-line">
-                    <span className="text-slate-400 font-semibold block mb-1">ارزش کل قرارداد فروش:</span>
+                    <span className="text-slate-400 font-semibold block mb-1">{tp('Total sale contract value:', 'ارزش کل قرارداد فروش:', 'د پلور قرارداد ټول ارزښت:')}</span>
                     <span className="text-base font-black font-mono text-ink">
                       {formatCurrency(totalCost, 'USD')}
                     </span>
-                    <span className="block text-[10px] text-slate-400 mt-0.5">قیمت مقطوع واحد</span>
+                    <span className="block text-[10px] text-slate-400 mt-0.5">{tp('Unit fixed price', 'قیمت مقطوع واحد', 'د واحد ټاکلې بیه')}</span>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold block mb-1">پیش‌پرداخت اولیه:</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold block mb-1">{tp('Initial down payment:', 'پیش‌پرداخت اولیه:', 'لومړنۍ تادیه:')}</span>
                     <span className="text-base font-black font-mono text-emerald-700 dark:text-emerald-300">
                       {formatCurrency(downPay, 'USD')}
                     </span>
-                    <span className="block text-[10px] text-emerald-600/80 mt-0.5">وصول در هنگام عقد قرارداد</span>
+                    <span className="block text-[10px] text-emerald-600/80 mt-0.5">{tp('Collected at signing', 'وصول در هنگام عقد قرارداد', 'د قرارداد پر مهال راټول شو')}</span>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold block mb-1">مجموع وصولی نقد:</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold block mb-1">{tp('Total cash collected:', 'مجموع وصولی نقد:', 'ټولې راټولې شوې نغدې:')}</span>
                     <span className="text-base font-black font-mono text-emerald-700 dark:text-emerald-300">
                       {formatCurrency(totalPaid, 'USD')}
                     </span>
-                    <span className="block text-[10px] text-emerald-600/80 mt-0.5">پیش‌پرداخت + اقساط واریزی</span>
+                    <span className="block text-[10px] text-emerald-600/80 mt-0.5">{tp('Down payment + paid installments', 'پیش‌پرداخت + اقساط واریزی', 'تادیه + ورکړل شوي قسطونه')}</span>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-surface-2/60 border border-line">
-                    <span className="text-amber-600 dark:text-amber-400 font-semibold block mb-1">مانده مطالبات شرکت:</span>
+                    <span className="text-amber-600 dark:text-amber-400 font-semibold block mb-1">{tp('Company receivables left:', 'مانده مطالبات شرکت:', 'د شرکت پاتې غوښتنې:')}</span>
                     <span className="text-base font-black font-mono text-amber-600 dark:text-amber-400">
                       {formatCurrency(remainingDue, 'USD')}
                     </span>
-                    <span className="block text-[10px] text-slate-400 mt-0.5">اقساط باقیمانده</span>
+                    <span className="block text-[10px] text-slate-400 mt-0.5">{tp('Remaining installments', 'اقساط باقیمانده', 'پاتې قسطونه')}</span>
                   </div>
                 </div>
 
                 {/* Progress Bar */}
                 <div className="p-4 rounded-2xl bg-surface-2/40 border border-line space-y-2">
                   <div className="flex justify-between items-center text-xs font-bold text-ink">
-                    <span>پیشرفت تسویه مالی قرارداد:</span>
-                    <span className="font-mono text-fuchsia-600">{percentCollected}% وصول شده</span>
+                    <span>{tp('Contract settlement progress:', 'پیشرفت تسویه مالی قرارداد:', 'د قرارداد د تسویې پرمختګ:')}</span>
+                    <span className="font-mono text-fuchsia-600">{percentCollected}% {tp('collected', 'وصول شده', 'راټول شوي')}</span>
                   </div>
                   <div className="w-full h-3 bg-surface-2 rounded-full overflow-hidden border border-line">
                     <div 
@@ -444,19 +446,19 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
                 {/* Milestones Schedule Table */}
                 <div className="border border-line rounded-2xl overflow-hidden">
                   <div className="p-3 bg-surface-2 font-black text-xs text-ink flex items-center justify-between">
-                    <span>جدول زمان‌بندی مراحل پیشرفت کار و اقساط خریدار</span>
-                    <span className="text-[11px] font-mono text-slate-400">۵ مرحله مصوب</span>
+                    <span>{tp('Work progress & buyer installment schedule', 'جدول زمان‌بندی مراحل پیشرفت کار و اقساط خریدار', 'د چارو پرمختګ او د پېرودونکي د قسطونو مهالوېش')}</span>
+                    <span className="text-[11px] font-mono text-slate-400">{tp('5 approved stages', '۵ مرحله مصوب', '۵ تصویب شوې مرحلې')}</span>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-right border-collapse">
                       <thead className="bg-surface-2/40 border-b border-line text-slate-500 font-bold">
                         <tr>
                           <th className="p-2.5">#</th>
-                          <th className="p-2.5">مرحله و پیشرفت فیزیکی پروژه</th>
-                          <th className="p-2.5 text-center">درصد</th>
-                          <th className="p-2.5 text-left">مبلغ قسط (USD)</th>
-                          <th className="p-2.5">سررسید مرحله</th>
-                          <th className="p-2.5 text-center">وضعیت تسویه</th>
+                          <th className="p-2.5">{tp('Stage & physical progress', 'مرحله و پیشرفت فیزیکی پروژه', 'مرحله او فزیکي پرمختګ')}</th>
+                          <th className="p-2.5 text-center">{tp('Percent', 'درصد', 'سلنه')}</th>
+                          <th className="p-2.5 text-left">{tp('Installment amount (USD)', 'مبلغ قسط (USD)', 'د قسط اندازه (USD)')}</th>
+                          <th className="p-2.5">{tp('Stage due date', 'سررسید مرحله', 'د مرحلې نېټه')}</th>
+                          <th className="p-2.5 text-center">{tp('Settlement status', 'وضعیت تسویه', 'د تسویې حالت')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-line">
@@ -473,7 +475,7 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
                                   ? 'bg-emerald-500/10 text-emerald-600'
                                   : 'bg-amber-500/10 text-amber-600'
                               }`}>
-                                {m.status === 'paid' ? 'وصول شد' : 'در انتظار سررسید'}
+                                {m.status === 'paid' ? tp('Collected', 'وصول شد', 'راټول شو') : tp('Awaiting due date', 'در انتظار سررسید', 'د نېټې په تمه')}
                               </span>
                             </td>
                           </tr>
@@ -487,14 +489,14 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
               {/* Footer */}
               <div className="p-4 border-t border-line bg-surface-2 flex items-center justify-between shrink-0">
                 <span className="text-slate-400 text-[11px]">
-                  وضعیت قرارداد: {remainingDue <= 0 ? 'کاملاً تسویه شده (تسویه ۱۰۰٪)' : 'دارای اقساط موعد مقرر'}
+                  {tp('Contract status', 'وضعیت قرارداد', 'د قرارداد حالت')}: {remainingDue <= 0 ? tp('Fully settled (100%)', 'کاملاً تسویه شده (تسویه ۱۰۰٪)', 'بشپړ تسویه شو (۱۰۰٪)') : tp('Has scheduled installments', 'دارای اقساط موعد مقرر', 'ټاکل شوي قسطونه لري')}
                 </span>
                 <button
                   type="button"
                   onClick={() => setSelectedApartment(null)}
                   className="px-5 py-2 rounded-xl bg-surface hover:bg-slate-200 dark:hover:bg-slate-700 text-ink font-bold"
                 >
-                  بستن
+                  {tp('Close', 'بستن', 'تړل')}
                 </button>
               </div>
             </div>

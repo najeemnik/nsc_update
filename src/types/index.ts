@@ -39,6 +39,7 @@ export interface GoogleDriveConfig {
   folderId?: string;
   folderName?: string;
   lastBackupDate?: string;
+  autoBackup?: boolean;
 }
 
 export interface AppSettings {

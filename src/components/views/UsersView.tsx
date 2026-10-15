@@ -26,7 +26,7 @@ const emptyGrants = (): ProjectGrant[] => presetGrants('entry', ['*']);
 export const UsersView: React.FC = () => {
   const {
     users, currentUser, addUser, updateUser, deleteUser, toggleUserActive,
-    projects, can, t, tp,
+    projects, can, t, tp, language,
   } = useApp();
 
   const [isAdding, setIsAdding] = useState(false);
@@ -173,7 +173,7 @@ export const UsersView: React.FC = () => {
       return tp('All projects (current + future)', 'همه پروژه‌ها (فعلی و آینده)', 'ټولې پروژې (اوسنۍ او راتلونکې)');
     }
     const names = g.map(x => projects.find(p => p.id === x.projectId)?.name || '?');
-    return names.join('، ');
+    return names.join(language === 'en' ? ', ' : '، ');
   };
 
   return (

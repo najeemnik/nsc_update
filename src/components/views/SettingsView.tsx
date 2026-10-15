@@ -19,11 +19,14 @@ import {
   HardDrive,
   Globe,
   LogOut,
-  FileText
+  FileText,
+  FlaskConical,
+  Trash2
 } from 'lucide-react';
 import { AppTheme, CustomBillDesign } from '../../types';
 import { DocDesignEditor } from '../docs/DocDesignEditor';
 import { backendApi } from '../../services/backendApi';
+import { GoogleDriveModal } from '../modals/GoogleDriveModal';
 
 const THEME_OPTIONS: { id: AppTheme; labelKey: string; swatch: string }[] = [
   { id: 'glassmorphism',   labelKey: 'themeGlassmorphism',   swatch: 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(191,219,254,0.85))' },
@@ -37,11 +40,7 @@ const THEME_OPTIONS: { id: AppTheme; labelKey: string; swatch: string }[] = [
   { id: 'desert_titanium', labelKey: 'themeDesertTitanium',  swatch: 'linear-gradient(135deg, #faf3e3, #c08a3e)' },
 ];
 
-interface SettingsViewProps {
-  onOpenGoogleDrive: () => void;
-}
-
-export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive }) => {
+export const SettingsView: React.FC = () => {
   const { 
     appSettings, 
     updateAppSettings, 
@@ -49,6 +48,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
     toggleDarkMode, 
     isGoogleDriveConnected, 
     backupToGoogleDrive, 
+    googleDriveUserEmail, 
+    disconnectGoogleDrive, 
     exportBackupJSON, 
     importBackupJSON, 
     t, 
@@ -61,7 +62,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
     themeSchedule,
     setThemeSchedule,
     logout,
-    clearSampleData
+    clearSampleData,
+    isTestMode,
+    enterTestMode,
+    exitTestMode,
+    wipeTestData
   } = useApp();
 
   const [usdRate, setUsdRate] = useState((appSettings.exchangeRateUSDToAFN || 70.5).toString());
@@ -76,6 +81,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
   const [docDesign, setDocDesign] = useState<CustomBillDesign>(appSettings.billDesign || {});
   const [docLogoUrl, setDocLogoUrl] = useState(appSettings.logoUrl || '');
   const [designSaved, setDesignSaved] = useState(false);
+  const [driveModalOpen, setDriveModalOpen] = useState(false);
+  const [driveBusy, setDriveBusy] = useState(false);
 
   const handleSaveDesign = () => {
     updateAppSettings({ billDesign: docDesign, logoUrl: docLogoUrl || undefined });
@@ -117,7 +124,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
       setDbStatus({
         checked: true,
         ok: false,
-        message: e.message || 'خطا در برقراری تماس با هاست.'
+        message: e.message || tp('Failed to reach the host.', 'خطا در برقراری تماس با هاست.', 'هوسټ سره اړیکه ټینګه نه شوه.')
       });
     } finally {
       setTestingDb(false);
@@ -136,20 +143,77 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
     setTimeout(() => setSavedSuccess(false), 3000);
   };
 
-  const handleExportLocal = () => {
-    const res = exportBackupJSON();
-    if (res.success) {
+  const driveAutoBackup = appSettings.googleDrive?.autoBackup === true;
+
+  const toggleDriveAutoBackup = () => {
+    updateAppSettings({
+      googleDrive: { ...(appSettings.googleDrive ?? { connected: false }), autoBackup: !driveAutoBackup }
+    });
+  };
+
+  const handleBackupNow = async () => {
+    if (!isGoogleDriveConnected) { setDriveModalOpen(true); return; }
+    setDriveBusy(true);
+    try {
+      const res = await backupToGoogleDrive();
       setBackupStatus({
-        ok: true,
-        message: tp('Backup file downloaded successfully.', 'فایل بکاپ با موفقیت دانلود شد.', 'د بکاپ فایل په بریالیتوب کښته شو.')
+        ok: res.success,
+        message: res.success
+          ? tp('Backup uploaded to Google Drive.', 'بکاپ به گوگل درایو آپلود شد.', 'بکاپ ګوګل ډرایو ته پورته شو.')
+          : (res.error || tp('Drive upload failed.', 'آپلود به درایو ناموفق بود.', 'ډرایو ته آپلوډ ناکام شو.'))
       });
-    } else {
+    } catch (e: any) {
+      setBackupStatus({ ok: false, message: e.message || tp('Drive upload failed.', 'آپلود به درایو ناموفق بود.', 'ډرایو ته آپلوډ ناکام شو.') });
+    } finally {
+      setDriveBusy(false);
+    }
+    setTimeout(() => setBackupStatus(null), 6000);
+  };
+
+  const handleDisconnectDrive = async () => {
+    await disconnectGoogleDrive();
+    setBackupStatus({
+      ok: true,
+      message: tp('Google Drive disconnected.', 'گوگل درایو قطع شد.', 'ګوګل ډرایو پرې شو.')
+    });
+    setTimeout(() => setBackupStatus(null), 5000);
+  };
+
+  const handleExportLocal = async () => {
+    const res = exportBackupJSON();
+    if (!res.success) {
       setBackupStatus({
         ok: false,
         message: res.error || (tp('Backup download failed.', 'دانلود بکاپ ناموفق بود.', 'د بکاپ کښته کول ناکام شول.'))
       });
+      setTimeout(() => setBackupStatus(null), 5000);
+      return;
     }
-    setTimeout(() => setBackupStatus(null), 5000);
+    let message = tp('Backup file downloaded successfully.', 'فایل بکاپ با موفقیت دانلود شد.', 'د بکاپ فایل په بریالیتوب کښته شو.');
+    let ok = true;
+    if (driveAutoBackup) {
+      if (!isGoogleDriveConnected) {
+        message += ' ' + tp('(Drive auto-backup skipped: not connected.)', '(بکاپ خودکار درایو رد شد: متصل نیست.)', '(د ډرایو اتومات بکاپ پرېښودل شو: نه دی نښتی.)');
+      } else {
+        setDriveBusy(true);
+        try {
+          const up = await backupToGoogleDrive();
+          if (up.success) {
+            message += ' ' + tp('Also uploaded to Google Drive.', 'به گوگل درایو هم آپلود شد.', 'ګوګل ډرایو ته هم پورته شو.');
+          } else {
+            ok = false;
+            message += ' ' + (up.error || tp('Drive upload failed.', 'آپلود به درایو ناموفق بود.', 'ډرایو ته آپلوډ ناکام شو.'));
+          }
+        } catch (e: any) {
+          ok = false;
+          message += ' ' + (e.message || tp('Drive upload failed.', 'آپلود به درایو ناموفق بود.', 'ډرایو ته آپلوډ ناکام شو.'));
+        } finally {
+          setDriveBusy(false);
+        }
+      }
+    }
+    setBackupStatus({ ok, message });
+    setTimeout(() => setBackupStatus(null), 6000);
   };
 
   const handleLogoutAllDevices = async () => {
@@ -476,15 +540,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
           {t('googleDriveBackupHelp') || 'Secure your complete database, contractor balances, apartments, and receipts in your private Google Drive account.'}
         </p>
 
+        {isGoogleDriveConnected ? (
+          <div className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl border bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span className="truncate">{googleDriveUserEmail || tp('Connected', 'متصل', 'نښتی')}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl border bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+            <Cloud className="w-4 h-4 shrink-0" />
+            <span>{tp('Not connected to Google Drive', 'به گوگل درایو متصل نیست', 'له ګوګل ډرایو سره نه دی نښتی')}</span>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-3 pt-2">
           <button
             type="button"
-            onClick={onOpenGoogleDrive}
+            onClick={() => setDriveModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition"
           >
             <Cloud className="w-4 h-4" />
             <span>{isGoogleDriveConnected ? (t('manageGoogleDrive') || 'Manage Google Drive') : (t('connectDrive') || 'Connect Google Drive')}</span>
           </button>
+
+          {isGoogleDriveConnected && (
+            <button
+              type="button"
+              onClick={handleBackupNow}
+              disabled={driveBusy}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition disabled:opacity-50"
+            >
+              <Upload className="w-4 h-4" />
+              <span>{driveBusy ? tp('Uploading...', 'در حال آپلود...', 'پورته کېږي...') : tp('Backup Now', 'بکاپ فوری', 'اوس بکاپ')}</span>
+            </button>
+          )}
+
+          {isGoogleDriveConnected && (
+            <button
+              type="button"
+              onClick={handleDisconnectDrive}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>{tp('Disconnect', 'قطع اتصال', 'پرېکول')}</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -501,6 +600,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
             <input type="file" accept=".json" onChange={handleImportLocal} className="hidden" />
           </label>
         </div>
+
+        <label className="flex items-center gap-2.5 pt-1 text-xs font-semibold text-ink cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={driveAutoBackup}
+            onChange={toggleDriveAutoBackup}
+            className="w-4 h-4 accent-blue-600"
+          />
+          <span>{tp('Auto-upload backup to Google Drive after each local backup', 'آپلود خودکار بکاپ به گوگل درایو بعد از هر بکاپ محلی', 'له هر ځايي بکاپ وروسته اتومات بکاپ ګوګل ډرایو ته پورته کول')}</span>
+        </label>
         {backupStatus && (
           <div className={`mt-3 text-xs font-bold px-4 py-2.5 rounded-xl border ${
             backupStatus.ok
@@ -511,6 +620,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
           </div>
         )}
       </div>
+
+      {/* Test version (separate playground data) */}
+      {(isTestMode || currentUser?.isMasterSuperAdmin || (currentUser?.role === 'admin' && !currentUser?.ownerAdminId)) && (
+        <div className={`p-6 rounded-3xl border shadow-sm space-y-4 ${isTestMode ? 'bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-800' : 'bg-surface border-line'}`}>
+          <h3 className="font-bold text-base text-ink flex items-center gap-2">
+            <FlaskConical className="w-5 h-5 text-violet-600" />
+            <span>{tp('Test version', 'نسخه تست', 'ټسټ بڼه')}</span>
+            {isTestMode && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-600 text-white">
+                {tp('ACTIVE', 'فعال', 'فعاله')}
+              </span>
+            )}
+          </h3>
+          <p className="text-xs text-ink-muted leading-relaxed">
+            {isTestMode
+              ? tp('You are in the test version: separate empty storage, no-login demo user, apartments & payments locked. Production data is untouched. Exiting returns you to the production login.',
+                  'شما در نسخه تست هستید: حافظه جداگانه و خالی، کاربر نمایشی بدون لاگین، آپارتمان و پرداخت قفل. دیتای اصلی دست‌نخورده است. با خروج به لاگین اصلی برمی‌گردید.',
+                  'تاسې په ټسټ بڼه کې یاست: جلا تشه زېرمه، له ننوتلو پرته تمریني کاروونکی، اپارتمان او تادیې بندې. اصلي معلومات نه خوځېږي. په وتلو سره اصلي ننوتلو ته بېرته ځئ.')
+              : tp('Open a separate playground with empty data and no login — safe to try everything. Apartments & payments stay locked there; production data is untouched.',
+                  'یک محیط تمرینی جداگانه با دیتای خالی و بدون لاگین باز کنید — همه‌چیز را با خیال راحت امتحان کنید. آپارتمان و پرداخت آنجا قفل است؛ دیتای اصلی دست‌نخورده می‌ماند.',
+                  'له تشو معلوماتو او پرته له ننوتلو جلا تمریني چاپېریال پرانیځئ — هرڅه په ډاډ وازمایئ. اپارتمان او تادیې هلته بندې دي؛ اصلي معلومات نه خوځېږي.')}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            {isTestMode ? (
+              <>
+                <button
+                  type="button"
+                  onClick={exitTestMode}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold shadow-md transition"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>{tp('Exit test version', 'خروج از نسخه تست', 'له ټسټ بڼې وتل')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(tp('Wipe ALL test-version data and start fresh?', 'همه دیتای نسخه تست پاک و از نو شروع شود؟', 'د ټسټ بڼې ټول معلومات پاک او له سره پیل شي؟'))) {
+                      wipeTestData();
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl text-xs font-bold transition"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{tp('Wipe test data', 'پاک‌سازی دیتای تست', 'د ټسټ معلوماتو پاکول')}</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={enterTestMode}
+                className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold shadow-md transition"
+              >
+                <FlaskConical className="w-4 h-4" />
+                <span>{tp('Enter test version', 'ورود به نسخه تست', 'ټسټ بڼې ته ننوتل')}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Shahhost MySQL Database Integration Section */}
       <div className="p-6 rounded-3xl bg-surface border border-line shadow-sm space-y-4">
@@ -609,6 +777,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
           </div>
         )}
       </div>
+      <GoogleDriveModal 
+        isOpen={driveModalOpen} 
+        onClose={() => setDriveModalOpen(false)} 
+      />
     </div>
   );
 };

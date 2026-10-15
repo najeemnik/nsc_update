@@ -29,6 +29,7 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
     deleteAsset, 
     formatNumber, 
     t, 
+    tp, 
     language 
   ,
     printIfAllowed,
@@ -61,18 +62,18 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
 
   const getCategoryLabel = (cat: string) => {
     switch (cat) {
-      case 'machinery': return 'ماشین‌آلات سنگین';
-      case 'vehicle': return 'وسایط نقلیه و ترانسپورت';
-      case 'equipment': return 'تجهیزات و قالب‌ها';
-      case 'building': return 'تأسیسات کارگاهی';
-      case 'it': return 'تجهیزات IT و نظارتی';
+      case 'machinery': return tp('Heavy machinery', 'ماشین‌آلات سنگین', 'درنې ماشینرۍ');
+      case 'vehicle': return tp('Vehicles & transport', 'وسایط نقلیه و ترانسپورت', 'نقلیه وسایط');
+      case 'equipment': return tp('Equipment & molds', 'تجهیزات و قالب‌ها', 'تجهیزات او قالبونه');
+      case 'building': return tp('Site facilities', 'تأسیسات کارگاهی', 'ساحوي تاسیسات');
+      case 'it': return tp('IT & monitoring equipment', 'تجهیزات IT و نظارتی', 'IT او څارنې تجهیزات');
       default: return cat;
     }
   };
 
   const handleDelete = (id: string, name: string) => {
     if (!can('assets', 'del')) { denyAccess('assets', 'del'); return; }
-    if (confirm(`آیا از حذف دارایی "${name}" از دفاتر اموال ثابت اطمینان دارید؟`)) {
+    if (confirm(tp(`Are you sure you want to delete asset "${name}" from the fixed-assets register?`, `آیا از حذف دارایی «${name}» از دفاتر اموال ثابت اطمینان دارید؟`, `ایا د «${name}» شتمنۍ له ثابتو شتمنیو څخه ړنګولو باوري یاست؟`))) {
       deleteAsset(id);
     }
   };
@@ -87,10 +88,10 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
       {/* Printable Header */}
       <div className="hidden print:block text-center border-b pb-4 mb-4">
         <h1 className="text-xl font-black text-slate-900">
-          دفتر اموال ثابت، ماشین‌آلات ساختمانی و استهلاک انباشته (Fixed Assets & Machinery Register)
+          {tp('Fixed Assets & Machinery Register', 'دفتر اموال ثابت، ماشین‌آلات ساختمانی و استهلاک انباشته', 'ثابتې شتمنۍ، ساختماني ماشینونه او راټوله شوې استهلاک')}
         </h1>
         <p className="text-xs font-bold text-slate-700 mt-1">
-          پروژه: {currentProject?.name} ({currentProject?.code}) • تاریخ چاپ: {new Date().toISOString().split('T')[0]}
+          {tp('Project', 'پروژه', 'پروژه')}: {currentProject?.name} ({currentProject?.code}) • {tp('Print date', 'تاریخ چاپ', 'د چاپ نېټه')}: {new Date().toISOString().split('T')[0]}
         </p>
       </div>
 
@@ -99,10 +100,10 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
         <div>
           <h1 className="text-2xl font-black text-ink flex items-center gap-2.5">
             <Truck className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-            <span>اموال ثابت و ماشین‌آلات (Fixed Assets & Machinery)</span>
+            <span>{tp('Fixed Assets & Machinery', 'اموال ثابت و ماشین‌آلات', 'ثابتې شتمنۍ او ماشینونه')}</span>
           </h1>
           <p className="text-xs text-ink-muted mt-1">
-            مدیریت کرین، پمپ، ژنراتور، قالب‌های فلزی، استهلاک خطی و تخصیص ساعت‌کارکرد به پروژه
+            {tp('Manage cranes, pumps, generators, steel molds, straight-line depreciation and work-hour allocation', 'مدیریت کرین، پمپ، ژنراتور، قالب‌های فلزی، استهلاک خطی و تخصیص ساعت‌کارکرد به پروژه', 'کرېن، پمپ، جنراتور، فلزي قالبونه، مستقیم استهلاک او د کار ساعتونو تخصیص مدیریت')}
           </p>
         </div>
 
@@ -113,7 +114,7 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
             className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-semibold transition"
           >
             <Printer className="w-4 h-4" />
-            <span>چاپ کاردکس اموال (ممیزی سالانه)</span>
+            <span>{tp('Print asset kardex (annual audit)', 'چاپ کاردکس اموال (ممیزی سالانه)', 'د شتمنیو کارډېکس چاپ (کلنی پلټنه)')}</span>
           </button>
 
           <button
@@ -122,7 +123,7 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
             className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-amber-500/25 transition active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>ثبت دارایی / ماشین‌آلات جدید</span>
+            <span>{tp('Register new asset / machinery', 'ثبت دارایی / ماشین‌آلات جدید', 'نوې شتمنۍ / ماشینونه ثبتول')}</span>
           </button>
         </div>
       </div>
@@ -130,35 +131,35 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
       {/* 4 Financial KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 print:grid-cols-4">
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-xs">
-          <span className="text-slate-400 font-bold block mb-1 text-[11px]">بهای اولیه تمام‌شده:</span>
+          <span className="text-slate-400 font-bold block mb-1 text-[11px]">{tp('Initial total cost:', 'بهای اولیه تمام‌شده:', 'لومړنی ټول لګښت:')}</span>
           <span className="text-lg font-black font-mono text-ink">
             ${formatNumber(totalOriginalCost, 0)}
           </span>
-          <span className="block text-[10px] text-slate-400 mt-0.5">قیمت خرید تاریخی تجهیزات</span>
+          <span className="block text-[10px] text-slate-400 mt-0.5">{tp('Historic purchase price', 'قیمت خرید تاریخی تجهیزات', 'تاریخي پېر بیه')}</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
-          <span className="text-rose-700 dark:text-rose-400 font-bold block mb-1 text-[11px]">استهلاک انباشته (Depreciation):</span>
+          <span className="text-rose-700 dark:text-rose-400 font-bold block mb-1 text-[11px]">{tp('Accumulated depreciation:', 'استهلاک انباشته:', 'راټوله شوې استهلاک:')}</span>
           <span className="text-lg font-black font-mono text-rose-700 dark:text-rose-300">
             -${formatNumber(totalDepreciation, 0)}
           </span>
-          <span className="block text-[10px] text-rose-600/80 mt-0.5">استهلاک خط مستقیم مستهلک‌شده</span>
+          <span className="block text-[10px] text-rose-600/80 mt-0.5">{tp('Straight-line depreciated', 'استهلاک خط مستقیم مستهلک‌شده', 'مستقیم استهلاک شوی')}</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-          <span className="text-emerald-700 dark:text-emerald-400 font-bold block mb-1 text-[11px]">ارزش دفتری خالص (Book Value):</span>
+          <span className="text-emerald-700 dark:text-emerald-400 font-bold block mb-1 text-[11px]">{tp('Net book value:', 'ارزش دفتری خالص:', 'خالص دفتري ارزښت:')}</span>
           <span className="text-lg font-black font-mono text-emerald-700 dark:text-emerald-300">
             ${formatNumber(totalBookValue, 0)}
           </span>
-          <span className="block text-[10px] text-emerald-600/80 mt-0.5">ارزش دارایی در ترازنامه فعلی</span>
+          <span className="block text-[10px] text-emerald-600/80 mt-0.5">{tp('Asset value in current balance sheet', 'ارزش دارایی در ترازنامه فعلی', 'په اوسني بیلانس کې د شتمنۍ ارزښت')}</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-xs">
-          <span className="text-slate-400 font-bold block mb-1 text-[11px]">ساعت‌کارکرد کل در ساحه:</span>
+          <span className="text-slate-400 font-bold block mb-1 text-[11px]">{tp('Total site work-hours:', 'ساعت‌کارکرد کل در ساحه:', 'په ساحه کې ټول کاري ساعتونه:')}</span>
           <span className="text-lg font-black font-mono text-amber-600">
-            {formatNumber(totalHours, 0)} ساعت
+            {formatNumber(totalHours, 0)} {tp('hrs', 'ساعت', 'ساعتونه')}
           </span>
-          <span className="block text-[10px] text-slate-400 mt-0.5">{filteredAssets.length} قلم دستگاه و تجهیز</span>
+          <span className="block text-[10px] text-slate-400 mt-0.5">{filteredAssets.length} {tp('machines & items', 'قلم دستگاه و تجهیز', 'ماشینونه او توکي')}</span>
         </div>
       </div>
 
@@ -168,7 +169,7 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="جستجوی پلاک، مدل دستگاه، سریال نامبر، راننده..."
+            placeholder={tp('Search plate, model, serial, driver...', 'جستجوی پلاک، مدل دستگاه، سریال نامبر، راننده...', 'پلېټ، ماډل، سریال، ډرایور لټون...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-surface-2/80 border border-line rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20"
@@ -181,11 +182,11 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
             onChange={(e) => setCategoryFilter(e.target.value)}
             className="px-3 py-2 bg-surface-2/80 border border-line rounded-xl text-xs focus:outline-none"
           >
-            <option value="all">همه دسته‌ها</option>
-            <option value="machinery">ماشین‌آلات سنگین</option>
-            <option value="vehicle">وسایط نقلیه</option>
-            <option value="equipment">تجهیزات و قالب‌ها</option>
-            <option value="it">تجهیزات IT و اداری</option>
+            <option value="all">{tp('All categories', 'همه دسته‌ها', 'ټولې ډلې')}</option>
+            <option value="machinery">{tp('Heavy machinery', 'ماشین‌آلات سنگین', 'درنې ماشینرۍ')}</option>
+            <option value="vehicle">{tp('Vehicles', 'وسایط نقلیه', 'نقلیه وسایط')}</option>
+            <option value="equipment">{tp('Equipment & molds', 'تجهیزات و قالب‌ها', 'تجهیزات او قالبونه')}</option>
+            <option value="it">{tp('IT & office equipment', 'تجهیزات IT و اداری', 'IT او دفتري تجهیزات')}</option>
           </select>
 
           <select
@@ -193,10 +194,10 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="px-3 py-2 bg-surface-2/80 border border-line rounded-xl text-xs focus:outline-none"
           >
-            <option value="all">همه وضعیت‌ها</option>
-            <option value="active">فعال در ساحه</option>
-            <option value="maintenance">تحت سرویس و تعمیر</option>
-            <option value="idle">آماده‌به‌کار در گدام</option>
+            <option value="all">{tp('All statuses', 'همه وضعیت‌ها', 'ټول حالتونه')}</option>
+            <option value="active">{tp('Active on site', 'فعال در ساحه', 'په ساحه کې فعال')}</option>
+            <option value="maintenance">{tp('Under service & repair', 'تحت سرویس و تعمیر', 'تر ترمیم لاندې')}</option>
+            <option value="idle">{tp('Ready in warehouse', 'آماده‌به‌کار در گدام', 'په ګدام کې چمتو')}</option>
           </select>
         </div>
       </div>
@@ -207,24 +208,24 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
           <table className="w-full text-xs text-right border-collapse">
             <thead className="bg-surface-2/60 text-slate-500 font-bold border-b border-line print:bg-slate-100">
               <tr>
-                <th className="py-3 px-3">کد دارایی</th>
-                <th className="py-3 px-3">نام و مدل ماشین‌آلات</th>
-                <th className="py-3 px-3">دسته‌بندی</th>
-                <th className="py-3 px-3 text-left">بهای خرید ($)</th>
-                <th className="py-3 px-3 text-center">عمر مفید</th>
-                <th className="py-3 px-3 text-left">استهلاک ماهانه</th>
-                <th className="py-3 px-3 text-left text-emerald-600">ارزش دفتری خالص</th>
-                <th className="py-3 px-3 text-center">ساعت‌کارکرد</th>
-                <th className="py-3 px-3">اپراتور / مسئول</th>
-                <th className="py-3 px-3 text-center">وضعیت فنی</th>
-                <th className="py-3 px-3 text-center print:hidden">عملیات</th>
+                <th className="py-3 px-3">{tp('Asset code', 'کد دارایی', 'د شتمنۍ کوډ')}</th>
+                <th className="py-3 px-3">{tp('Machinery name & model', 'نام و مدل ماشین‌آلات', 'د ماشین نوم او ماډل')}</th>
+                <th className="py-3 px-3">{tp('Category', 'دسته‌بندی', 'ډله')}</th>
+                <th className="py-3 px-3 text-left">{tp('Purchase price ($)', 'بهای خرید ($)', 'پېر بیه ($)')}</th>
+                <th className="py-3 px-3 text-center">{tp('Useful life', 'عمر مفید', 'ګټور عمر')}</th>
+                <th className="py-3 px-3 text-left">{tp('Monthly depreciation', 'استهلاک ماهانه', 'میاشتنی استهلاک')}</th>
+                <th className="py-3 px-3 text-left text-emerald-600">{tp('Net book value', 'ارزش دفتری خالص', 'خالص دفتري ارزښت')}</th>
+                <th className="py-3 px-3 text-center">{tp('Work hours', 'ساعت‌کارکرد', 'کاري ساعتونه')}</th>
+                <th className="py-3 px-3">{tp('Operator / owner', 'اپراتور / مسئول', 'چلوونکی / مسؤل')}</th>
+                <th className="py-3 px-3 text-center">{tp('Technical status', 'وضعیت فنی', 'تخنیکي حالت')}</th>
+                <th className="py-3 px-3 text-center print:hidden">{tp('Actions', 'عملیات', 'چارې')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {filteredAssets.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="py-10 text-center text-slate-400">
-                    هیچ دارایی یا ماشین‌آلاتی ثبت نشده است. از دکمه «ثبت دارایی / ماشین‌آلات جدید» استفاده کنید.
+                    {tp('No assets registered yet. Use “Register new asset / machinery”.', 'هیچ دارایی یا ماشین‌آلاتی ثبت نشده است. از دکمه «ثبت دارایی / ماشین‌آلات جدید» استفاده کنید.', 'هېڅ شتمنۍ نه ده ثبت شوې. «نوې شتمنۍ / ماشینونه ثبتول» وکاروئ.')}
                   </td>
                 </tr>
               ) : (
@@ -250,10 +251,10 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
                       ${formatNumber(asset.purchaseCost, 0)}
                     </td>
                     <td className="py-3 px-3 text-center font-mono">
-                      {asset.usefulLifeYears} سال
+                      {asset.usefulLifeYears} {tp('yrs', 'سال', 'کاله')}
                     </td>
                     <td className="py-3 px-3 text-left font-mono text-rose-600 font-bold">
-                      -${formatNumber(asset.monthlyDepreciation, 0)}/ماه
+                      -${formatNumber(asset.monthlyDepreciation, 0)}/${tp('mo', 'ماه', 'میاشت')}
                     </td>
                     <td className="py-3 px-3 text-left font-mono font-black text-emerald-600">
                       ${formatNumber(asset.currentBookValue, 0)}
@@ -277,9 +278,9 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
                             ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20 hover:bg-amber-500/20'
                             : 'bg-slate-500/10 text-slate-600 border border-slate-500/20 hover:bg-slate-500/20'
                         }`}
-                        title="برای تغییر وضعیت کلیک کنید"
+                        title={tp('Click to change status', 'برای تغییر وضعیت کلیک کنید', 'د حالت بدلولو لپاره کلیک وکړئ')}
                       >
-                        {asset.status === 'active' ? 'آماده در ساحه' : asset.status === 'maintenance' ? 'تحت سرویس' : 'غیرفعال / گدام'}
+                        {asset.status === 'active' ? tp('Ready on site', 'آماده در ساحه', 'په ساحه کې چمتو') : asset.status === 'maintenance' ? tp('Under service', 'تحت سرویس', 'تر ترمیم لاندې') : tp('Idle / warehouse', 'غیرفعال / گدام', 'غیرفعال / ګدام')}
                       </button>
                     </td>
                     <td className="py-3 px-3 text-center print:hidden">
@@ -288,7 +289,7 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
                         type="button"
                         onClick={() => handleDelete(asset.id, asset.name)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"
-                        title="حذف از دفاتر"
+                        title={tp('Remove from register', 'حذف از دفاتر', 'له دفتر څخه لرې کول')}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

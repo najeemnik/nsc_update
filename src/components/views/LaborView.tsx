@@ -28,6 +28,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
     deleteLaborRecord, 
     formatNumber, 
     t, 
+    tp, 
     language 
   ,
     printIfAllowed,
@@ -64,7 +65,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
 
   const handleDelete = (id: string, name: string) => {
     if (!can('labor', 'del')) { denyAccess('labor', 'del'); return; }
-    if (confirm(`آیا از حذف رکورد کارکرد کارگر "${name}" اطمینان دارید؟`)) {
+    if (confirm(tp(`Are you sure you want to delete the work record of "${name}"?`, `آیا از حذف رکورد کارکرد کارگر «${name}» اطمینان دارید؟`, `ایا د «${name}» کارګر د کار ثبت ړنګولو باوري یاست؟`))) {
       deleteLaborRecord(id);
     }
   };
@@ -74,10 +75,10 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
       {/* Printable Sheet Header */}
       <div className="hidden print:block text-center border-b pb-4 mb-4">
         <h1 className="text-xl font-black text-slate-900">
-          لیست پرداخت معاشات و تسویه کارکرد کارگران ساحه ساختمانی
+          {tp('Payroll & work settlement list for site construction workers', 'لیست پرداخت معاشات و تسویه کارکرد کارگران ساحه ساختمانی', 'د ساختماني ساحې کارګرانو مزدونو او کار تسویې لړلیک')}
         </h1>
         <p className="text-xs font-bold text-slate-700 mt-1">
-          پروژه: {currentProject?.name} ({currentProject?.code}) • تاریخ چاپ: {new Date().toISOString().split('T')[0]}
+          {tp('Project', 'پروژه', 'پروژه')}: {currentProject?.name} ({currentProject?.code}) • {tp('Print date', 'تاریخ چاپ', 'د چاپ نېټه')}: {new Date().toISOString().split('T')[0]}
         </p>
       </div>
 
@@ -86,10 +87,10 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
         <div>
           <h1 className="text-2xl font-black text-ink flex items-center gap-2.5">
             <UserCheck className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-            <span>معاشات و کارکرد کارگران ساحه (Labor & Payroll)</span>
+            <span>{tp('Labor & Payroll', 'معاشات و کارکرد کارگران ساحه', 'مزدونه او کارګران')}</span>
           </h1>
           <p className="text-xs text-ink-muted mt-1">
-            {currentProject?.name} • تسویه روزمزدها و کارمزد با کسر اتومات مساعده‌های دریافتی
+            {currentProject?.name} • {tp('Daily-wage settlement with automatic advance deduction', 'تسویه روزمزدها و کارمزد با کسر اتومات مساعده‌های دریافتی', 'ورځمزد تسویه له اتومات مساعدې کسر سره')}
           </p>
         </div>
 
@@ -100,7 +101,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
             className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-semibold transition"
           >
             <Printer className="w-4 h-4" />
-            <span>چاپ لیست حقوق (امضا و اثر انگشت)</span>
+            <span>{tp('Print payroll (signature & fingerprint)', 'چاپ لیست حقوق (امضا و اثر انگشت)', 'مزدونو چاپ (لاسلیک او ګوته)')}</span>
           </button>
 
           <button
@@ -109,7 +110,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
             className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-purple-500/25 transition active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>ثبت کارکرد و معاش جدید</span>
+            <span>{tp('Register new work & wage', 'ثبت کارکرد و معاش جدید', 'نوی کار او مزد ثبتول')}</span>
           </button>
         </div>
       </div>
@@ -117,35 +118,35 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
       {/* 4 Financial KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 print:grid-cols-4">
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-xs">
-          <span className="text-slate-400 font-bold block mb-1 text-[11px]">مجموع مزد ناخالص:</span>
+          <span className="text-slate-400 font-bold block mb-1 text-[11px]">{tp('Total gross wages:', 'مجموع مزد ناخالص:', 'ټول ناخالص مزدونه:')}</span>
           <span className="text-lg font-black font-mono text-ink">
             {formatNumber(totalGrossAFN, 0)} AFN
           </span>
-          <span className="block text-[10px] text-slate-400 mt-0.5">کارکرد کل ثبت‌شده</span>
+          <span className="block text-[10px] text-slate-400 mt-0.5">{tp('Total recorded work', 'کارکرد کل ثبت‌شده', 'ټول ثبت شوي کار')}</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
-          <span className="text-rose-700 dark:text-rose-400 font-bold block mb-1 text-[11px]">کسر مساعده‌ها (Advance):</span>
+          <span className="text-rose-700 dark:text-rose-400 font-bold block mb-1 text-[11px]">{tp('Advance deductions:', 'کسر مساعده‌ها:', 'مساعدې کسر:')}</span>
           <span className="text-lg font-black font-mono text-rose-700 dark:text-rose-300">
             -{formatNumber(totalAdvancesAFN, 0)} AFN
           </span>
-          <span className="block text-[10px] text-rose-600/80 mt-0.5">دریافتی‌های وسط ماه</span>
+          <span className="block text-[10px] text-rose-600/80 mt-0.5">{tp('Mid-month advances', 'دریافتی‌های وسط ماه', 'د میاشتې منځ تادیې')}</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-          <span className="text-emerald-700 dark:text-emerald-400 font-bold block mb-1 text-[11px]">خالص پرداختی کل:</span>
+          <span className="text-emerald-700 dark:text-emerald-400 font-bold block mb-1 text-[11px]">{tp('Total net payout:', 'خالص پرداختی کل:', 'ټول خالص ورکړې:')}</span>
           <span className="text-lg font-black font-mono text-emerald-700 dark:text-emerald-300">
             {formatNumber(totalNetAFN, 0)} AFN
           </span>
-          <span className="block text-[10px] text-emerald-600/80 mt-0.5">تسویه نهایی پایان دوره</span>
+          <span className="block text-[10px] text-emerald-600/80 mt-0.5">{tp('End-of-period final settlement', 'تسویه نهایی پایان دوره', 'د دورې پای وروستۍ تسویه')}</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-surface border border-line shadow-xs">
-          <span className="text-slate-400 font-bold block mb-1 text-[11px]">مجموع نفر-روز کارکرد:</span>
+          <span className="text-slate-400 font-bold block mb-1 text-[11px]">{tp('Total man-days:', 'مجموع نفر-روز کارکرد:', 'ټول کاري ورځې:')}</span>
           <span className="text-lg font-black font-mono text-purple-600">
-            {totalManDays} نفر-روز
+            {totalManDays} {tp('man-days', 'نفر-روز', 'کاري ورځې')}
           </span>
-          <span className="block text-[10px] text-slate-400 mt-0.5">{filteredLabor.length} استادکار و کارگر</span>
+          <span className="block text-[10px] text-slate-400 mt-0.5">{filteredLabor.length} {tp('masters & workers', 'استادکار و کارگر', 'استادان او کارګران')}</span>
         </div>
       </div>
 
@@ -155,7 +156,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="جستجوی نام کارگر، رسته کاری، شماره تماس..."
+            placeholder={tp('Search worker name, trade, phone...', 'جستجوی نام کارگر، رسته کاری، شماره تماس...', 'کارګر نوم، کسب، تلیفون لټون...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-surface-2/80 border border-line rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20"
@@ -167,7 +168,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
           onChange={(e) => setRoleFilter(e.target.value)}
           className="px-3 py-2 bg-surface-2/80 border border-line rounded-xl text-xs focus:outline-none"
         >
-          <option value="all">همه رسته‌های کاری</option>
+          <option value="all">{tp('All trades', 'همه رسته‌های کاری', 'ټول کسبونه')}</option>
           {roles.map(r => (
             <option key={r} value={r}>{r}</option>
           ))}
@@ -181,23 +182,23 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
             <thead className="bg-surface-2/60 text-slate-500 font-bold border-b border-line print:bg-slate-100">
               <tr>
                 <th className="py-3 px-3">#</th>
-                <th className="py-3 px-3">نام کارگر / استادکار</th>
-                <th className="py-3 px-3">رسته و مهارت کاری</th>
-                <th className="py-3 px-3 text-center">روزکار</th>
-                <th className="py-3 px-3 text-left">نرخ روزانه (AFN)</th>
-                <th className="py-3 px-3 text-left">مزد ناخالص (AFN)</th>
-                <th className="py-3 px-3 text-left text-rose-600">کسر مساعده</th>
-                <th className="py-3 px-3 text-left text-emerald-600">خالص پرداختی</th>
-                <th className="py-3 px-3 text-center print:hidden">وضعیت</th>
-                <th className="py-3 px-3 text-center hidden print:table-cell w-36">اثر انگشت / امضا</th>
-                <th className="py-3 px-3 text-center print:hidden">عملیات</th>
+                <th className="py-3 px-3">{tp('Worker / master name', 'نام کارگر / استادکار', 'کارګر / استاد نوم')}</th>
+                <th className="py-3 px-3">{tp('Trade & skill', 'رسته و مهارت کاری', 'کسب او مهارت')}</th>
+                <th className="py-3 px-3 text-center">{tp('Work days', 'روزکار', 'کاري ورځې')}</th>
+                <th className="py-3 px-3 text-left">{tp('Daily rate (AFN)', 'نرخ روزانه (AFN)', 'ورځنی نرخ (AFN)')}</th>
+                <th className="py-3 px-3 text-left">{tp('Gross wage (AFN)', 'مزد ناخالص (AFN)', 'ناخالص مزد (AFN)')}</th>
+                <th className="py-3 px-3 text-left text-rose-600">{tp('Advance deduction', 'کسر مساعده', 'مساعدې کسر')}</th>
+                <th className="py-3 px-3 text-left text-emerald-600">{tp('Net payout', 'خالص پرداختی', 'خالص ورکړه')}</th>
+                <th className="py-3 px-3 text-center print:hidden">{tp('Status', 'وضعیت', 'حالت')}</th>
+                <th className="py-3 px-3 text-center hidden print:table-cell w-36">{tp('Fingerprint / signature', 'اثر انگشت / امضا', 'ګوته / لاسلیک')}</th>
+                <th className="py-3 px-3 text-center print:hidden">{tp('Actions', 'عملیات', 'چارې')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {filteredLabor.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-10 text-center text-slate-400">
-                    رکوردی برای کارگران این پروژه ثبت نشده است. از دکمه «ثبت کارکرد و معاش جدید» استفاده کنید.
+                    {tp('No records for this project workers yet. Use “Register new work & wage”.', 'رکوردی برای کارگران این پروژه ثبت نشده است. از دکمه «ثبت کارکرد و معاش جدید» استفاده کنید.', 'دې پروژې کارګرانو ته هېڅ ثبت نشته. «نوی کار او مزد ثبتول» وکاروئ.')}
                   </td>
                 </tr>
               ) : (
@@ -214,7 +215,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
                       </span>
                     </td>
                     <td className="py-3 px-3 text-center font-mono font-bold">
-                      {l.daysWorked} روز
+                      {l.daysWorked} {tp('days', 'روز', 'ورځې')}
                     </td>
                     <td className="py-3 px-3 text-left font-mono">
                       {formatNumber(l.dailyRate, 0)}
@@ -223,7 +224,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
                       {formatNumber(l.grossWage, 0)}
                     </td>
                     <td className="py-3 px-3 text-left font-mono font-bold text-rose-600">
-                      {l.advanceDeduction > 0 ? `-${formatNumber(l.advanceDeduction, 0)}` : '۰'}
+                      {l.advanceDeduction > 0 ? `-${formatNumber(l.advanceDeduction, 0)}` : tp('0', '۰', '۰')}
                     </td>
                     <td className="py-3 px-3 text-left font-mono font-black text-emerald-600">
                       {formatNumber(l.netPayable, 0)} AFN
@@ -234,7 +235,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
                           ? 'bg-emerald-500/10 text-emerald-600'
                           : 'bg-amber-500/10 text-amber-600'
                       }`}>
-                        {l.paymentStatus === 'paid' ? 'تسویه شد' : 'در انتظار'}
+                        {l.paymentStatus === 'paid' ? tp('Settled', 'تسویه شد', 'تسویه شو') : tp('Pending', 'در انتظار', 'انتظار')}
                       </span>
                     </td>
                     <td className="py-3 px-3 text-center hidden print:table-cell border-b">
@@ -246,7 +247,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
                         type="button"
                         onClick={() => handleDelete(l.id, l.workerName)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"
-                        title="حذف رکورد"
+                        title={tp('Delete record', 'حذف رکورد', 'ثبت ړنګول')}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

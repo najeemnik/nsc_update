@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { resolveDashboardBlocks } from '../../utils/pageBuilder';
 import { BlockView } from '../builder/BlockView';
 import { useApp } from '../../context/AppContext';
-import { expUSD, payUSD, isCountedDoc } from '../../utils/docFinance';
+import { expUSD, payUSD, isCountedDoc, aptUSD } from '../../utils/docFinance';
 import { 
   Building2, 
   Receipt, 
@@ -32,7 +32,6 @@ interface DashboardViewProps {
   onOpenAddSteel?: () => void;
   onOpenAddConcrete?: () => void;
   onOpenAddApartment?: () => void;
-  onOpenGoogleDrive?: () => void;
   setActiveTab?: (tab: string) => void;
 }
 
@@ -43,7 +42,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenAddSteel,
   onOpenAddConcrete,
   onOpenAddApartment,
-  onOpenGoogleDrive,
   setActiveTab
 }) => {
   const { 
@@ -64,13 +62,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     t,
     language,
     tp,
-    isGoogleDriveConnected,
-    backupToGoogleDrive
   } = useApp();
 
-  const [backingUp, setBackingUp] = useState(false);
-  const [backupSuccess, setBackupSuccess] = useState<string | null>(null);
-  const [backupError, setBackupError] = useState<string | null>(null);
 
   // Financial calculations for current project
   const projectExpenses = expenses.filter(e => e.projectId === currentProject?.id && isCountedDoc(e));
@@ -91,32 +84,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const totalConcreteCostUSD = projectConcrete.reduce((sum, c) => sum + (c.totalCostUSD || 0), 0);
 
   const soldApartments = projectApartments.filter(a => a.status === 'sold');
-  const totalSalesUSD = soldApartments.reduce((sum, a) => sum + (a.totalPriceUSD || 0), 0);
-  const totalSalesReceivedUSD = soldApartments.reduce((sum, a) => sum + (a.downPaymentUSD || 0) + (a.paidAmountUSD || 0), 0);
+  const totalSalesUSD = soldApartments.reduce((sum, a) => sum + aptUSD(a), 0);
+  const totalSalesReceivedUSD = soldApartments.reduce((sum, a) => sum + ((a.downPayment ?? 0) + Math.max(0, (a.amountReceived || 0) - (a.downPayment || 0))), 0);
 
-  const handleQuickBackup = async () => {
-    if (!isGoogleDriveConnected) {
-      if (onOpenGoogleDrive) onOpenGoogleDrive();
-      return;
-    }
-    setBackingUp(true);
-    setBackupError(null);
-    try {
-      const res = await backupToGoogleDrive();
-      if (!res.success) {
-        setBackupError(res.error || tp('Backup failed', 'بکاپ ناموفق بود', 'بکاپ ناکام شو'));
-        setTimeout(() => setBackupError(null), 6000);
-      } else {
-        setBackupSuccess(res.fileLink || 'done');
-        setTimeout(() => setBackupSuccess(null), 6000);
-      }
-    } catch (e: any) {
-      setBackupError(e.message || tp('Backup failed', 'بکاپ ناموفق بود', 'بکاپ ناکام شو'));
-      setTimeout(() => setBackupError(null), 6000);
-    } finally {
-      setBackingUp(false);
-    }
-  };
+
 
   // Wave 32: dashboard sections as addressable nodes — the visual builder
   // reorders/shows/hides them and injects content blocks between them.
@@ -163,47 +134,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
             )}
 
-            <button
-              onClick={handleQuickBackup}
-              disabled={backingUp}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-xs shadow-lg transition transform active:scale-95 ${
-                isGoogleDriveConnected 
-                  ? 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-md'
-                  : 'bg-amber-500 hover:bg-amber-600 text-white'
-              }`}
-            >
-              <Cloud className={`w-4 h-4 ${backingUp ? 'animate-bounce' : ''}`} />
-              <span>
-                {backingUp 
-                  ? 'Backing up...' 
-                  : isGoogleDriveConnected 
-                  ? t('backupToDrive') || 'Google Drive Backup' 
-                  : t('connectDrive') || 'Connect Drive'}
-              </span>
-            </button>
+
           </div>
         </div>
 
-        {/* Backup Success Toast */}
-        {backupSuccess && (
-          <div className="mt-4 p-3 bg-emerald-500/20 backdrop-blur-md border border-emerald-400/40 rounded-xl text-xs text-emerald-100 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-            <span>{t('googleDriveBackupSuccess') || 'Successfully backed up to Google Drive'}</span>
-            {backupSuccess !== 'done' && (
-              <a href={backupSuccess} target="_blank" rel="noreferrer" className="underline hover:no-underline font-bold">
-                {tp('View file', 'مشاهده فایل', 'فایل کتل')}
-              </a>
-            )}
-          </div>
-        )}
 
-        {/* Backup Error Toast */}
-        {backupError && (
-          <div className="mt-4 p-3 bg-rose-500/20 backdrop-blur-md border border-rose-400/40 rounded-xl text-xs text-rose-100 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-300" />
-            <span>{backupError}</span>
-          </div>
-        )}
 
         {/* Decorative background shapes */}
         <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-white/10 rounded-full blur-2xl pointer-events-none" />

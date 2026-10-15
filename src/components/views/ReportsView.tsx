@@ -506,7 +506,7 @@ export const ReportsView: React.FC = () => {
                   type="button"
                   onClick={() => setSelectedYear(y => y - 1)}
                   className="p-1.5 rounded-xl hover:bg-surface text-slate-600 dark:text-slate-300 transition"
-                  title="سال قبل"
+                  title={tp('Previous year', 'سال قبل', 'تېر کال')}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -517,7 +517,7 @@ export const ReportsView: React.FC = () => {
                   type="button"
                   onClick={() => setSelectedYear(y => y + 1)}
                   className="p-1.5 rounded-xl hover:bg-surface text-slate-600 dark:text-slate-300 transition"
-                  title="سال بعد"
+                  title={tp('Next year', 'سال بعد', 'راتلونکی کال')}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -535,7 +535,7 @@ export const ReportsView: React.FC = () => {
               <p className="text-lg font-black text-ink mt-1 font-mono">
                 {formatCurrency(yearTotalRevenue, pnlCurrency)}
               </p>
-              <span className="text-[10px] text-indigo-500 font-semibold block mt-0.5">قراردادهای امضاشده</span>
+              <span className="text-[10px] text-indigo-500 font-semibold block mt-0.5">{tp('Signed contracts', 'قراردادهای امضاشده', 'لاسلیک شوي قراردادونه')}</span>
             </div>
 
             {/* Expenses */}
@@ -546,7 +546,7 @@ export const ReportsView: React.FC = () => {
               <p className="text-lg font-black text-rose-600 mt-1 font-mono">
                 {formatCurrency(yearTotalExpense, pnlCurrency)}
               </p>
-              <span className="text-[10px] text-rose-500 font-semibold block mt-0.5">بل‌های تدارکاتی</span>
+              <span className="text-[10px] text-rose-500 font-semibold block mt-0.5">{tp('Procurement bills', 'بل‌های تدارکاتی', 'تدارکاتي بیلونه')}</span>
             </div>
 
             {/* Accrual Profit */}
@@ -558,7 +558,7 @@ export const ReportsView: React.FC = () => {
                 {formatCurrency(yearTotalAccrualProfit, pnlCurrency)}
               </p>
               <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
-                حاشیه سود: {yearProfitMargin.toFixed(1)}%
+                {tp('Profit margin:', 'حاشیه سود:', 'ګټې حاشیه:')} {yearProfitMargin.toFixed(1)}%
               </span>
             </div>
 
@@ -570,7 +570,7 @@ export const ReportsView: React.FC = () => {
               <p className="text-lg font-black text-emerald-600 mt-1 font-mono">
                 {formatCurrency(yearTotalInflow, pnlCurrency)}
               </p>
-              <span className="text-[10px] text-emerald-500 font-semibold block mt-0.5">وصولی نقد و بانک</span>
+              <span className="text-[10px] text-emerald-500 font-semibold block mt-0.5">{tp('Cash & bank collected', 'وصولی نقد و بانک', 'نغدي او بانکي راټول شوې')}</span>
             </div>
 
             {/* Cash Outflow */}
@@ -581,7 +581,7 @@ export const ReportsView: React.FC = () => {
               <p className="text-lg font-black text-rose-600 mt-1 font-mono">
                 {formatCurrency(yearTotalOutflow, pnlCurrency)}
               </p>
-              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">پرداخت‌های نقدی</span>
+              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">{tp('Cash payments', 'پرداخت‌های نقدی', 'نغدي تادیې')}</span>
             </div>
 
             {/* Net Cash Movement */}
@@ -593,7 +593,7 @@ export const ReportsView: React.FC = () => {
                 {formatCurrency(yearNetCashMovement, pnlCurrency)}
               </p>
               <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
-                پایان سال: {formatCurrency(yearEndingCash, pnlCurrency)}
+                {tp('Year end:', 'پایان سال:', 'د کال پای:')} {formatCurrency(yearEndingCash, pnlCurrency)}
               </span>
             </div>
           </div>
@@ -612,7 +612,7 @@ export const ReportsView: React.FC = () => {
                 <h4 className="font-bold text-xs text-ink flex items-center gap-2">
                   <span>{tp('MBA Financial Health Diagnostic:', 'ارزیابی مهندسی مالی MBA (تحلیل مغایرت سود تعهدی و نقدینگی):', 'د MBA مالي انجینرۍ ارزونه (د تعهدي ګټې او نغدو توپیر تحلیل):')}</span>
                   <span className="font-mono text-purple-600">
-                    شکاف نقدینگی: {formatCurrency(totalVarianceProfitVsCash, pnlCurrency)}
+                    {tp('Liquidity gap:', 'شکاف نقدینگی:', 'نغدو تشه:')} {formatCurrency(totalVarianceProfitVsCash, pnlCurrency)}
                   </span>
                 </h4>
                 <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
@@ -628,7 +628,7 @@ export const ReportsView: React.FC = () => {
             </div>
 
             <div className="text-right shrink-0">
-              <span className="text-[10px] text-slate-400 font-bold block">مانده انباشته نقد کارگاه:</span>
+              <span className="text-[10px] text-slate-400 font-bold block">{tp('Accumulated site cash balance:', 'مانده انباشته نقد کارگاه:', 'د ساحې راټوله شوې نغدي بیلانس:')}</span>
               <span className={`text-base font-black font-mono ${yearEndingCash >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                 {formatCurrency(yearEndingCash, pnlCurrency)}
               </span>
@@ -645,7 +645,7 @@ export const ReportsView: React.FC = () => {
                 </span>
               </h3>
               <span className="text-[11px] text-slate-400 font-mono">
-                نرخ تسعیر: ۱ دلار = {rateAFN} افغانی
+                {tp('Exchange rate:', 'نرخ تسعیر:', 'تبادلې نرخ:')} {tp('1 USD', '۱ دلار', '۱ ډالر')} = {rateAFN} {tp('AFN', 'افغانی', 'افغانۍ')}
               </span>
             </div>
 
@@ -725,7 +725,7 @@ export const ReportsView: React.FC = () => {
                             isCashCrunch ? 'bg-amber-500/10 text-amber-600' :
                             'bg-slate-200 dark:bg-slate-800 text-slate-500'
                           }`}>
-                            {isHealthy ? 'مطلوب' : isCashCrunch ? 'کسری نقد' : 'عادی'}
+                            {isHealthy ? tp('Healthy', 'مطلوب', 'ښه') : isCashCrunch ? tp('Cash crunch', 'کسری نقد', 'نغدو کمښت') : tp('Normal', 'عادی', 'عادي')}
                           </span>
                         </td>
                       </tr>

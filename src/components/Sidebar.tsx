@@ -64,7 +64,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onOpe
     isTabAllowed,
     isSectionProtected,
     isSectionUnlocked,
-    isGoogleDriveConnected,
     setIsMasterAdminOpen
   } = useApp();
 
@@ -393,19 +392,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onOpe
               <span>{currentProject.floors} {t.floors}</span>
               <span>•</span>
               <span>{currentProject.units} {t.units}</span>
-            </div>
-
-            {/* Google Drive Status Pill */}
-            <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[10px]">
-              <span className="flex items-center gap-1 font-bold text-slate-600 dark:text-slate-300">
-                <Cloud className={`w-3.5 h-3.5 ${isGoogleDriveConnected ? 'text-emerald-500' : 'text-slate-400'}`} />
-                <span>Google Drive</span>
-              </span>
-              <span className={`px-1.5 py-0.2 rounded font-bold ${
-                isGoogleDriveConnected ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
-              }`}>
-                {isGoogleDriveConnected ? 'متصل' : 'غیرفعال'}
-              </span>
             </div>
           </div>
         )}

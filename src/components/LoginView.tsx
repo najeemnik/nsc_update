@@ -34,7 +34,8 @@ import {
   Flame,
   Award,
   Sun,
-  Moon
+  Moon,
+  FlaskConical
 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
@@ -48,11 +49,9 @@ export const LoginView: React.FC = () => {
     appSettings,
     themeSchedule,
     cycleThemeSchedule,
-    connectGoogleDrive,
-    isGoogleDriveConnected,
-    googleDriveUserEmail,
     authNotice,
-    clearAuthNotice
+    clearAuthNotice,
+    enterTestMode
   } = useApp();
 
   const [authMode, setAuthMode] = useState<'login' | 'forgot_password' | 'reset_otp'>('login');
@@ -72,7 +71,6 @@ export const LoginView: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -158,21 +156,7 @@ export const LoginView: React.FC = () => {
     }, 300);
   };
 
-  const handleGoogleSignInClick = async () => {
-    setIsGoogleSigningIn(true);
-    setErrorMessage(null);
-    try {
-      const ok = await connectGoogleDrive();
-      if (ok) {
-        // Also auto-login with default admin role
-        login('admin', 'password123');
-      }
-    } catch (err: any) {
-      setErrorMessage(err.message || 'خطا در ورود با گوگل');
-    } finally {
-      setIsGoogleSigningIn(false);
-    }
-  };
+
 
   const handleForgotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,7 +170,7 @@ export const LoginView: React.FC = () => {
         return;
       }
       setPendingEmail(forgotEmail);
-      setSimulatedOtpNotice(result.otpCode || '123456');
+      setSimulatedOtpNotice(result.otpCode || '');
       setAuthMode('reset_otp');
       setSuccessMessage(`${t.otpSentNotice} ${forgotEmail}`);
       setLoading(false);
@@ -538,6 +522,33 @@ export const LoginView: React.FC = () => {
               </div>
             </motion.div>
             )}
+
+            {/* Test version entry (separate data, no login needed) */}
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.98 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true, amount: 0.15 }}
+              transition={{ duration: 0.7, delay: 0.15, ease: 'easeOut' }}
+              className="p-4 rounded-3xl bg-violet-950/80 backdrop-blur-xl border border-violet-500/30 text-xs text-slate-200 space-y-2"
+            >
+              <div className="flex items-center gap-1.5 font-bold text-violet-300">
+                <FlaskConical className="w-4 h-4 text-violet-400" />
+                <span>{tp('Test version (playground)', 'نسخه تست (محیط تمرینی)', 'ټسټ بڼه (تمریني چاپېریال)')}</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                {tp('Try everything with separate empty data — no login needed. Apartments & payments tabs stay locked here; production data is untouched.',
+                  'همه‌چیز را با دیتای جداگانه و خالی امتحان کنید — بدون نیاز به لاگین. تب‌های آپارتمان و پرداخت در اینجا قفل است؛ دیتای اصلی دست‌نخورده می‌ماند.',
+                  'هرڅه له جلا تشو معلوماتو سره وازمایئ — ننوتلو ته اړتیا نشته. د اپارتمان او تادیو ټبونه دلته بند دي؛ اصلي معلومات نه خوځېږي.')}
+              </p>
+              <button
+                type="button"
+                onClick={enterTestMode}
+                className="px-4 py-2 bg-violet-500/25 hover:bg-violet-500/40 text-violet-100 rounded-xl border border-violet-400/40 transition-all font-bold flex items-center gap-1.5 shadow-xs"
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                <span>{tp('Enter test version', 'ورود به نسخه تست', 'ټسټ بڼې ته ننوتل')}</span>
+              </button>
+            </motion.div>
           </div>
 
           {/* Right Column: High-Contrast Auth Card */}
@@ -559,30 +570,7 @@ export const LoginView: React.FC = () => {
                 </p>
               </div>
 
-              {/* Official Google Sign In Button (Google Workspace Skill Standard) */}
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={handleGoogleSignInClick}
-                  disabled={isGoogleSigningIn}
-                  className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-white font-bold text-xs hover:bg-slate-50 dark:hover:bg-slate-850 transition-all shadow-sm active:scale-[0.99] disabled:opacity-50"
-                >
-                  <svg className="w-5 h-5 shrink-0" viewBox="0 0 48 48">
-                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                  </svg>
-                  <span>{isGoogleSigningIn ? 'در حال ورود با گوگل...' : 'ورود مستقیم با گوگل (Google Drive)'}</span>
-                </button>
-                <div className="flex items-center gap-2 my-2 text-slate-400">
-                  <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800"></div>
-                  <span className="text-[10px] font-bold uppercase">یا ورود با نام کاربری</span>
-                  <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800"></div>
-                </div>
-              </div>
-
-              {authNotice === 'session-expired' && (
+{authNotice === 'session-expired' && (
                 <div className="p-3.5 bg-amber-950/80 border border-amber-600/80 rounded-2xl text-amber-200 text-xs flex items-center gap-2.5 animate-in fade-in">
                   <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
                   <span>{tp('Your server session expired or was revoked on another device. Please sign in again.', 'نشست سرور شما منقضی شد یا در دستگاه دیگری باطل گردید. لطفاً دوباره وارد شوید.', 'ستاسې د سرور ناسته پای ته ورسېده یا په بلې دستګا کې باطله شوه. مهرباني وکړئ بیا ننوځئ.')}</span>

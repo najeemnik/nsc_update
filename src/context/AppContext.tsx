@@ -352,6 +352,10 @@ interface AppContextType {
   lockSection: (sectionId: string) => void;
   setSectionPassword: (sectionId: string, newPassword: string, isEnabled?: boolean) => void;
   clearSampleData: () => void;
+  isTestMode: boolean;
+  enterTestMode: () => void;
+  exitTestMode: () => void;
+  wipeTestData: () => void;
   exportJsonBackup: () => { success: boolean; error?: string };
   restoreJsonBackup: (jsonContent: string) => { success: boolean; error?: string };
   exportBackupJSON: () => { success: boolean; error?: string };
@@ -384,7 +388,44 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
-const STORAGE_PREFIX = 'nik_smart_count_';
+
+// Wave 35: separate test version — own localStorage namespace, empty data, no-login demo user.
+const TEST_MODE_KEY = 'nsc_test_mode';
+export const isTestModeActive = (): boolean => {
+  try { return localStorage.getItem(TEST_MODE_KEY) === '1'; } catch { return false; }
+};
+const TEST_MODE = isTestModeActive();
+const TEST_PREFIX = 'nik_smart_count_test_';
+const STORAGE_PREFIX = TEST_MODE ? TEST_PREFIX : 'nik_smart_count_';
+
+const TEST_USER: User = {
+  id: 'user-test',
+  username: 'tester',
+  email: 'tester@test.local',
+  name: 'Test User',
+  phone: '',
+  role: 'admin',
+  active: true,
+  verified: true,
+  createdAt: new Date().toISOString(),
+};
+
+const TEST_PROJECT: Project = {
+  id: 'test-p1',
+  name: 'Test Project',
+  code: 'TEST-001',
+  address: '',
+  city: 'Kabul',
+  landInfo: '',
+  floors: 0,
+  units: 0,
+  buildingArea: 0,
+  status: 'planning',
+  description: 'Playground project for the test version (empty data).',
+  currency: 'USD',
+  defaultExchangeRate: 70,
+  createdAt: new Date().toISOString(),
+};
 
 function loadFromStorage<T>(key: string, fallback: T): T {
   try {
@@ -410,20 +451,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [language, setLanguageState] = useState<Language>(() => {
     return normalizeLang(loadFromStorage<Language>('lang', 'en'));
   });
-  const [users, setUsers] = useState<User[]>(() => loadFromStorage('users', initialUsers));
+  const [users, setUsers] = useState<User[]>(() => loadFromStorage('users', TEST_MODE ? [TEST_USER] : initialUsers));
   const [accessNotice, setAccessNotice] = useState<{ section: string; action: string; at: number } | null>(null);
   const clearAccessNotice = () => setAccessNotice(null);
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    return loadFromStorage<User | null>('currentUser', initialUsers[1]); // Default to admin for immediate preview
+    return loadFromStorage<User | null>('currentUser', TEST_MODE ? TEST_USER : null);
   });
-  const [projects, setProjects] = useState<Project[]>(() => loadFromStorage('projects', initialProjects));
-  const [currentProjectId, setCurrentProjectIdState] = useState<string>(() => loadFromStorage('currentProjId', initialProjects[0]?.id || ''));
-  const [expenses, setExpenses] = useState<Expense[]>(() => loadFromStorage('expenses', initialExpenses));
-  const [steelRecords, setSteelRecords] = useState<SteelRecord[]>(() => loadFromStorage('steel', initialSteelRecords));
-  const [concreteRecords, setConcreteRecords] = useState<ConcreteRecord[]>(() => loadFromStorage('concrete', initialConcreteRecords));
-  const [contractors, setContractors] = useState<Contractor[]>(() => loadFromStorage('contractors', initialContractors));
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadFromStorage('suppliers', initialSuppliers));
-  const [apartments, setApartments] = useState<ApartmentUnit[]>(() => loadFromStorage('apartments', initialApartments));
+  const [projects, setProjects] = useState<Project[]>(() => loadFromStorage('projects', TEST_MODE ? [TEST_PROJECT] : initialProjects));
+  const [currentProjectId, setCurrentProjectIdState] = useState<string>(() => loadFromStorage('currentProjId', TEST_MODE ? TEST_PROJECT.id : (initialProjects[0]?.id || '')));
+  const [expenses, setExpenses] = useState<Expense[]>(() => loadFromStorage('expenses', TEST_MODE ? [] : initialExpenses));
+  const [steelRecords, setSteelRecords] = useState<SteelRecord[]>(() => loadFromStorage('steel', TEST_MODE ? [] : initialSteelRecords));
+  const [concreteRecords, setConcreteRecords] = useState<ConcreteRecord[]>(() => loadFromStorage('concrete', TEST_MODE ? [] : initialConcreteRecords));
+  const [contractors, setContractors] = useState<Contractor[]>(() => loadFromStorage('contractors', TEST_MODE ? [] : initialContractors));
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadFromStorage('suppliers', TEST_MODE ? [] : initialSuppliers));
+  const [apartments, setApartments] = useState<ApartmentUnit[]>(() => loadFromStorage('apartments', TEST_MODE ? [] : initialApartments));
   const initialLaborRecords: LaborRecord[] = [
     {
       id: 'lab-1',
@@ -567,11 +608,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   ];
 
-  const [assets, setAssets] = useState<FixedAsset[]>(() => loadFromStorage('assets', initialAssets));
-  const [laborRecords, setLaborRecords] = useState<LaborRecord[]>(() => loadFromStorage('labor', initialLaborRecords));
-  const [payments, setPayments] = useState<Payment[]>(() => loadFromStorage('payments', initialPayments));
-  const [documents, setDocuments] = useState<DocumentRecord[]>(() => loadFromStorage('documents', initialDocuments));
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => loadFromStorage('auditLogs', initialAuditLogs));
+  const [assets, setAssets] = useState<FixedAsset[]>(() => loadFromStorage('assets', TEST_MODE ? [] : initialAssets));
+  const [laborRecords, setLaborRecords] = useState<LaborRecord[]>(() => loadFromStorage('labor', TEST_MODE ? [] : initialLaborRecords));
+  const [payments, setPayments] = useState<Payment[]>(() => loadFromStorage('payments', TEST_MODE ? [] : initialPayments));
+  const [documents, setDocuments] = useState<DocumentRecord[]>(() => loadFromStorage('documents', TEST_MODE ? [] : initialDocuments));
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => loadFromStorage('auditLogs', TEST_MODE ? [] : initialAuditLogs));
   const [activityEvents, setActivityEvents] = useState<UserActivityEvent[]>(() => loadFromStorage('activityEvents', []));
   const [notifications, setNotifications] = useState<SystemReminderNotification[]>(() => loadFromStorage('notifications', []));
   const [customAccounts, setCustomAccountsState] = useState<Account[]>(() => {
@@ -611,11 +652,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       categories: { ...DEFAULT_NOTIFICATION_PREFS.categories, ...(loaded.categories || {}) },
     };
   });
-  const [projectPartners, setProjectPartners] = useState<ProjectPartner[]>(() => loadFromStorage('projectPartners', initialProjectPartners));
-  const [projectInvestments, setProjectInvestments] = useState<ProjectInvestment[]>(() => loadFromStorage('projectInvestments', initialProjectInvestments));
+  const [projectPartners, setProjectPartners] = useState<ProjectPartner[]>(() => loadFromStorage('projectPartners', TEST_MODE ? [] : initialProjectPartners));
+  const [projectInvestments, setProjectInvestments] = useState<ProjectInvestment[]>(() => loadFromStorage('projectInvestments', TEST_MODE ? [] : initialProjectInvestments));
   const [partnerEquityTransfers, setPartnerEquityTransfers] = useState<PartnerEquityTransfer[]>(() => loadFromStorage('partnerEquityTransfers', []));
   const [interProjectTransfers, setInterProjectTransfers] = useState<InterProjectTransfer[]>(() => loadFromStorage('interProjectTransfers', []));
-  const [projectBudgets, setProjectBudgets] = useState<ProjectBudget[]>(() => loadFromStorage('projectBudgets', initialProjectBudgets));
+  const [projectBudgets, setProjectBudgets] = useState<ProjectBudget[]>(() => loadFromStorage('projectBudgets', TEST_MODE ? [] : initialProjectBudgets));
 
   // Google Drive state (in-memory token cached in googleDriveAuth)
   const [isGoogleDriveConnected, setIsGoogleDriveConnected] = useState<boolean>(false);
@@ -930,8 +971,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Wave 19: unified permission gate — explicit grants, legacy fallback inside canDo().
-  const can = (section: string, action: GrantAction, projectId?: string): boolean =>
-    canDo(currentUser, projectId ?? currentProjectId ?? '', section, action);
+  const can = (section: string, action: GrantAction, projectId?: string): boolean => {
+    if (TEST_MODE && (section === 'apartments' || section === 'payments')) return false;
+    return canDo(currentUser, projectId ?? currentProjectId ?? '', section, action);
+  };
 
   const denyAccess = (section: string, action: GrantAction): void => {
     logAudit('denied', 'user', currentUser?.id || 'anon', `Access denied: ${action} on ${section}`, `User: ${currentUser?.username || 'anonymous'}`);
@@ -1255,6 +1298,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     subscriptionMonths?: number;
     initialProjectName?: string;
   }): { success: boolean; user?: User; error?: string } => {
+    if (!currentUser?.isMasterSuperAdmin) { denyAccess('tenant_create', 'create'); return { success: false, error: 'forbidden' }; }
     const cleanUsername = data.username.trim().toLowerCase();
     const cleanEmail = data.email.trim().toLowerCase();
     const duplicate = users.find(u => 
@@ -1393,7 +1437,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) {
       return { success: false, error: 'کاربر یافت نشد' };
     }
-    if (user.otpCode !== otpCode.trim() && otpCode.trim() !== '123456') {
+    if (!user.otpCode || user.otpCode !== otpCode.trim()) {
       return { success: false, error: 'کد تایید OTP نادرست است' };
     }
     const verifiedUser: User = {
@@ -1425,7 +1469,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) {
       return { success: false, error: 'کاربر یافت نشد' };
     }
-    if (user.otpCode !== otpCode.trim() && otpCode.trim() !== '123456') {
+    if (!user.otpCode || user.otpCode !== otpCode.trim()) {
       return { success: false, error: 'کد تایید نادرست است' };
     }
     setUsers(prev => prev.map(u => u.id === user.id ? { ...u, password: newPassword, otpCode: undefined } : u));
@@ -1460,6 +1504,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const chargeUserSubscription = (userId: string, durationMonths: number) => {
+    if (!currentUser?.isMasterSuperAdmin) { denyAccess('subscription', 'edit'); return; }
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
         const currentExp = u.subscriptionExpiresAt ? new Date(u.subscriptionExpiresAt).getTime() : Date.now();
@@ -1479,6 +1524,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleLockUserBySuperAdmin = (userId: string) => {
+    if (!currentUser?.isMasterSuperAdmin) { denyAccess('user_lock', 'edit'); return; }
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
         const isLocked = !u.isLockedBySuperAdmin;
@@ -1499,6 +1545,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     role: 'accountant' | 'viewer';
     permissions: User['permissions'];
   }): { success: boolean; error?: string } => {
+    if (!currentUser?.isMasterSuperAdmin && currentUser?.role !== 'admin') { denyAccess('staff', 'create'); return { success: false, error: 'forbidden' }; }
     const existing = users.find(u => u.email.toLowerCase() === employee.email.trim().toLowerCase() || u.username.toLowerCase() === employee.username.trim().toLowerCase());
     if (existing) {
       return { success: false, error: 'این ایمیل یا نام کاربری قبلاً استفاده شده است' };
@@ -1553,11 +1600,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteEmployeeAccount = (employeeId: string) => {
+    const target = users.find(u => u.id === employeeId);
+    const ownStaff = !!currentUser && currentUser.role === 'admin' && !!target?.ownerAdminId && target.ownerAdminId === currentUser.id;
+    if (!currentUser?.isMasterSuperAdmin && !ownStaff) { denyAccess('staff', 'del'); return; }
     setUsers(prev => prev.filter(u => u.id !== employeeId));
     logAudit('delete', 'user', employeeId, 'Deleted Staff Member', 'Account removed by company admin');
   };
 
   const toggleAiForUser = (userId: string, enabled: boolean) => {
+    if (!currentUser?.isMasterSuperAdmin) { denyAccess('ai_governance', 'edit'); return; }
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
         logAudit('update', 'user', u.id, `Toggled AI status for ${u.name}`, `AI Enabled: ${enabled}`);
@@ -1592,6 +1643,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     projectGrants?: ProjectGrant[];
     accessExpiresAt?: string;
   }): { success: boolean; error?: string } => {
+    if (!currentUser?.isMasterSuperAdmin) { denyAccess('tenant_edit', 'edit'); return { success: false, error: 'forbidden' }; }
     let targetFound = false;
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
@@ -1712,7 +1764,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser, projects, currentProjectId]);
 
+  const enterTestMode = () => {
+    try { localStorage.setItem(TEST_MODE_KEY, '1'); } catch { /* ignore */ }
+    window.location.reload();
+  };
+
+  const exitTestMode = () => {
+    try { localStorage.removeItem(TEST_MODE_KEY); } catch { /* ignore */ }
+    window.location.reload();
+  };
+
+  const wipeTestData = () => {
+    try {
+      const doomed: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(TEST_PREFIX)) doomed.push(k);
+      }
+      doomed.forEach(k => localStorage.removeItem(k));
+    } catch { /* ignore */ }
+    window.location.reload();
+  };
+
   const logout = () => {
+    if (TEST_MODE) { exitTestMode(); return; }
     if (currentUser) {
       recordActivity(currentUser, 'logout');
       logAudit('login', 'user', currentUser.id, `User ${currentUser.name} logged out`, 'Session ended');
@@ -3189,7 +3264,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!token) {
         const connected = await connectGoogleDrive();
         if (!connected) {
-          return { success: false, error: 'لطفاً ابتدا با حساب گوگل خود وارد شوید.' };
+          return { success: false, error: tp('Please sign in with your Google account first.', 'لطفاً ابتدا با حساب گوگل خود وارد شوید.', 'لومړی له خپل ګوګل حساب سره ننوځئ.') };
         }
       }
 
@@ -3218,7 +3293,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       const dateStr = new Date().toISOString().split('T')[0];
-      const fileName = `Backup_${(currentProject?.name || 'Project').replace(/\s+/g, '_')}_${dateStr}.json`;
+      const fileName = `${TEST_MODE ? 'TEST_' : ''}Backup_${(currentProject?.name || 'Project').replace(/\s+/g, '_')}_${dateStr}.json`;
 
       const uploaded = await uploadFileToGoogleDrive({
         fileName,
@@ -3258,7 +3333,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const token = await getAccessToken();
       if (!token) {
         const connected = await connectGoogleDrive();
-        if (!connected) return { success: false, error: 'لطفاً ابتدا با حساب گوگل خود وارد شوید.' };
+        if (!connected) return { success: false, error: tp('Please sign in with your Google account first.', 'لطفاً ابتدا با حساب گوگل خود وارد شوید.', 'لومړی له خپل ګوګل حساب سره ننوځئ.') };
       }
 
       const parentFolderId = await getOrCreateFolder('NIK SMART COUNT');
@@ -4040,6 +4115,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       lockSection,
       setSectionPassword,
       clearSampleData,
+      isTestMode: TEST_MODE,
+      enterTestMode,
+      exitTestMode,
+      wipeTestData,
       exportJsonBackup,
       restoreJsonBackup,
       exportBackupJSON,

@@ -186,7 +186,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
           }`}
         >
           <Receipt className="w-4 h-4 text-rose-500" />
-          <span>همه بل‌ها و مصارف کارگاه ({projectExpenses.length})</span>
+          <span>{tp('All site bills & expenses', 'همه بل‌ها و مصارف کارگاه', 'د ساحې ټول بیلونه او لګښتونه')} ({projectExpenses.length})</span>
         </button>
         <button
           type="button"
@@ -198,7 +198,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
           }`}
         >
           <Wallet className="w-4 h-4 text-emerald-500" />
-          <span>صندوق تنخواه‌گردان کارگاه ({pettyCashExpenses.length})</span>
+          <span>{tp('Site imprest fund', 'صندوق تنخواه‌گردان کارگاه', 'د ساحې لنډمهاله صندوق')} ({pettyCashExpenses.length})</span>
         </button>
       </div>
 
@@ -212,10 +212,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                 <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
                 <div>
                   <h4 className="font-bold text-amber-800 dark:text-amber-300">
-                    هشدار ضرورت شارژ مجدد تنخواه کارگاه (Replenish Imprest)
+                    {tp('Site imprest top-up needed', 'هشدار ضرورت شارژ مجدد تنخواه کارگاه', 'د ساحې صندوق بېرته ډکولو اړتیا')}
                   </h4>
                   <p className="text-[11px] text-amber-700/80 dark:text-amber-400 mt-0.5">
-                    موجودی نقد صندوق ساحه به زیر ۲۵٪ سقف مجاز رسیده است. لطفاً صورت ریز ذیل را چاپ نموده و جهت دریافت وجه جدید به امور مالی دفتر مرکزی ارسال کنید.
+                    {tp('Site cash balance fell below 25% of the approved ceiling. Please print the detail below and send it to the head-office finance for a new advance.', 'موجودی نقد صندوق ساحه به زیر ۲۵٪ سقف مجاز رسیده است. لطفاً صورت ریز ذیل را چاپ نموده و جهت دریافت وجه جدید به امور مالی دفتر مرکزی ارسال کنید.', 'د ساحې نغدي بیلانس د تصویب شوي حد له ۲۵٪ څخه ټیټ شو. لاندې جزئیات چاپ او مرکزي دفتر مالي برخې ته د نوې تادیې لپاره واستوئ.')}
                   </p>
                 </div>
               </div>
@@ -224,7 +224,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                 onClick={handlePrint}
                 className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shrink-0 shadow-xs"
               >
-                چاپ صورت تسویه
+                {tp('Print settlement', 'چاپ صورت تسویه', 'تسویه چاپ')}
               </button>
             </div>
           )}
@@ -232,35 +232,35 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
           {/* 4 Imprest KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 rounded-2xl bg-surface border border-line shadow-xs">
-              <span className="text-slate-400 font-bold block mb-1">سقف تنخواه مصوب کارگاه:</span>
+              <span className="text-slate-400 font-bold block mb-1">{tp('Approved site imprest ceiling:', 'سقف تنخواه مصوب کارگاه:', 'د ساحې تصویب شوی حد:')}</span>
               <span className="text-lg font-black font-mono text-ink">
                 {formatNumber(imprestCapAFN, 0)} AFN
               </span>
-              <span className="block text-[10px] text-slate-400 mt-0.5">تخصیص یافته دفتر مرکزی</span>
+              <span className="block text-[10px] text-slate-400 mt-0.5">{tp('Allocated by head office', 'تخصیص یافته دفتر مرکزی', 'مرکزي دفتر ځانګړی کړی')}</span>
             </div>
 
             <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
-              <span className="text-rose-700 dark:text-rose-400 font-bold block mb-1">مصارف پرداخت‌شده (PCVs):</span>
+              <span className="text-rose-700 dark:text-rose-400 font-bold block mb-1">{tp('Paid expenses (PCVs):', 'مصارف پرداخت‌شده:', 'ورکړل شوي لګښتونه:')}</span>
               <span className="text-lg font-black font-mono text-rose-700 dark:text-rose-300">
                 {formatNumber(pettyCashSpentAFN, 0)} AFN
               </span>
-              <span className="block text-[10px] text-rose-600/80 mt-0.5">{pettyCashExpenses.length} واچر تنخواه</span>
+              <span className="block text-[10px] text-rose-600/80 mt-0.5">{pettyCashExpenses.length} {tp('imprest vouchers', 'واچر تنخواه', 'واؤچرونه')}</span>
             </div>
 
             <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-              <span className="text-emerald-700 dark:text-emerald-400 font-bold block mb-1">موجودی نقد فعلی گاوصندوق:</span>
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold block mb-1">{tp('Current safe cash balance:', 'موجودی نقد فعلی گاوصندوق:', 'په صندوق کې اوسنۍ نغدې:')}</span>
               <span className="text-lg font-black font-mono text-emerald-700 dark:text-emerald-300">
                 {formatNumber(pettyCashBalanceAFN, 0)} AFN
               </span>
-              <span className="block text-[10px] text-emerald-600/80 mt-0.5">نقدینگی در دسترس ساحه</span>
+              <span className="block text-[10px] text-emerald-600/80 mt-0.5">{tp('Cash available on site', 'نقدینگی در دسترس ساحه', 'په ساحه کې شتې نغدې')}</span>
             </div>
 
             <div className="p-4 rounded-2xl bg-surface border border-line shadow-xs">
-              <span className="text-slate-400 font-bold block mb-1">درصد نقدینگی باقیمانده:</span>
+              <span className="text-slate-400 font-bold block mb-1">{tp('Cash left %:', 'درصد نقدینگی باقیمانده:', 'پاتې نغدو سلنه:')}</span>
               <span className={`text-lg font-black font-mono ${pettyCashBalanceAFN > 25000 ? 'text-emerald-600' : 'text-amber-600'}`}>
                 {Math.round((pettyCashBalanceAFN / imprestCapAFN) * 100)}%
               </span>
-              <span className="block text-[10px] text-slate-400 mt-0.5">شاخص استمرار مصارف خرد</span>
+              <span className="block text-[10px] text-slate-400 mt-0.5">{tp('Petty-spend continuity index', 'شاخص استمرار مصارف خرد', 'وړو لګښتونو دوام شاخص')}</span>
             </div>
           </div>
 
@@ -270,10 +270,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
               <div>
                 <h3 className="font-bold text-sm sm:text-base text-ink flex items-center gap-2">
                   <Wallet className="w-4 h-4 text-emerald-500" />
-                  <span>دفتر ثبت واچرهای تنخواه‌گردان کارگاه (Petty Cash Book)</span>
+                  <span>{tp('Petty Cash Book', 'دفتر ثبت واچرهای تنخواه‌گردان کارگاه', 'د وړو نغدو کتاب')}</span>
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  خریدهای اضطراری، پذیرایی، کرایه و مصارف روزمره معتمد ساحه
+                  {tp('Emergency purchases, hospitality, fares and daily site expenses', 'خریدهای اضطراری، پذیرایی، کرایه و مصارف روزمره معتمد ساحه', 'بېړني پېر، مېلمه‌پالنه، کرایې او ورځني ساحوي لګښتونه')}
                 </p>
               </div>
 
@@ -283,7 +283,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-2 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 rounded-xl transition"
               >
                 <Printer className="w-3.5 h-3.5 text-slate-500" />
-                <span>چاپ صورت تسویه تنخواه</span>
+                <span>{tp('Print imprest settlement', 'چاپ صورت تسویه تنخواه', 'د صندوق تسویه چاپ')}</span>
               </button>
             </div>
 
@@ -291,19 +291,19 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
               <table className="w-full text-xs text-right border-collapse">
                 <thead className="bg-surface-2/60 text-slate-500 font-bold border-b border-line">
                   <tr>
-                    <th className="py-3 px-3">شماره واچر</th>
-                    <th className="py-3 px-3">تاریخ</th>
-                    <th className="py-3 px-3">بابت / دسته‌بندی</th>
-                    <th className="py-3 px-3">شرح دقیق مصرف خرد</th>
-                    <th className="py-3 px-3">گیرنده وجه</th>
-                    <th className="py-3 px-3 text-left">مبلغ واچر (AFN)</th>
+                    <th className="py-3 px-3">{tp('Voucher no.', 'شماره واچر', 'د واؤچر شمېره')}</th>
+                    <th className="py-3 px-3">{tp('Date', 'تاریخ', 'نېټه')}</th>
+                    <th className="py-3 px-3">{tp('For / category', 'بابت / دسته‌بندی', 'لپاره / ډله')}</th>
+                    <th className="py-3 px-3">{tp('Petty expense detail', 'شرح دقیق مصرف خرد', 'وړو لګښتونو جزئیات')}</th>
+                    <th className="py-3 px-3">{tp('Payee', 'گیرنده وجه', 'پیسې اخیستونکی')}</th>
+                    <th className="py-3 px-3 text-left">{tp('Voucher amount (AFN)', 'مبلغ واچر (AFN)', 'د واؤچر اندازه (AFN)')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
                   {pettyCashExpenses.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-8 text-center text-slate-400">
-                        واچر تنخواهی برای این پروژه ثبت نشده است. از منوی «ثبت سریع» دکمه تنخواه را انتخاب کنید.
+                        {tp('No imprest vouchers for this project yet. Use the imprest button in “Quick add”.', 'واچر تنخواهی برای این پروژه ثبت نشده است. از منوی «ثبت سریع» دکمه تنخواه را انتخاب کنید.', 'دې پروژې ته هېڅ واؤچر نه دی ثبت شوی. په «ګړندي ثبت» کې د صندوق تڼۍ وکاروئ.')}
                       </td>
                     </tr>
                   ) : (
@@ -319,10 +319,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                           </span>
                         </td>
                         <td className="py-3 px-3 font-semibold text-ink max-w-xs truncate">
-                          {exp.title || exp.description || 'مصرف خرد ساحه'}
+                          {exp.title || exp.description || tp('Site petty expense', 'مصرف خرد ساحه', 'ساحوي وړو لګښت')}
                         </td>
                         <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
-                          {exp.recipientName || 'معتمد ساحه'}
+                          {exp.recipientName || tp('Site custodian', 'معتمد ساحه', 'ساحوي متعهد')}
                         </td>
                         <td className="py-3 px-3 text-left font-mono font-black text-emerald-600">
                           {formatNumber(expAFN(exp), 0)} AFN

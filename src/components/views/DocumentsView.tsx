@@ -22,19 +22,15 @@ import { DocComposerModal, ComposedDocPaper } from '../docs/DocComposerModal';
 
 interface DocumentsViewProps {
   onOpenAddDocument: () => void;
-  onOpenGoogleDrive: () => void;
 }
 
 export const DocumentsView: React.FC<DocumentsViewProps> = ({ 
   onOpenAddDocument,
-  onOpenGoogleDrive 
 }) => {
   const { 
     currentProject, 
     documents, 
     deleteDocument, 
-    isGoogleDriveConnected, 
-    uploadDocumentToDrive,
     t,
     language,
     tp
@@ -46,8 +42,6 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [syncingId, setSyncingId] = useState<string | null>(null);
-  const [syncNotice, setSyncNotice] = useState<{ ok: boolean; message: string } | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<DocumentRecord | null>(null);
   const [printDoc, setPrintDoc] = useState<DocumentRecord | null>(null);
@@ -67,23 +61,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
   const categories = Array.from(new Set(projectDocs.map(d => d.category).filter(Boolean)));
 
-  const handleSyncToDrive = async (doc: DocumentRecord) => {
-    if (!isGoogleDriveConnected) {
-      onOpenGoogleDrive();
-      return;
-    }
-    setSyncingId(doc.id);
-    setSyncNotice(null);
-    try {
-      await uploadDocumentToDrive(doc);
-      setSyncNotice({ ok: true, message: tp(`"${doc.title}" was backed up to Google Drive!`, `"${doc.title}" در گوگل درایو بکاپ شد!`, `"${doc.title}" په ګوګل ډرایو کې بکاپ شو!`) });
-    } catch (e: any) {
-      setSyncNotice({ ok: false, message: e.message || tp('Failed to upload to Drive', 'آپلود به درایو ناموفق بود', 'ډرایو ته آپلوډ ناکام شو') });
-    } finally {
-      setSyncingId(null);
-    }
-    setTimeout(() => setSyncNotice(null), 6000);
-  };
+
 
   const handleDelete = (id: string, title: string) => {
     if (!can('documents', 'del')) { denyAccess('documents', 'del'); return; }
@@ -94,15 +72,6 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {syncNotice && (
-        <div className={`text-xs font-bold px-4 py-2.5 rounded-xl border ${
-          syncNotice.ok
-            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
-            : 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'
-        }`}>
-          {syncNotice.message}
-        </div>
-      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -116,13 +85,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5">
-          <button
-            onClick={onOpenGoogleDrive}
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded-2xl text-xs font-bold transition"
-          >
-            <Cloud className="w-4 h-4" />
-            <span>{t('googleDrive') || 'Google Drive Cloud'}</span>
-          </button>
+
 
           <button
             onClick={() => {
@@ -264,14 +227,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 )}
               </div>
 
-              <button
-                onClick={() => handleSyncToDrive(doc)}
-                disabled={syncingId === doc.id}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-semibold transition disabled:opacity-50"
-              >
-                <Cloud className={`w-3.5 h-3.5 ${syncingId === doc.id ? 'animate-spin' : ''}`} />
-                <span>{syncingId === doc.id ? 'Syncing...' : (t('backupToDrive') || 'Sync to Drive')}</span>
-              </button>
+
             </div>
           </div>
         ))}
