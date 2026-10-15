@@ -59,7 +59,7 @@ import { initAuth, googleSignIn, googleSignOut, getAccessToken } from '../servic
 import { getOrCreateFolder, uploadFileToGoogleDrive, listGoogleDriveFiles, deleteGoogleDriveFile } from '../services/googleDriveService';
 import { calculateInstallmentStatus, normalizeApartmentInstallments, generateSmartReminders, pruneNotifications, type ReminderLang } from '../utils/installmentUtils';
 import { buildJournal, computeAccountBalances, buildTrialBalance } from '../utils/journalEngine';
-import { CHART_OF_ACCOUNTS, getAccountName } from '../data/chartOfAccounts';
+import { getAccount, getAccountName, getFullChart, nextLeafCode, sanitizeCustomAccounts, setCustomAccounts as setRegistryAccounts, accountDeleteBlocker } from '../data/chartOfAccounts';
 import type { Account } from '../data/chartOfAccounts';
 import { computeBudgetReport, findUpdatableBudgetLine } from '../utils/budgetUtils';
 import { backendApi } from '../services/backendApi';
@@ -252,6 +252,11 @@ interface AppContextType {
    * investments change, so it can never drift out of sync with the UI data.
    */
   chartOfAccounts: Account[];
+  // Wave 17: admin-managed custom COA sub-accounts (5xxx trades only).
+  customAccounts: Account[];
+  addCustomAccount: (input: { parentCode: string; nameFa: string; nameEn?: string; namePs?: string; isBudgetMinor?: boolean }) => { success: boolean; error?: string; account?: Account };
+  updateCustomAccount: (code: string, updates: { nameFa?: string; nameEn?: string; namePs?: string; isBudgetMinor?: boolean }) => { success: boolean; error?: string };
+  deleteCustomAccount: (code: string) => { success: boolean; error?: string };
   getAccountDisplayName: (code: string, lang?: Language) => string;
   journalEntries: JournalEntry[];
   accountBalances: AccountBalance[];
@@ -509,6 +514,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => loadFromStorage('auditLogs', initialAuditLogs));
   const [activityEvents, setActivityEvents] = useState<UserActivityEvent[]>(() => loadFromStorage('activityEvents', []));
   const [notifications, setNotifications] = useState<SystemReminderNotification[]>(() => loadFromStorage('notifications', []));
+  const [customAccounts, setCustomAccountsState] = useState<Account[]>(() => {
+    const clean = sanitizeCustomAccounts(loadFromStorage('customAccounts', []));
+    setRegistryAccounts(clean);
+    return clean;
+  });
   const [notificationPrefs, setNotificationPrefsState] = useState<NotificationPrefs>(() => {
     const loaded = loadFromStorage<Partial<NotificationPrefs>>('notificationPrefs', {});
     return {
@@ -588,6 +598,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { if (!saveToStorage('activityEvents', activityEvents.slice(-600))) { setStorageError('activityEvents'); } }, [activityEvents]);
   useEffect(() => { if (!saveToStorage('notifications', notifications.slice(-150))) { setStorageError('notifications'); } }, [notifications]);
   useEffect(() => { if (!saveToStorage('notificationPrefs', notificationPrefs)) { setStorageError('notificationPrefs'); } }, [notificationPrefs]);
+  useEffect(() => { if (!saveToStorage('customAccounts', customAccounts)) { setStorageError('customAccounts'); } }, [customAccounts]);
   useEffect(() => { if (!saveToStorage('projectPartners', projectPartners)) { setStorageError('projectPartners'); } }, [projectPartners]);
   useEffect(() => { if (!saveToStorage('projectInvestments', projectInvestments)) { setStorageError('projectInvestments'); } }, [projectInvestments]);
   useEffect(() => { if (!saveToStorage('partnerEquityTransfers', partnerEquityTransfers)) { setStorageError('partnerEquityTransfers'); } }, [partnerEquityTransfers]);
@@ -3261,6 +3272,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apartments, expenses, payments, contractors, suppliers, documents, projects, projectBudgets, steelRecords, concreteRecords, language, notificationPrefs]);
 
+  // ---- Custom COA accounts — admin only (Wave 17) ----
+  const isAccountAdmin = (): boolean =>
+    currentUser?.role === 'admin' || !!currentUser?.isMasterSuperAdmin;
+  const persistCustoms = (next: Account[]): void => {
+    setRegistryAccounts(next);
+    setCustomAccountsState(next);
+  };
+  const addCustomAccount = (input: { parentCode: string; nameFa: string; nameEn?: string; namePs?: string; isBudgetMinor?: boolean }): { success: boolean; error?: string; account?: Account } => {
+    if (!isAccountAdmin()) return { success: false, error: 'forbidden' };
+    const parent = getAccount(input.parentCode);
+    if (!parent || parent.isHeader || parent.parentCode !== '5000' || parent.code === '5050' || !parent.code.startsWith('5')) {
+      return { success: false, error: 'bad-parent' };
+    }
+    const nameFa = (input.nameFa || '').trim();
+    if (!nameFa) return { success: false, error: 'bad-name' };
+    const code = nextLeafCode(input.parentCode);
+    if (!code) return { success: false, error: 'code-full' };
+    const account: Account = {
+      code,
+      type: 'expense',
+      normalBalance: 'debit',
+      parentCode: input.parentCode,
+      nameFa,
+      nameEn: (input.nameEn || '').trim() || nameFa,
+      namePs: (input.namePs || '').trim() || nameFa,
+      system: false,
+      activePhase: 1,
+      ...(input.isBudgetMinor ? { isBudgetMinor: true } : {}),
+    };
+    persistCustoms([...customAccounts, account]);
+    logAudit('create', 'account', code, nameFa, `Custom COA account created under ${input.parentCode}`, undefined, nameFa, undefined);
+    return { success: true, account };
+  };
+  const updateCustomAccount = (code: string, updates: { nameFa?: string; nameEn?: string; namePs?: string; isBudgetMinor?: boolean }): { success: boolean; error?: string } => {
+    if (!isAccountAdmin()) return { success: false, error: 'forbidden' };
+    const existing = customAccounts.find(a => a.code === code);
+    if (!existing) return { success: false, error: 'not-custom' };
+    if (updates.nameFa !== undefined && !updates.nameFa.trim()) return { success: false, error: 'bad-name' };
+    const next = customAccounts.map(a => (a.code === code
+      ? {
+          ...a,
+          ...(updates.nameFa !== undefined ? { nameFa: updates.nameFa.trim() } : {}),
+          ...(updates.nameEn !== undefined ? { nameEn: updates.nameEn.trim() || (updates.nameFa !== undefined ? updates.nameFa.trim() : a.nameFa) } : {}),
+          ...(updates.namePs !== undefined ? { namePs: updates.namePs.trim() || (updates.nameFa !== undefined ? updates.nameFa.trim() : a.nameFa) } : {}),
+          ...(updates.isBudgetMinor !== undefined ? (updates.isBudgetMinor ? { isBudgetMinor: true } : {}) : {}),
+        }
+      : a));
+    // clear minor flag explicitly when set to false
+    const fixed = next.map(a => {
+      if (a.code !== code || updates.isBudgetMinor !== false) return a;
+      const { isBudgetMinor: _drop, ...rest } = a;
+      return rest as Account;
+    });
+    persistCustoms(fixed);
+    logAudit('update', 'account', code, existing.nameFa, 'Custom COA account updated', existing.nameFa, updates.nameFa || existing.nameFa, undefined);
+    return { success: true };
+  };
+  const deleteCustomAccount = (code: string): { success: boolean; error?: string } => {
+    if (!isAccountAdmin()) return { success: false, error: 'forbidden' };
+    const existing = customAccounts.find(a => a.code === code);
+    if (!existing) return { success: false, error: 'not-custom' };
+    const blocker = accountDeleteBlocker(
+      code,
+      projectBudgets.map(b => b.accountCode),
+      accountBalances.map(b => b.accountCode),
+    );
+    if (blocker) return { success: false, error: blocker };
+    persistCustoms(customAccounts.filter(a => a.code !== code));
+    logAudit('delete', 'account', code, existing.nameFa, 'Custom COA account deleted', existing.nameFa, undefined, undefined);
+    return { success: true };
+  };
+
   const restoreFromGoogleDrive = async (fileId: string) => {
     const token = await getAccessToken();
     if (!token) throw new Error('Not authenticated with Google Drive.');
@@ -3382,7 +3465,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logAudit,
       currentFinancials,
       getProjectFinancials,
-      chartOfAccounts: CHART_OF_ACCOUNTS,
+      chartOfAccounts: getFullChart(),
+      customAccounts,
+      addCustomAccount,
+      updateCustomAccount,
+      deleteCustomAccount,
       getAccountDisplayName,
       journalEntries,
       accountBalances,

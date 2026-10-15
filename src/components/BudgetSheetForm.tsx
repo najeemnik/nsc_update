@@ -125,7 +125,7 @@ export const BudgetSheetForm: React.FC<BudgetSheetFormProps> = ({ currency, line
         placeholder={tp('Expense name…', 'نام مصرف…', 'د لګښت نوم…')}
         value={line.customName || ''}
         onChange={e => setLine(line.key, line.accountCode, line.amount, e.target.value)}
-        className="flex-1 min-w-0 px-2 py-1.5 border border-indigo-200 dark:border-indigo-800 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/30 text-[11px] font-bold text-ink focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
+        className={`flex-1 min-w-0 px-2 py-1.5 border rounded-lg bg-indigo-50/50 dark:bg-indigo-950/30 text-[11px] font-bold text-ink focus:outline-none ${line.amount > 0 && !(line.customName || '').trim() ? 'border-rose-400 ring-2 ring-rose-200 dark:ring-rose-900' : 'border-indigo-200 dark:border-indigo-800 focus:ring-2 focus:ring-indigo-500/30'}`}
       />
       {amountBox(line.amount, v => setLine(line.key, line.accountCode, v, line.customName || ''))}
       <button

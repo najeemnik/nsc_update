@@ -304,7 +304,32 @@ export const CHART_OF_ACCOUNTS: Account[] = [
 /* Lookup helpers                                                      */
 /* ------------------------------------------------------------------ */
 
-const ACCOUNT_INDEX: Map<string, Account> = new Map(CHART_OF_ACCOUNTS.map(a => [a.code, a]));
+/* Wave 17: admin-defined custom accounts live in a runtime registry so every
+ * lookup (names, roll-up, budget groups, pickers) sees them. The static
+ * CHART_OF_ACCOUNTS array is never mutated. */
+let customAccountsRegistry: Account[] = [];
+let ACCOUNT_INDEX: Map<string, Account> = new Map(CHART_OF_ACCOUNTS.map(a => [a.code, a]));
+
+function rebuildIndex(): void {
+  ACCOUNT_INDEX = new Map(
+    [...CHART_OF_ACCOUNTS, ...customAccountsRegistry].map(a => [a.code, a]),
+  );
+}
+
+/** Replace the runtime custom accounts (called by AppContext on boot/change). */
+export function setCustomAccounts(list: Account[]): void {
+  customAccountsRegistry = [...list];
+  rebuildIndex();
+}
+
+export function getCustomAccounts(): Account[] {
+  return [...customAccountsRegistry];
+}
+
+/** Full working chart: system accounts + admin customs. */
+export function getFullChart(): Account[] {
+  return [...CHART_OF_ACCOUNTS, ...customAccountsRegistry];
+}
 
 export function getAccount(code: string): Account | undefined {
   return ACCOUNT_INDEX.get(code);
@@ -323,12 +348,12 @@ export function isPostingAccount(code: string): boolean {
 
 /** All postable (non-header) accounts */
 export function getPostingAccounts(): Account[] {
-  return CHART_OF_ACCOUNTS.filter(a => !a.isHeader);
+  return getFullChart().filter(a => !a.isHeader);
 }
 
 /** Accounts belonging to a top-level group, e.g. groupCode '5000' */
 export function getAccountsInGroup(groupCode: string): Account[] {
-  return CHART_OF_ACCOUNTS.filter(a => a.code.startsWith(groupCode[0]));
+  return getFullChart().filter(a => a.code.startsWith(groupCode[0]));
 }
 
 /**
@@ -357,17 +382,89 @@ export interface BudgetTradeGroup {
  * 5050 COGS is excluded — it is system-computed, never budgeted by hand.
  */
 export function getBudgetTradeGroups(): BudgetTradeGroup[] {
-  const mains = CHART_OF_ACCOUNTS.filter(
+  const chart = getFullChart();
+  const mains = chart.filter(
     a => a.parentCode === '5000' && !a.isHeader && a.code !== '5050',
   );
   return mains.map(main => {
-    const leaves = CHART_OF_ACCOUNTS.filter(a => a.parentCode === main.code);
+    const leaves = chart.filter(a => a.parentCode === main.code);
     return {
       main,
       majors: leaves.filter(l => !l.isBudgetMinor),
       minors: leaves.filter(l => !!l.isBudgetMinor),
     };
   });
+}
+
+/**
+ * Next free 6-digit leaf code under a trade main (01–99). Null when full.
+ * Reads the full chart so admin customs are never collided with.
+ */
+export function nextLeafCode(parentCode: string): string | null {
+  if (!/^\d{4}$/.test(parentCode || '')) return null;
+  const used = new Set<number>();
+  for (const a of getFullChart()) {
+    if (a.parentCode === parentCode && a.code.startsWith(parentCode)) {
+      const suffix = a.code.slice(parentCode.length);
+      if (/^\d+$/.test(suffix)) used.add(parseInt(suffix, 10));
+    }
+  }
+  for (let n = 1; n <= 99; n++) {
+    if (!used.has(n)) return `${parentCode}${String(n).padStart(2, '0')}`;
+  }
+  return null;
+}
+
+/**
+ * Validate + normalize persisted custom accounts (corrupted storage must
+ * never crash the chart). Drops non-objects, bad codes/parents, empty
+ * names and anything colliding with the system chart.
+ */
+export function sanitizeCustomAccounts(raw: unknown): Account[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Account[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== 'object') continue;
+    const a = x as Partial<Account>;
+    if (typeof a.code !== 'string' || !/^\d{6}$/.test(a.code)) continue;
+    if (typeof a.parentCode !== 'string' || !/^\d{4}$/.test(a.parentCode)) continue;
+    if (typeof a.nameFa !== 'string' || !a.nameFa.trim()) continue;
+    const nameFa = a.nameFa.trim();
+    out.push({
+      code: a.code,
+      type: 'expense',
+      normalBalance: 'debit',
+      parentCode: a.parentCode,
+      nameEn: typeof a.nameEn === 'string' && a.nameEn.trim() ? a.nameEn.trim() : nameFa,
+      nameFa,
+      namePs: typeof a.namePs === 'string' && a.namePs.trim() ? a.namePs.trim() : nameFa,
+      system: false,
+      activePhase: 1,
+      ...(a.isBudgetMinor ? { isBudgetMinor: true } : {}),
+    });
+  }
+  const sys = new Set(CHART_OF_ACCOUNTS.map(s => s.code));
+  const seen = new Set<string>();
+  return out.filter(a => {
+    if (sys.has(a.code) || seen.has(a.code)) return false;
+    seen.add(a.code);
+    return true;
+  });
+}
+
+/**
+ * Why a custom account cannot be deleted, or null when it is safe.
+ * Checks children first, then stored budgets, then posted journal balances.
+ */
+export function accountDeleteBlocker(
+  code: string,
+  budgetCodes: string[],
+  postedCodes: string[],
+): 'has-children' | 'has-budgets' | 'has-journals' | null {
+  if (getFullChart().some(a => a.parentCode === code)) return 'has-children';
+  if (budgetCodes.includes(code)) return 'has-budgets';
+  if (postedCodes.includes(code)) return 'has-journals';
+  return null;
 }
 
 /**

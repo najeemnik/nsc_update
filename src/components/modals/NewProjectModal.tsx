@@ -142,6 +142,13 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
       return;
     }
 
+    const unnamedFunded = budgetSheetLines.some(l => l.customName !== undefined && !(l.customName || '').trim() && l.amount > 0);
+    if (unnamedFunded) {
+      setFormError('ردیف دلخواه با مبلغ بدون نام وجود دارد — نام مصرف را بنویسید یا مبلغ را صفر کنید.');
+      setActiveStep('budget');
+      return;
+    }
+
     setIsSubmitting(true);
 
     const validExpenses = generalExpenses

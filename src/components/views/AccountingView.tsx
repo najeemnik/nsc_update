@@ -33,6 +33,7 @@ import {
   Search,
 } from 'lucide-react';
 import { JournalEntry } from '../../types';
+import { COAManager } from '../COAManager';
 import { computeWipCostBreakdown } from '../../utils/journalEngine';
 import { computeUnitProfitability } from '../../utils/wipAllocation';
 
@@ -41,6 +42,7 @@ type ReportTab = 'trial' | 'income' | 'balance' | 'units' | 'journal' | 'coa';
 export const AccountingView: React.FC = () => {
   const {
     currentProject,
+    currentUser,
     journalEntries,
     getTrialBalance,
     accountBalances,
@@ -61,6 +63,8 @@ export const AccountingView: React.FC = () => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [coaSearch, setCoaSearch] = useState('');
   const [coaGroup, setCoaGroup] = useState('all');
+  const [isCoaManagerOpen, setIsCoaManagerOpen] = useState(false);
+  const canManageCoa = currentUser?.role === 'admin' || !!currentUser?.isMasterSuperAdmin;
 
   const projectId = currentProject?.id;
   const projectJournal = useMemo(
@@ -558,12 +562,13 @@ export const AccountingView: React.FC = () => {
       {/* ==================== Chart of Accounts ======================= */}
       {tab === 'coa' && (
         <div className="space-y-4">
+          <COAManager isOpen={isCoaManagerOpen} onClose={() => setIsCoaManagerOpen(false)} />
           <div className="p-4 rounded-2xl bg-surface border border-line flex flex-col sm:flex-row gap-3 items-center justify-between print:hidden">
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="جستجوی کد ۴ رقمی یا نام حساب..."
+                placeholder="جستجوی کد یا نام حساب..."
                 value={coaSearch}
                 onChange={(e) => setCoaSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-surface-2/80 border border-line rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20"
@@ -586,6 +591,16 @@ export const AccountingView: React.FC = () => {
                 <option value="7">۷۰۰۰ - هزینه‌های مالی (Finance Costs)</option>
               </select>
 
+              {canManageCoa && (
+                <button
+                  type="button"
+                  onClick={() => setIsCoaManagerOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shrink-0"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>{tp('Manage chart', 'مدیریت چارت', 'چارټ مدیریت')}</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => window.print()}
@@ -602,7 +617,7 @@ export const AccountingView: React.FC = () => {
               <table className="w-full text-xs text-right border-collapse">
                 <thead className="bg-surface-2/60 text-slate-500 font-bold border-b border-line print:bg-slate-100">
                   <tr>
-                    <th className="py-3 px-3 w-24">کد ۴ رقمی</th>
+                    <th className="py-3 px-3 w-24">کد حساب</th>
                     <th className="py-3 px-3">عنوان حسابداری (دری / فارسی)</th>
                     <th className="py-3 px-3">نام لاتین (English)</th>
                     <th className="py-3 px-3 text-center">ماهیت استاندارد</th>
@@ -648,7 +663,7 @@ export const AccountingView: React.FC = () => {
                             </span>
                           </td>
                           <td className="py-2.5 px-3 text-center text-[10px] text-slate-400">
-                            {isHeader ? 'گروه / کل' : 'معین'}
+                            {isHeader ? 'گروه / کل' : (a.system === false ? 'معین • کاربر ✏️' : 'معین')}
                           </td>
                           <td className="py-2.5 px-3 text-left font-mono font-bold text-ink">
                             {balance ? fmt(balance.netUSD) : '—'}
