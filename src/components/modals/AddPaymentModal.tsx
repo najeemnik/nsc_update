@@ -134,7 +134,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
       time,
       receiptNumber: receiptNumber.trim() || `VCH-${Date.now().toString().slice(-5)}`,
       partyName: partyName.trim(),
-      amount: amountInUSD,
+      amount: parsedAmount,
       currency,
       exchangeRate,
       amountInUSD,

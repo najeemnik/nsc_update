@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { expUSD, payUSD, aptUSD, isCountedDoc } from '../../utils/docFinance';
 import { 
   BarChart3, 
   Printer, 
@@ -57,14 +58,14 @@ export const ReportsView: React.FC = () => {
   const [pnlViewMode, setPnlViewMode] = useState<'all' | 'cash' | 'accrual'>('all');
 
   // Metrics for current project
-  const projectExpenses = expenses.filter(e => e.projectId === currentProject?.id && e.approvalStatus !== 'rejected');
-  const projectPayments = payments.filter(p => p.projectId === currentProject?.id);
+  const projectExpenses = expenses.filter(e => e.projectId === currentProject?.id && isCountedDoc(e));
+  const projectPayments = payments.filter(p => p.projectId === currentProject?.id && p.docStatus !== 'draft');
   const projectSteel = steelRecords.filter(s => s.projectId === currentProject?.id);
   const projectConcrete = concreteRecords.filter(c => c.projectId === currentProject?.id);
   const projectApartments = apartments.filter(a => a.projectId === currentProject?.id);
 
-  const totalExpenseUSD = projectExpenses.reduce((sum, e) => sum + (e.totalAmountUSD || 0), 0);
-  const totalPaidUSD = projectPayments.reduce((sum, p) => sum + (p.amountUSD || 0), 0);
+  const totalExpenseUSD = projectExpenses.reduce((sum, e) => sum + expUSD(e), 0);
+  const totalPaidUSD = projectPayments.reduce((sum, p) => sum + payUSD(p), 0);
   const totalRemainingDebtUSD = Math.max(0, totalExpenseUSD - totalPaidUSD);
 
   const totalSteelTons = projectSteel.reduce((sum, s) => sum + (s.totalKg || 0), 0) / 1000;
@@ -74,14 +75,14 @@ export const ReportsView: React.FC = () => {
   const totalConcreteCostUSD = projectConcrete.reduce((sum, c) => sum + (c.totalCostUSD || 0), 0);
 
   const soldApartments = projectApartments.filter(a => a.status === 'sold');
-  const totalApartmentSalesUSD = soldApartments.reduce((sum, a) => sum + (a.totalPriceUSD || 0), 0);
-  const totalSalesCashCollectedUSD = soldApartments.reduce((sum, a) => sum + (a.downPaymentUSD || 0) + (a.paidAmountUSD || 0), 0);
+  const totalApartmentSalesUSD = soldApartments.reduce((sum, a) => sum + aptUSD(a), 0);
+  const totalSalesCashCollectedUSD = soldApartments.reduce((sum, a) => sum + ((a.downPayment ?? 0) + Math.max(0, (a.amountReceived || 0) - (a.downPayment || 0))), 0);
   const pendingSalesInstallmentsUSD = Math.max(0, totalApartmentSalesUSD - totalSalesCashCollectedUSD);
 
   // Group expenses by category
   const expensesByCategory = projectExpenses.reduce((acc: Record<string, number>, exp) => {
     const cat = exp.category || 'Other';
-    acc[cat] = (acc[cat] || 0) + (exp.totalAmountUSD || 0);
+    acc[cat] = (acc[cat] || 0) + expUSD(exp);
     return acc;
   }, {});
 
@@ -113,7 +114,7 @@ export const ReportsView: React.FC = () => {
         const d = new Date(e.date);
         return d.getFullYear() === selectedYear && (d.getMonth() + 1) === m.num;
       });
-      const expenseUSD = mExpenses.reduce((sum, e) => sum + (e.totalAmountUSD || 0), 0);
+      const expenseUSD = mExpenses.reduce((sum, e) => sum + expUSD(e), 0);
 
       // 2. Accrual Revenue (Contracted apartment sales in this month)
       const mSales = projectApartments.filter(a => {
@@ -121,7 +122,7 @@ export const ReportsView: React.FC = () => {
         const d = new Date(a.saleDate);
         return d.getFullYear() === selectedYear && (d.getMonth() + 1) === m.num;
       });
-      const revenueUSD = mSales.reduce((sum, a) => sum + (a.totalPriceUSD || 0), 0);
+      const revenueUSD = mSales.reduce((sum, a) => sum + aptUSD(a), 0);
 
       // 3. Cash Inflows (Actual cash receipts collected)
       const mInflows = projectPayments.filter(p => {
@@ -130,7 +131,7 @@ export const ReportsView: React.FC = () => {
         const matches = d.getFullYear() === selectedYear && (d.getMonth() + 1) === m.num;
         return matches && ((p as any).paymentType === 'income' || (p as any).type === 'income' || p.recipientType === 'apartment_buyer');
       });
-      let cashInflowUSD = mInflows.reduce((sum, p) => sum + (p.amountUSD || 0), 0);
+      let cashInflowUSD = mInflows.reduce((sum, p) => sum + payUSD(p), 0);
       if (cashInflowUSD === 0 && mSales.length > 0) {
         cashInflowUSD = mSales.reduce((sum, a) => sum + (a.downPaymentUSD || a.paidAmountUSD || 0), 0);
       }
@@ -142,7 +143,7 @@ export const ReportsView: React.FC = () => {
         const matches = d.getFullYear() === selectedYear && (d.getMonth() + 1) === m.num;
         return matches && (p as any).paymentType !== 'income' && (p as any).type !== 'income';
       });
-      const cashOutflowUSD = mOutflows.reduce((sum, p) => sum + (p.amountUSD || 0), 0);
+      const cashOutflowUSD = mOutflows.reduce((sum, p) => sum + payUSD(p), 0);
 
       // 5. Net Accrual Profit & Net Cash Flow
       const netProfitUSD = revenueUSD - expenseUSD;
@@ -412,8 +413,8 @@ export const ReportsView: React.FC = () => {
                 {contractors.map(c => {
                   const cExpenses = projectExpenses.filter(e => e.recipientId === c.id);
                   const cPayments = projectPayments.filter(p => p.recipientId === c.id);
-                  const totalWork = cExpenses.reduce((s, e) => s + (e.totalAmountUSD || 0), 0);
-                  const totalPaid = cPayments.reduce((s, p) => s + (p.amountUSD || 0), 0);
+                  const totalWork = cExpenses.reduce((s, e) => s + expUSD(e), 0);
+                  const totalPaid = cPayments.reduce((s, p) => s + payUSD(p), 0);
                   const debt = Math.max(0, totalWork - totalPaid);
 
                   return (

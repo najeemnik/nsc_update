@@ -42,6 +42,7 @@ import {
   BudgetStatus,
 } from '../types';
 import { ACC, getAccount, resolveExpenseAccount, toBudgetMain } from '../data/chartOfAccounts';
+import { isCountedDoc } from './docFinance';
 
 export const BUDGET_WARNING_THRESHOLD = 80;
 export const BUDGET_OVER_THRESHOLD = 100;
@@ -85,7 +86,7 @@ export function computeBudgetActuals(input: BudgetReportInput): Map<string, Budg
     acc.set(accountCode, cur);
   };
 
-  for (const e of expenses.filter(x => x.projectId === projectId && x.approvalStatus !== 'rejected')) {
+  for (const e of expenses.filter(x => x.projectId === projectId && isCountedDoc(x))) {
     const committed = e.amountInUSD ?? toUSD(e.amount, e.currency, e.exchangeRate);
     const paid = toUSD(e.paidAmount || 0, e.currency, e.exchangeRate);
     push(resolveExpenseAccount(e.category), committed, Math.min(paid, committed));

@@ -11,10 +11,15 @@ import {
   User, 
   FileText, 
   CheckCircle2,
-  Download
+  Download,
+  Lock,
+  LockOpen,
+  Undo2
 } from 'lucide-react';
 import { Payment } from '../../types';
 import { downloadCsv } from '../../utils/csvExport';
+import { payUSD, payAFN, docStateOf } from '../../utils/docFinance';
+import { PaymentVoucherDoc } from '../docs/printDocs';
 
 interface PaymentsViewProps {
   onOpenAddPayment: () => void;
@@ -28,7 +33,11 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
     formatCurrency, 
     formatNumber, 
     t, 
-    language 
+    language,
+    tp,
+    postPayment,
+    unpostPayment,
+    reversePayment
   ,
     printIfAllowed,
     can,
@@ -53,8 +62,9 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
     });
   }, [projectPayments, searchTerm]);
 
-  const totalPaidUSD = filteredPayments.reduce((sum, p) => sum + (p.amountUSD || 0), 0);
-  const totalPaidAFN = filteredPayments.reduce((sum, p) => sum + (p.amountAFN || 0), 0);
+  const countedPayments = filteredPayments.filter(p => p.docStatus !== 'draft');
+  const totalPaidUSD = countedPayments.reduce((sum, p) => sum + payUSD(p), 0);
+  const totalPaidAFN = countedPayments.reduce((sum, p) => sum + payAFN(p), 0);
 
   const handleDelete = (id: string, recipient: string) => {
     if (!can('payments', 'del')) { denyAccess('payments', 'del'); return; }
@@ -69,7 +79,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
       ['Date', 'Recipient', 'Method', 'Reference', 'Amount USD', 'Amount AFN', 'Notes'],
       filteredPayments.map(p => [
         p.date, p.recipientName || (p as any).partyName || '', p.paymentMethod || (p as any).method || '',
-        p.referenceNumber || '', p.amountUSD ?? (p as any).amountInUSD ?? '', p.amountAFN ?? (p as any).amountInAFN ?? '', p.notes || '',
+        p.referenceNumber || '', Math.round(payUSD(p) * 100) / 100, Math.round(payAFN(p)), p.notes || '',
       ]));
   };
 
@@ -171,7 +181,20 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
               {filteredPayments.map(p => (
                 <tr key={p.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
                   <td className="py-3.5 px-4 text-ink-muted whitespace-nowrap">{p.date}</td>
-                  <td className="py-3.5 px-4 font-bold text-ink">{p.recipientName}</td>
+                  <td className="py-3.5 px-4 font-bold text-ink">{p.recipientName}
+                    {docStateOf(p) === 'draft' && (
+                      <span className="ms-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">{tp('Draft — not booked', 'پیش‌نویس — خارج از حساب', 'مسوده — له حساب وتلی')}</span>
+                    )}
+                    {p.docStatus === 'posted' && !p.reversedBy && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-slate-500"><Lock className="w-3 h-3" />{tp('Posted', 'ثبت نهایی', 'نهایي ثبت')}</span>
+                    )}
+                    {p.reversedBy && (
+                      <span className="ms-1.5 text-[10px] font-bold text-violet-600 dark:text-violet-300">{tp('Reversed', 'برگشت‌شده', 'بیرته شوی')}</span>
+                    )}
+                    {p.reversalOf && (
+                      <span className="ms-1.5 text-[10px] font-bold text-rose-500 dark:text-rose-300">{tp('Reversal entry', 'سند برگشتی', 'بیرته سند')}</span>
+                    )}
+                  </td>
                   <td className="py-3.5 px-4">
                     <span className="px-2 py-0.5 bg-surface-2 rounded-md text-[11px] font-medium text-slate-600 dark:text-slate-300">
                       {p.paymentMethod}
@@ -180,12 +203,10 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
                   <td className="py-3.5 px-4 font-mono text-slate-400">{p.referenceNumber || '—'}</td>
                   <td className="py-3.5 px-4 text-ink-muted max-w-xs truncate">{p.notes || '—'}</td>
                   <td className="py-3.5 px-4 text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                    <div>{formatCurrency(p.amountUSD, 'USD')}</div>
-                    {p.currency !== 'USD' && (
-                      <div className="text-[10px] text-slate-400 font-normal">
-                        {formatNumber(p.amount, 0)} {p.currency}
-                      </div>
-                    )}
+                    <div>{formatCurrency(payUSD(p), 'USD')}</div>
+                    <div className="text-[10px] text-slate-400 font-normal">
+                      {formatNumber(payAFN(p), 0)} AFN
+                    </div>
                   </td>
                   <td className="py-3.5 px-4 text-center">
                     <button
@@ -197,6 +218,33 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
                     </button>
                   </td>
                   <td className="py-3.5 px-4 text-center">
+                    {can('payments', 'approve') && docStateOf(p) !== 'posted' && !p.reversedBy && (
+                      <button
+                        onClick={() => postPayment(p.id)}
+                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Post (lock)', 'ثبت نهایی (قفل)', 'نهایي ثبت (قفل)')}
+                      >
+                        <Lock className="w-4 h-4" />
+                      </button>
+                    )}
+                    {can('payments', 'approve') && p.docStatus === 'posted' && !p.reversedBy && (
+                      <button
+                        onClick={() => unpostPayment(p.id)}
+                        className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Unpost (unlock for correction)', 'بازگشایی برای تصحیح', 'د سمون لپاره خلاصول')}
+                      >
+                        <LockOpen className="w-4 h-4" />
+                      </button>
+                    )}
+                    {can('payments', 'approve') && !p.reversedBy && (
+                      <button
+                        onClick={() => { if (confirm(tp('Reverse this payment? A mirror entry will be created; the original is preserved and locked.', 'این پرداخت برگشت شود؟ سند آینه‌ای ساخته می‌شود؛ سند اصلی حفظ و قفل می‌گردد.', 'دا تادیه بیرته شي؟ آینه‌يي سند به جوړ شي؛ اصلي سند ساتل کېږي او قفل کېږي.'))) reversePayment(p.id); }}
+                        className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Reverse (keeps original)', 'برگشت (با حفظ سند اصلی)', 'بیرته کول (له اصلي سند سره)')}
+                      >
+                        <Undo2 className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(p.id, p.recipientName || p.partyName || 'Payment')}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"
@@ -220,75 +268,8 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
         </div>
       </div>
 
-      {/* Printable Receipt Voucher Preview */}
       {selectedReceiptPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm print:p-0 print:bg-transparent print:fixed">
-          <div className="bg-white text-slate-900 rounded-3xl p-8 max-w-lg w-full shadow-2xl print:shadow-none print:w-full print:rounded-none">
-            <div className="flex justify-between items-start border-b pb-4 mb-4">
-              <div>
-                <h2 className="text-xl font-black text-blue-900">NIK SMART COUNT</h2>
-                <p className="text-xs text-slate-500">{t('paymentReceipt') || 'Official Payment Voucher'}</p>
-                <p className="text-xs font-semibold text-slate-700 mt-1">{currentProject?.name}</p>
-              </div>
-              <button 
-                onClick={() => setSelectedReceiptPayment(null)} 
-                className="p-1.5 hover:bg-slate-100 rounded-lg print:hidden"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">{t('voucherNo') || 'Voucher No'}:</span>
-                <span className="font-mono font-bold">#PAY-{selectedReceiptPayment.id.slice(0, 8).toUpperCase()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">{t('date') || 'Date'}:</span>
-                <span className="font-semibold">{selectedReceiptPayment.date}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">{t('payee') || 'Paid To'}:</span>
-                <span className="font-bold text-sm text-slate-900">{selectedReceiptPayment.recipientName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">{t('method') || 'Payment Method'}:</span>
-                <span className="font-medium">{selectedReceiptPayment.paymentMethod}</span>
-              </div>
-              <div className="flex justify-between items-center py-3 border-y my-2">
-                <span className="font-bold text-slate-800">{t('amountPaid') || 'Amount Paid'}:</span>
-                <span className="text-lg font-black text-emerald-600">
-                  {formatCurrency(selectedReceiptPayment.amountUSD, 'USD')} ({formatNumber(selectedReceiptPayment.amount, 0)} {selectedReceiptPayment.currency})
-                </span>
-              </div>
-              {selectedReceiptPayment.notes && (
-                <div className="text-slate-600">
-                  <span className="font-semibold">{t('purpose') || 'Purpose'}:</span> {selectedReceiptPayment.notes}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-8 pt-6 border-t flex justify-between text-center text-xs">
-              <div>
-                <div className="w-28 border-b border-slate-400 mb-1" />
-                <span className="text-slate-500">{t('preparedBy') || 'Payer Signature'}</span>
-              </div>
-              <div>
-                <div className="w-28 border-b border-slate-400 mb-1" />
-                <span className="text-slate-500">{t('receiverSignature') || 'Receiver Signature'}</span>
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2 print:hidden">
-              <button
-                onClick={() => printIfAllowed('payments')}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold"
-              >
-                {t('print') || 'Print Voucher'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <PaymentVoucherDoc payment={selectedReceiptPayment} onClose={() => setSelectedReceiptPayment(null)} />
       )}
     </div>
   );

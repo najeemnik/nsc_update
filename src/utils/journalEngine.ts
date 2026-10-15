@@ -69,6 +69,7 @@ import {
   resolveExpenseAccount,
 } from '../data/chartOfAccounts';
 import { computeProjectCostPoolUSD, computeSellableAreaM2, allocateUnitCostUSD } from './wipAllocation';
+import { isCountedDoc } from './docFinance';
 
 /* ------------------------------------------------------------------ */
 /* Small numeric helpers                                               */
@@ -239,7 +240,7 @@ export function buildJournal(input: JournalBuildInput): JournalEntry[] {
 
   /* ------------------- 1. Purchases: expenses ------------------- */
   for (const exp of input.expenses) {
-    if (exp.approvalStatus === 'rejected') continue; // Wave 19: rejected costs never hit the ledger
+    if (!isCountedDoc(exp)) continue; // Wave 23: drafts + rejected never hit the ledger
     const currency = exp.currency || 'USD';
     const rate = rateOf(exp.projectId, exp.exchangeRate);
     const costAccount = resolveExpenseAccount(exp.category);

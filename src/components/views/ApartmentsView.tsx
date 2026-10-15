@@ -21,6 +21,7 @@ import {
   Coins
 } from 'lucide-react';
 import { ApartmentUnit } from '../../types';
+import { SaleContractDoc } from '../docs/printDocs';
 
 interface ApartmentsViewProps {
   onOpenAddApartment: () => void;
@@ -48,6 +49,7 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [selectedApartment, setSelectedApartment] = useState<ApartmentUnit | null>(null);
+  const [showContract, setShowContract] = useState(false);
 
   const projectApartments = useMemo(() => {
     return apartments.filter(a => a.projectId === currentProject?.id);
@@ -359,6 +361,14 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => setShowContract(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span className="hidden sm:inline">قرارداد فروش</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => printIfAllowed('apartments')}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 transition"
                   >
@@ -486,6 +496,9 @@ export const ApartmentsView: React.FC<ApartmentsViewProps> = ({ onOpenAddApartme
           </div>
         );
       })()}
+      {selectedApartment && showContract && (
+        <SaleContractDoc apartment={selectedApartment} onClose={() => setShowContract(false)} />
+      )}
     </div>
   );
 };

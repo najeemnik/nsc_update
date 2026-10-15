@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { expUSD, payUSD, isCountedDoc } from '../../utils/docFinance';
 import { 
   Truck, 
   Plus, 
@@ -54,11 +55,11 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   });
 
   const getSupplierStats = (supplierId: string) => {
-    const supplierExpenses = expenses.filter(e => e.recipientId === supplierId && e.projectId === currentProject?.id);
-    const supplierPayments = payments.filter(p => p.recipientId === supplierId && p.projectId === currentProject?.id);
+    const supplierExpenses = expenses.filter(e => e.recipientId === supplierId && e.projectId === currentProject?.id && isCountedDoc(e));
+    const supplierPayments = payments.filter(p => p.recipientId === supplierId && p.projectId === currentProject?.id && p.docStatus !== 'draft');
 
-    const totalSuppliedUSD = supplierExpenses.reduce((sum, e) => sum + (e.totalAmountUSD || 0), 0);
-    const totalPaidUSD = supplierPayments.reduce((sum, p) => sum + (p.amountUSD || 0), 0);
+    const totalSuppliedUSD = supplierExpenses.reduce((sum, e) => sum + expUSD(e), 0);
+    const totalPaidUSD = supplierPayments.reduce((sum, p) => sum + payUSD(p), 0);
     const debtUSD = Math.max(0, totalSuppliedUSD - totalPaidUSD);
 
     // Build unified chronological ledger (Purchases = Debit, Payments = Credit)
@@ -69,7 +70,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         type: 'purchase' as const,
         description: e.description || e.category,
         reference: e.invoiceNumber || '-',
-        amountUSD: e.totalAmountUSD || 0,
+        amountUSD: expUSD(e),
       })),
       ...supplierPayments.map(p => ({
         id: p.id,
@@ -77,7 +78,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         type: 'payment' as const,
         description: `پرداخت وجه (${p.method || 'نقدی'})`,
         reference: p.referenceNumber || p.id.slice(-6),
-        amountUSD: p.amountUSD || 0,
+        amountUSD: payUSD(p),
       }))
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 

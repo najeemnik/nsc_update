@@ -21,10 +21,16 @@ import {
   AlertTriangle,
   Coffee,
   Building2,
-  XCircle
+  XCircle,
+  Lock,
+  LockOpen,
+  Undo2,
+  Package
 } from 'lucide-react';
 import { Expense } from '../../types';
 import { downloadCsv } from '../../utils/csvExport';
+import { expUSD, expAFN, isCountedDoc, docStateOf } from '../../utils/docFinance';
+import { ExpenseBillDoc, GoodsReceiptDoc } from '../docs/printDocs';
 
 interface ExpensesViewProps {
   onOpenAddExpense: () => void;
@@ -46,12 +52,16 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
     denyAccess,
     printIfAllowed,
     approveExpense,
-    rejectExpense
+    rejectExpense,
+    postExpense,
+    unpostExpense,
+    reverseExpense
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<{ exp: Expense; kind: 'bill' | 'grn' } | null>(null);
   const [activeViewMode, setActiveViewMode] = useState<'all' | 'petty_cash'>('all');
 
   // Filter expenses for current project
@@ -74,7 +84,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
 
   // Imprest Fund Calculations (سقف تنخواه ۱۰۰ هزار افغانی کارگاه)
   const imprestCapAFN = 100000;
-  const pettyCashSpentAFN = pettyCashExpenses.filter(e => e.approvalStatus !== 'rejected').reduce((sum, e) => sum + (e.totalAmountAFN || ((e.totalAmountUSD || 0) * 70)), 0);
+  const pettyCashSpentAFN = pettyCashExpenses.filter(isCountedDoc).reduce((sum, e) => sum + expAFN(e), 0);
   const pettyCashBalanceAFN = Math.max(0, imprestCapAFN - (pettyCashSpentAFN % imprestCapAFN));
   const isReplenishNeeded = pettyCashBalanceAFN < (imprestCapAFN * 0.25);
 
@@ -92,9 +102,9 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
     });
   }, [projectExpenses, searchTerm, categoryFilter]);
 
-  const bookedExpenses = filteredExpenses.filter(e => e.approvalStatus !== 'rejected');
-  const totalExpenseUSD = bookedExpenses.reduce((sum, e) => sum + (e.totalAmountUSD || 0), 0);
-  const totalExpenseAFN = bookedExpenses.reduce((sum, e) => sum + (e.totalAmountAFN || 0), 0);
+  const bookedExpenses = filteredExpenses.filter(isCountedDoc);
+  const totalExpenseUSD = bookedExpenses.reduce((sum, e) => sum + expUSD(e), 0);
+  const totalExpenseAFN = bookedExpenses.reduce((sum, e) => sum + expAFN(e), 0);
 
   const categories = Array.from(new Set(projectExpenses.map(e => e.category).filter(Boolean)));
 
@@ -118,7 +128,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
       filteredExpenses.map(e => [
         e.date, e.title, e.category, e.recipientName || '',
         e.quantity ?? '', e.unit || '', e.amount ?? '', e.currency || '',
-        e.totalAmountUSD ?? '', e.invoiceNumber || '', e.approvalStatus || 'booked',
+        Math.round(expUSD(e) * 100) / 100, e.invoiceNumber || '', e.approvalStatus || 'booked',
       ]));
   };
 
@@ -314,7 +324,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                           {exp.recipientName || 'معتمد ساحه'}
                         </td>
                         <td className="py-3 px-3 text-left font-mono font-black text-emerald-600">
-                          {formatNumber(exp.totalAmountAFN || ((exp.totalAmountUSD || 0) * 70), 0)} AFN
+                          {formatNumber(expAFN(exp), 0)} AFN
                         </td>
                       </tr>
                     ))
@@ -359,6 +369,18 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                     {exp.approvalStatus === 'rejected' && (
                       <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400"><XCircle className="w-3 h-3" />{tp('Rejected — excluded', 'ردشده — خارج از حساب', 'رد شوی — له حساب وتلی')}</span>
                     )}
+                    {docStateOf(exp) === 'draft' && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">{tp('Draft — not booked', 'پیش‌نویس — خارج از حساب', 'مسوده — له حساب وتلی')}</span>
+                    )}
+                    {exp.docStatus === 'posted' && !exp.reversedBy && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-slate-500"><Lock className="w-3 h-3" />{tp('Posted', 'ثبت نهایی', 'نهایي ثبت')}</span>
+                    )}
+                    {exp.reversedBy && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-violet-600 dark:text-violet-300">{tp('Reversed', 'برگشت‌شده', 'بیرته شوی')}</span>
+                    )}
+                    {exp.reversalOf && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-500 dark:text-rose-300">{tp('Reversal entry', 'سند برگشتی', 'بیرته سند')}</span>
+                    )}
                   </td>
                   <td className="py-3.5 px-4">
                     <span className="px-2.5 py-1 bg-surface-2 rounded-lg text-[11px] font-medium text-slate-600 dark:text-slate-300">
@@ -372,12 +394,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                     {exp.quantity ? `${exp.quantity} ${exp.unit || ''}` : '—'}
                   </td>
                   <td className="py-3.5 px-4 text-right whitespace-nowrap font-bold text-rose-600 dark:text-rose-400">
-                    <div>{formatCurrency(exp.totalAmountUSD, 'USD')}</div>
-                    {exp.currency !== 'USD' && (
-                      <div className="text-[10px] text-slate-400 font-normal">
-                        {formatNumber(exp.amount, 0)} {exp.currency}
-                      </div>
-                    )}
+                    <div>{formatCurrency(expUSD(exp), 'USD')}</div>
+                    <div className="text-[10px] text-slate-400 font-normal">
+                      {formatNumber(expAFN(exp), 0)} AFN
+                    </div>
                   </td>
                   <td className="py-3.5 px-4 text-center">
                     {exp.receiptUrl || exp.attachments?.[0] ? (
@@ -411,6 +431,49 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                         <XCircle className="w-4 h-4" />
                       </button>
                     )}
+                    {canApprove && docStateOf(exp) !== 'posted' && !exp.reversedBy && exp.approvalStatus !== 'rejected' && (
+                      <button
+                        onClick={() => postExpense(exp.id)}
+                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Post (lock)', 'ثبت نهایی (قفل)', 'نهایي ثبت (قفل)')}
+                      >
+                        <Lock className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canApprove && exp.docStatus === 'posted' && !exp.reversedBy && (
+                      <button
+                        onClick={() => unpostExpense(exp.id)}
+                        className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Unpost (unlock for correction)', 'بازگشایی برای تصحیح', 'د سمون لپاره خلاصول')}
+                      >
+                        <LockOpen className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canApprove && !exp.reversedBy && (
+                      <button
+                        onClick={() => { if (confirm(tp('Reverse this expense? A mirror entry will be created; the original is preserved and locked.', 'این مصرف برگشت شود؟ سند آینه‌ای ساخته می‌شود؛ سند اصلی حفظ و قفل می‌گردد.', 'دا لګښت بیرته شي؟ آینه‌يي سند به جوړ شي؛ اصلي سند ساتل کېږي او قفل کېږي.'))) reverseExpense(exp.id); }}
+                        className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Reverse (keeps original)', 'برگشت (با حفظ سند اصلی)', 'بیرته کول (له اصلي سند سره)')}
+                      >
+                        <Undo2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setSelectedDoc({ exp, kind: 'bill' })}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition"
+                      title={tp('Print bill', 'چاپ صورت‌حساب', 'د بل چاپ')}
+                    >
+                      <Printer className="w-4 h-4" />
+                    </button>
+                    {exp.partyType === 'supplier' && (
+                      <button
+                        onClick={() => setSelectedDoc({ exp, kind: 'grn' })}
+                        className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Goods receipt', 'رسید تحویل کالا', 'د مال رسید')}
+                      >
+                        <Package className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(exp.id, exp.title || exp.description || 'Expense')}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"
@@ -437,6 +500,12 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
   )}
 
       {/* Image Preview Modal */}
+      {selectedDoc && selectedDoc.kind === 'bill' && (
+        <ExpenseBillDoc expense={selectedDoc.exp} onClose={() => setSelectedDoc(null)} />
+      )}
+      {selectedDoc && selectedDoc.kind === 'grn' && (
+        <GoodsReceiptDoc expense={selectedDoc.exp} onClose={() => setSelectedDoc(null)} />
+      )}
       {selectedReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="relative max-w-2xl w-full bg-surface rounded-3xl p-4 overflow-hidden">

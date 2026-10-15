@@ -394,6 +394,9 @@ export interface Project {
   createdAt: string;
 }
 
+/** Wave 23: document lifecycle — draft (not booked) → approved (booked, editable) → posted (booked, locked). */
+export type DocStatus = 'draft' | 'approved' | 'posted';
+
 export type PaymentStatus = 'paid' | 'partial' | 'unpaid';
 
 export interface Expense {
@@ -422,6 +425,14 @@ export interface Expense {
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   approvedBy?: string;
   approvedAt?: string;
+  /** Wave 23: lifecycle state. undefined = legacy (treated as approved). */
+  docStatus?: DocStatus;
+  postedBy?: string;
+  postedAt?: string;
+  /** Reversal chain: original keeps reversedBy, mirror keeps reversalOf. */
+  reversedBy?: string;
+  reversalOf?: string;
+  correctionNote?: string;
   paymentMethod?: 'Cash' | 'Bank' | 'Hawala' | 'Personal' | string;
   billNumber?: string;
   paidAmount?: number;
@@ -881,6 +892,13 @@ export interface Payment {
   amountInAFN?: number;
   amountUSD?: number;
   amountAFN?: number;
+  /** Wave 23: lifecycle state. undefined = legacy (treated as approved). */
+  docStatus?: DocStatus;
+  postedBy?: string;
+  postedAt?: string;
+  reversedBy?: string;
+  reversalOf?: string;
+  correctionNote?: string;
   method: PaymentMethod;
   paymentMethod?: string;
   paymentType?: 'income' | 'expense';

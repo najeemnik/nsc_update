@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { expUSD, payUSD, isCountedDoc } from '../../utils/docFinance';
 import { 
   Building2, 
   Receipt, 
@@ -67,14 +68,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [backupError, setBackupError] = useState<string | null>(null);
 
   // Financial calculations for current project
-  const projectExpenses = expenses.filter(e => e.projectId === currentProject?.id && e.approvalStatus !== 'rejected');
-  const projectPayments = payments.filter(p => p.projectId === currentProject?.id);
+  const projectExpenses = expenses.filter(e => e.projectId === currentProject?.id && isCountedDoc(e));
+  const projectPayments = payments.filter(p => p.projectId === currentProject?.id && p.docStatus !== 'draft');
   const projectApartments = apartments.filter(a => a.projectId === currentProject?.id);
   const projectSteel = steelRecords.filter(s => s.projectId === currentProject?.id);
   const projectConcrete = concreteRecords.filter(c => c.projectId === currentProject?.id);
 
-  const totalExpenseUSD = projectExpenses.reduce((sum, e) => sum + (e.totalAmountUSD || 0), 0);
-  const totalPaidUSD = projectPayments.reduce((sum, p) => sum + (p.amountUSD || 0), 0);
+  const totalExpenseUSD = projectExpenses.reduce((sum, e) => sum + expUSD(e), 0);
+  const totalPaidUSD = projectPayments.reduce((sum, p) => sum + payUSD(p), 0);
   const totalDebtUSD = Math.max(0, totalExpenseUSD - totalPaidUSD);
 
   const totalSteelKG = projectSteel.reduce((sum, s) => sum + (s.totalKg || 0), 0);

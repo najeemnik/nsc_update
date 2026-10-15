@@ -10,6 +10,7 @@ import type {
   ProjectPartner,
   SteelRecord,
 } from '../types';
+import { expUSD, aptUSD } from './docFinance';
 
 /**
  * Wave 21 — pure partner / equity / profit math (no React, fully unit-testable).
@@ -180,14 +181,14 @@ export const projectProfitUSD = (input: ProfitInput): ProfitResult => {
   const r = rate && rate > 0 ? rate : 70;
   // Revenue: contracted apartment sales + cash income receipts.
   const sold = input.apartments.filter(a => a.projectId === projectId && a.status === 'sold');
-  const salesUSD = sold.reduce((s, a) => s + (a.totalPriceUSD ?? toUSD(a.totalPrice, a.currency, r)), 0);
+  const salesUSD = sold.reduce((s, a) => s + aptUSD(a), 0);
   const incomeUSD = input.payments
-    .filter(p => p.projectId === projectId && isIncomePayment(p))
+    .filter(p => p.projectId === projectId && p.docStatus !== 'draft' && isIncomePayment(p))
     .reduce((s, p) => s + (p.amountUSD ?? p.amountInUSD ?? toUSD(p.amount, p.currency, p.exchangeRate || r)), 0);
   // Cost: booked purchases + materials + gross labor (cash outflows excluded — they settle the same purchases).
-  const expUSD = input.expenses
-    .filter(e => e.projectId === projectId && e.approvalStatus !== 'rejected')
-    .reduce((s, e) => s + (e.totalAmountUSD ?? toUSD(e.amount, e.currency, e.exchangeRate || r)), 0);
+  const expCostUSD = input.expenses
+    .filter(e => e.projectId === projectId && e.approvalStatus !== 'rejected' && e.docStatus !== 'draft')
+    .reduce((s, e) => s + expUSD(e), 0);
   const steelUSD = input.steelRecords
     .filter(s => s.projectId === projectId)
     .reduce((s, x) => s + (x.amountInUSD ?? x.totalCostUSD ?? toUSD(x.totalAmount, x.currency, x.exchangeRate || r)), 0);
@@ -198,7 +199,7 @@ export const projectProfitUSD = (input: ProfitInput): ProfitResult => {
     .filter(l => l.projectId === projectId)
     .reduce((s, l) => s + (l.grossWage || 0) / r, 0);
   const revenueUSD = round2(salesUSD + incomeUSD);
-  const costUSD = round2(expUSD + steelUSD + concUSD + laborUSD);
+  const costUSD = round2(expCostUSD + steelUSD + concUSD + laborUSD);
   const profitUSD = round2(revenueUSD - costUSD);
   return {
     revenueUSD, costUSD, profitUSD,

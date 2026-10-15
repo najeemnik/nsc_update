@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { expUSD, payUSD, isCountedDoc } from '../../utils/docFinance';
 import { 
   HardHat, 
   Plus, 
@@ -56,11 +57,11 @@ export const ContractorsView: React.FC<ContractorsViewProps> = ({
   });
 
   const getContractorStats = (contractorId: string) => {
-    const contractorExpenses = expenses.filter(e => e.recipientId === contractorId && e.projectId === currentProject?.id);
-    const contractorPayments = payments.filter(p => p.recipientId === contractorId && p.projectId === currentProject?.id);
+    const contractorExpenses = expenses.filter(e => e.recipientId === contractorId && e.projectId === currentProject?.id && isCountedDoc(e));
+    const contractorPayments = payments.filter(p => p.recipientId === contractorId && p.projectId === currentProject?.id && p.docStatus !== 'draft');
 
-    const totalWorkUSD = contractorExpenses.reduce((sum, e) => sum + (e.totalAmountUSD || 0), 0);
-    const totalPaidUSD = contractorPayments.reduce((sum, p) => sum + (p.amountUSD || 0), 0);
+    const totalWorkUSD = contractorExpenses.reduce((sum, e) => sum + expUSD(e), 0);
+    const totalPaidUSD = contractorPayments.reduce((sum, p) => sum + payUSD(p), 0);
     
     // MBA Construction Accounting Formulas
     const retentionRate = 0.10; // 10% تضمین حسن نیت اجرای کار
@@ -318,7 +319,7 @@ export const ContractorsView: React.FC<ContractorsViewProps> = ({
                           </tr>
                         ) : (
                           stats.contractorExpenses.map(exp => {
-                            const gross = exp.totalAmountUSD || 0;
+                            const gross = expUSD(exp);
                             const ret = gross * 0.10;
                             const net = gross - ret;
                             return (
@@ -366,7 +367,7 @@ export const ContractorsView: React.FC<ContractorsViewProps> = ({
                               <td className="p-2.5 font-semibold text-ink">{pay.method || 'نقدی'}</td>
                               <td className="p-2.5 font-mono">{pay.referenceNumber || pay.id.slice(-6)}</td>
                               <td className="p-2.5 text-left font-mono font-bold text-emerald-600">
-                                {formatCurrency(pay.amountUSD || 0, 'USD')}
+                                {formatCurrency(payUSD(pay), 'USD')}
                               </td>
                             </tr>
                           ))

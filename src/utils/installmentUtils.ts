@@ -15,6 +15,7 @@ import {
   ConcreteRecord
 } from '../types';
 import { computeBudgetReport } from './budgetUtils';
+import { isCountedDoc } from './docFinance';
 
 /**
  * Calculates current InstallmentStatus based on paid amounts, total amount and due date.
@@ -568,7 +569,7 @@ export function generateSmartReminders(params: {
   // --- 4. UNPAID PURCHASES (P3) — top-1 + overflow count ---
   if (on('unpaid_purchase')) {
     const unpaid = expenses
-      .filter(e => e.approvalStatus !== 'rejected' && ((e.remainingAmount || 0) > 0 || e.paymentStatus === 'unpaid'))
+      .filter(e => isCountedDoc(e) && ((e.remainingAmount || 0) > 0 || e.paymentStatus === 'unpaid'))
       .sort((a, b) => (b.remainingAmount ?? b.amount) - (a.remainingAmount ?? a.amount));
     if (unpaid.length > 0) {
       const top = unpaid[0];
@@ -654,7 +655,7 @@ export function generateSmartReminders(params: {
   if (on('missing_document')) {
     const MISSING_USD_THRESHOLD = 500;
     const bareExpenses = expenses
-      .filter(e => e.approvalStatus !== 'rejected' && !e.billNumber && !e.documentUrl && !e.receiptUrl && !(e.attachments && e.attachments.length > 0) && !linkedDocIds.has(e.id))
+      .filter(e => isCountedDoc(e) && !e.billNumber && !e.documentUrl && !e.receiptUrl && !(e.attachments && e.attachments.length > 0) && !linkedDocIds.has(e.id))
       .map(e => ({ e, usd: e.amountInUSD ?? usdOf(e.amount, e.currency, e.exchangeRate) }))
       .filter(x => x.usd >= MISSING_USD_THRESHOLD)
       .sort((a, b) => b.usd - a.usd);

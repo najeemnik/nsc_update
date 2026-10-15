@@ -17,7 +17,8 @@
     "test:budget": "esbuild scripts/verify-budget-sheet.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-budget.cjs --log-level=error && node node_modules/.cache/verify-budget.cjs",
     "test:coa": "esbuild scripts/verify-coa-admin.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-coa.cjs --log-level=error && node node_modules/.cache/verify-coa.cjs",
     "test:permissions": "esbuild scripts/verify-permissions.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-perm.cjs --log-level=error && node node_modules/.cache/verify-perm.cjs",
-    "test:partners": "esbuild scripts/verify-partners.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-partners.cjs --log-level=error && node node_modules/.cache/verify-partners.cjs"
+    "test:partners": "esbuild scripts/verify-partners.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-partners.cjs --log-level=error && node node_modules/.cache/verify-partners.cjs",
+    "test:doclifecycle": "esbuild scripts/verify-doc-lifecycle.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-doclifecycle.cjs --log-level=error && node node_modules/.cache/verify-doclifecycle.cjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

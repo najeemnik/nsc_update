@@ -813,3 +813,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .dark button:focus-visible, .dark input:focus-visible, .dark select:focus-visible, .dark textarea:focus-visible, .dark a:focus-visible {
   outline-color: #fbbf24;
 }
+
+/* Wave 24: isolate canonical financial docs on paper */
+@media print {
+  body.printing-doc > *:not(.print-doc-root) {
+    display: none !important;
+  }
+  .print-doc {
+    position: static !important;
+    max-width: 100% !important;
+  }
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+}

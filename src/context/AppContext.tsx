@@ -67,6 +67,7 @@ import type { Account } from '../data/chartOfAccounts';
 import { computeBudgetReport, findUpdatableBudgetLine } from '../utils/budgetUtils';
 import { canDo, grantedProjectIds } from '../utils/permissions';
 import { validateEquityTransfer, applyEquityTransfer } from '../utils/partnerFinance';
+import { canonicalMoney, isLockedDoc, expenseReversalMoney, paymentReversalMoney, payUSD } from '../utils/docFinance';
 import { backendApi } from '../services/backendApi';
 
 interface AppContextType {
@@ -168,6 +169,12 @@ interface AppContextType {
   clearAccessNotice: () => void;
   approveExpense: (id: string) => void;
   rejectExpense: (id: string) => void;
+  postExpense: (id: string) => void;
+  unpostExpense: (id: string) => void;
+  reverseExpense: (id: string, note?: string) => void;
+  postPayment: (id: string) => void;
+  unpostPayment: (id: string) => void;
+  reversePayment: (id: string, note?: string) => void;
   updateReportCustomization: (updates: Partial<import('../types').ReportCustomization>) => void;
   uploadCustomReportTemplate: (fileName: string, fileContent: string) => void;
   projects: Project[];
@@ -1612,6 +1619,105 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAudit('update', 'expense', id, 'Approved expense', `By ${currentUser?.name || currentUser?.username || 'unknown'}`);
   };
 
+  // Wave 23: document lifecycle (draft -> approved -> posted) + reversals.
+  const postDoc = <T extends Expense | Payment>(kind: 'expenses' | 'payments', id: string) => {
+    if (!guard(kind, 'approve')) return;
+    const stamp = { docStatus: 'posted' as const, postedBy: currentUser?.name || currentUser?.username, postedAt: new Date().toISOString() };
+    if (kind === 'expenses') {
+      setExpenses(prev => prev.map(e => (e.id === id ? { ...e, ...stamp } : e)));
+    } else {
+      setPayments(prev => prev.map(p => (p.id === id ? { ...p, ...stamp } : p)));
+    }
+    logAudit('update', kind === 'expenses' ? 'expense' : 'payment', id, 'Posted document (locked)', `By ${stamp.postedBy || 'unknown'}`);
+  };
+
+  const unpostDoc = <T extends Expense | Payment>(kind: 'expenses' | 'payments', id: string) => {
+    if (!guard(kind, 'approve')) return;
+    if (kind === 'expenses') {
+      setExpenses(prev => prev.map(e => (e.id === id ? { ...e, docStatus: 'approved' as const, postedBy: undefined, postedAt: undefined } : e)));
+    } else {
+      setPayments(prev => prev.map(p => (p.id === id ? { ...p, docStatus: 'approved' as const, postedBy: undefined, postedAt: undefined } : p)));
+    }
+    logAudit('update', kind === 'expenses' ? 'expense' : 'payment', id, 'Unposted document (unlocked for correction)', `By ${currentUser?.name || currentUser?.username || 'unknown'}`);
+  };
+
+  const postExpense = (id: string) => postDoc('expenses', id);
+  const unpostExpense = (id: string) => unpostDoc('expenses', id);
+  const postPayment = (id: string) => postDoc('payments', id);
+  const unpostPayment = (id: string) => unpostDoc('payments', id);
+
+  const reverseExpense = (id: string, note?: string) => {
+    if (!guard('expenses', 'approve')) return;
+    const old = expenses.find(e => e.id === id);
+    if (!old || old.reversedBy) return;
+    const today = new Date().toISOString().split('T')[0];
+    const mirrorId = 'exp-rev-' + Date.now();
+    const mirror: Expense = {
+      ...old,
+      ...expenseReversalMoney(old),
+      id: mirrorId,
+      date: today,
+      title: `برگشت: ${old.title || old.description || ''}`.trim(),
+      billNumber: old.billNumber ? `RV-${old.billNumber}` : undefined,
+      approvalStatus: 'approved',
+      docStatus: 'posted',
+      postedBy: currentUser?.name || currentUser?.username,
+      postedAt: new Date().toISOString(),
+      reversalOf: old.id,
+      reversedBy: undefined,
+      correctionNote: note?.trim() || `Reversal of ${old.billNumber || old.id}`,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUser?.name || 'Admin',
+    };
+    setExpenses(prev => [mirror, ...prev.map(e => (e.id === id
+      ? { ...e, reversedBy: mirrorId, docStatus: 'posted' as const, postedBy: mirror.postedBy, postedAt: mirror.postedAt }
+      : e))]);
+    if (old.partyName && old.partyName.trim() && old.docStatus !== 'draft') {
+      const dPurch = -canonicalMoney(old.amount, old.currency, old.exchangeRate).usd;
+      const dPaid = -canonicalMoney(old.paidAmount || 0, old.currency, old.exchangeRate).usd;
+      setSuppliers(prev => prev.map(s => {
+        if (s.projectId === old.projectId && s.name.trim().toLowerCase() === old.partyName!.trim().toLowerCase()) {
+          const purchases = (s.totalPurchases || 0) + dPurch;
+          const paid = (s.totalPaid || 0) + dPaid;
+          return { ...s, totalPurchases: purchases, totalPaid: paid, remainingBalance: Math.max(0, purchases - paid) };
+        }
+        return s;
+      }));
+    }
+    logAudit('create', 'expense', mirrorId, `Reversed expense ${old.billNumber || id}`, note?.trim() || `Mirror of ${id}; original preserved and locked.`, undefined, undefined, old.projectId);
+  };
+
+  const reversePayment = (id: string, note?: string) => {
+    if (!guard('payments', 'approve')) return;
+    const old = payments.find(p => p.id === id);
+    if (!old || old.reversedBy) return;
+    const today = new Date().toISOString().split('T')[0];
+    const mirrorId = 'pay-rev-' + Date.now();
+    const mirror: Payment = {
+      ...old,
+      ...paymentReversalMoney(old),
+      id: mirrorId,
+      date: today,
+      receiptNumber: old.receiptNumber ? `RV-${old.receiptNumber}` : `RV-${Date.now().toString().slice(-5)}`,
+      description: `برگشت: ${old.description || ''}`.trim(),
+      docStatus: 'posted',
+      postedBy: currentUser?.name || currentUser?.username,
+      postedAt: new Date().toISOString(),
+      reversalOf: old.id,
+      reversedBy: undefined,
+      correctionNote: note?.trim() || `Reversal of ${old.receiptNumber || id}`,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUser?.name || 'Admin',
+    };
+    setPayments(prev => [mirror, ...prev.map(p => (p.id === id
+      ? { ...p, reversedBy: mirrorId, docStatus: 'posted' as const, postedBy: mirror.postedBy, postedAt: mirror.postedAt }
+      : p))]);
+    if (old.docStatus !== 'draft') {
+      applyPaymentDelta(mirror, -payUSD(old));
+    }
+    logAudit('create', 'payment', mirrorId, `Reversed payment ${old.receiptNumber || id}`, note?.trim() || `Mirror of ${id}; original preserved and locked.`, undefined, undefined, old.projectId);
+  };
+
   const rejectExpense = (id: string) => {
     if (!guard('expenses', 'approve')) return;
     setExpenses(prev => prev.map(e => (e.id === id
@@ -1948,16 +2054,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addExpense = (expenseData: Omit<Expense, 'id' | 'createdAt' | 'createdBy'>) => {
     if (!guard('expenses', 'create')) return;
     const time = expenseData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    const proj = projects.find(p => p.id === expenseData.projectId);
+    const exRate = expenseData.exchangeRate || proj?.defaultExchangeRate || 70;
+    const currency = expenseData.currency || 'USD';
+    // Wave 23: amount is RAW in `currency`; canonicals computed once here.
     const amount = Number(Number(expenseData.amount || 0).toFixed(2));
     const paidAmount = expenseData.paidAmount !== undefined ? Number(Number(expenseData.paidAmount).toFixed(2)) : 0;
     const remainingAmount = Math.max(0, Number((amount - paidAmount).toFixed(2)));
     const paymentStatus: PaymentStatus = expenseData.paymentStatus || (paidAmount >= amount ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid'));
-    const proj = projects.find(p => p.id === expenseData.projectId);
-    const exRate = expenseData.exchangeRate || proj?.defaultExchangeRate || 70;
-    const currency = expenseData.currency || 'USD';
-    const amountInUSD = currency === 'USD' ? amount : (exRate > 0 ? parseFloat((amount / exRate).toFixed(2)) : amount);
-    const amountInAFN = currency === 'AFN' ? amount : Math.round(amount * exRate);
-
+    const canon = canonicalMoney(amount, currency, exRate);
     const newExpense: Expense = {
       ...expenseData,
       time,
@@ -1967,8 +2072,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       paymentStatus,
       currency,
       exchangeRate: exRate,
-      amountInUSD,
-      amountInAFN,
+      amountInUSD: canon.usd,
+      amountInAFN: canon.afn,
+      totalAmountUSD: canon.usd,
+      totalAmountAFN: canon.afn,
+      docStatus: expenseData.docStatus || 'approved',
       id: 'exp-' + Date.now(),
       createdAt: new Date().toISOString(),
       createdBy: currentUser?.name || 'Admin',
@@ -1976,8 +2084,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setExpenses(prev => [newExpense, ...prev]);
 
     if (paidAmount > 0) {
-      const paidInUSD = currency === 'USD' ? paidAmount : (exRate > 0 ? parseFloat((paidAmount / exRate).toFixed(2)) : paidAmount);
-      const paidInAFN = currency === 'AFN' ? paidAmount : Math.round(paidAmount * exRate);
+      const paidCanon = canonicalMoney(paidAmount, currency, exRate);
       const newPay: Payment = {
         id: 'pay-exp-' + Date.now(),
         projectId: newExpense.projectId,
@@ -1985,11 +2092,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         time: newExpense.time || time,
         receiptNumber: newExpense.billNumber || `EXP-${Date.now().toString().slice(-4)}`,
         partyName: newExpense.partyName || newExpense.category,
-        amount: paidInUSD,
+        amount: paidAmount,
         currency,
         exchangeRate: exRate,
-        amountInUSD: paidInUSD,
-        amountInAFN: paidInAFN,
+        amountInUSD: paidCanon.usd,
+        amountInAFN: paidCanon.afn,
+        amountUSD: paidCanon.usd,
+        amountAFN: paidCanon.afn,
+        docStatus: newExpense.docStatus,
         method: (newExpense.paymentMethod as any) || 'Cash',
         description: `پرداخت نقدی برای: ${newExpense.item || newExpense.description} (${newExpense.category})`,
         relatedId: newExpense.id,
@@ -2000,30 +2110,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPayments(prev => [newPay, ...prev]);
     }
 
-    if (newExpense.partyName && newExpense.partyName.trim()) {
+    // Supplier running balances are USD-based: convert once, update BOTH legs.
+    const applySupplierDelta = (usdDelta: number, paidUsdDelta: number) => {
+      if (!newExpense.partyName || !newExpense.partyName.trim()) return;
+      const pName = newExpense.partyName.trim().toLowerCase();
       setSuppliers(prev => {
-        const existing = prev.find(s => s.projectId === newExpense.projectId && s.name.trim().toLowerCase() === newExpense.partyName!.trim().toLowerCase());
+        const existing = prev.find(s => s.projectId === newExpense.projectId && s.name.trim().toLowerCase() === pName);
         if (existing) {
-          const purchases = (existing.totalPurchases || 0) + amountInUSD;
-          const paid = (existing.totalPaid || 0) + (paidAmount > 0 ? (currency === 'USD' ? paidAmount : (exRate > 0 ? paidAmount / exRate : paidAmount)) : 0);
-          return prev.map(s => s.id === existing.id ? { ...s, totalPurchases: purchases, remainingBalance: Math.max(0, purchases - paid) } : s);
-        } else {
-          const purchases = amountInUSD;
-          const paid = paidAmount > 0 ? (currency === 'USD' ? paidAmount : (exRate > 0 ? paidAmount / exRate : paidAmount)) : 0;
-          const newSupp: Supplier = {
-            id: 'supp-' + Date.now(),
-            projectId: newExpense.projectId,
-            name: newExpense.partyName!.trim(),
-            phone: '',
-            materialsSupplied: newExpense.item || newExpense.category,
-            totalPurchases: purchases,
-            totalPaid: paid,
-            remainingBalance: Math.max(0, purchases - paid),
-            createdAt: new Date().toISOString(),
-          };
-          return [...prev, newSupp];
+          const purchases = (existing.totalPurchases || 0) + usdDelta;
+          const paid = (existing.totalPaid || 0) + paidUsdDelta;
+          return prev.map(s => s.id === existing.id ? { ...s, totalPurchases: purchases, totalPaid: paid, remainingBalance: Math.max(0, purchases - paid) } : s);
         }
+        const newSupp: Supplier = {
+          id: 'supp-' + Date.now(),
+          projectId: newExpense.projectId,
+          name: newExpense.partyName!.trim(),
+          phone: '',
+          materialsSupplied: newExpense.item || newExpense.category,
+          totalPurchases: usdDelta,
+          totalPaid: paidUsdDelta,
+          remainingBalance: Math.max(0, usdDelta - paidUsdDelta),
+          createdAt: new Date().toISOString(),
+        };
+        return [...prev, newSupp];
       });
+    };
+    if (newExpense.docStatus !== 'draft') {
+      applySupplierDelta(canon.usd, canonicalMoney(paidAmount, currency, exRate).usd);
     }
     logAudit('create', 'expense', newExpense.id, `${newExpense.category}: ${newExpense.description}`, `Amount: $${newExpense.amount.toLocaleString()} - Status: ${newExpense.paymentStatus}`, undefined, `$${newExpense.amount}`, newExpense.projectId);
     backendApi.createPayment({
@@ -2043,30 +2156,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!guard('expenses', 'edit')) return;
     const old = expenses.find(e => e.id === id);
     if (!old) return;
+    if (isLockedDoc(old) && !can('expenses', 'approve')) { denyAccess('expenses', 'edit'); return; }
+    const currency = updates.currency || old.currency || 'USD';
+    const proj = projects.find(pr => pr.id === (updates.projectId || old.projectId));
+    const exRate = updates.exchangeRate || old.exchangeRate || proj?.defaultExchangeRate || 70;
     const amount = updates.amount !== undefined ? Number(Number(updates.amount).toFixed(2)) : old.amount;
     const paidAmount = updates.paidAmount !== undefined ? Number(Number(updates.paidAmount).toFixed(2)) : (old.paidAmount ?? amount);
     const remainingAmount = Math.max(0, Number((amount - paidAmount).toFixed(2)));
     const paymentStatus: PaymentStatus = updates.paymentStatus || (paidAmount >= amount ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid'));
-    setExpenses(prev => prev.map(e => (e.id === id ? { 
-      ...e, 
+    const canon = canonicalMoney(amount, currency, exRate);
+    const nextStatus = updates.docStatus || old.docStatus || 'approved';
+    setExpenses(prev => prev.map(e => (e.id === id ? {
+      ...e,
       ...updates,
       amount,
       paidAmount,
       remainingAmount,
-      paymentStatus
+      paymentStatus,
+      currency,
+      exchangeRate: exRate,
+      amountInUSD: canon.usd,
+      amountInAFN: canon.afn,
+      totalAmountUSD: canon.usd,
+      totalAmountAFN: canon.afn,
+      docStatus: nextStatus,
     } : e)));
+
+    // Keep the supplier mirror in sync (USD-based): amount deltas + draft flips.
+    const pName = (updates.partyName !== undefined ? updates.partyName : old.partyName) || '';
+    const oldCounted = old.docStatus !== 'draft';
+    const newCounted = nextStatus !== 'draft';
+    if (pName.trim() && (updates.partyName === undefined || updates.partyName === old.partyName)) {
+      const oldUsd = oldCounted ? canonicalMoney(old.amount, old.currency, old.exchangeRate).usd : 0;
+      const newUsd = newCounted ? canon.usd : 0;
+      const oldPaidUsd = oldCounted ? canonicalMoney(old.paidAmount || 0, old.currency, old.exchangeRate).usd : 0;
+      const newPaidUsd = newCounted ? canonicalMoney(paidAmount, currency, exRate).usd : 0;
+      const dPurch = newUsd - oldUsd;
+      const dPaid = newPaidUsd - oldPaidUsd;
+      if (dPurch !== 0 || dPaid !== 0) {
+        setSuppliers(prev => prev.map(s => {
+          if (s.projectId === (updates.projectId || old.projectId) && s.name.trim().toLowerCase() === pName.trim().toLowerCase()) {
+            const purchases = (s.totalPurchases || 0) + dPurch;
+            const paid = (s.totalPaid || 0) + dPaid;
+            return { ...s, totalPurchases: purchases, totalPaid: paid, remainingBalance: Math.max(0, purchases - paid) };
+          }
+          return s;
+        }));
+      }
+    }
 
     if (updates.paidAmount !== undefined || updates.description !== undefined) {
       setPayments(prev => prev.map(p => {
         if (p.relatedType === 'expense' && p.relatedId === id) {
-          const proj = projects.find(pr => pr.id === (updates.projectId || old.projectId));
-          const exRate = p.exchangeRate || proj?.defaultExchangeRate || 70;
+          const pProj = projects.find(pr => pr.id === (updates.projectId || old.projectId));
+          const pRate = p.exchangeRate || pProj?.defaultExchangeRate || 70;
           const newAmt = updates.paidAmount !== undefined ? updates.paidAmount : p.amount;
+          const pc = canonicalMoney(newAmt, p.currency, pRate);
           return {
             ...p,
             amount: newAmt,
-            amountInUSD: p.currency === 'USD' ? newAmt : (exRate > 0 ? parseFloat((newAmt / exRate).toFixed(2)) : newAmt),
-            amountInAFN: p.currency === 'AFN' ? newAmt : Math.round(newAmt * exRate),
+            amountInUSD: pc.usd,
+            amountInAFN: pc.afn,
+            amountUSD: pc.usd,
+            amountAFN: pc.afn,
             description: updates.description ? `پرداخت برای: ${updates.description}` : p.description,
           };
         }
@@ -2079,7 +2231,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteExpense = (id: string) => {
     if (!guard('expenses', 'del')) return;
     const old = expenses.find(e => e.id === id);
+    if (!old) return;
+    if (isLockedDoc(old) && !can('expenses', 'approve')) { denyAccess('expenses', 'del'); return; }
     setExpenses(prev => prev.filter(e => e.id !== id));
+    if (old.docStatus !== 'draft' && old.partyName && old.partyName.trim()) {
+      const dPurch = -canonicalMoney(old.amount, old.currency, old.exchangeRate).usd;
+      const dPaid = -canonicalMoney(old.paidAmount || 0, old.currency, old.exchangeRate).usd;
+      setSuppliers(prev => prev.map(s => {
+        if (s.projectId === old.projectId && s.name.trim().toLowerCase() === old.partyName!.trim().toLowerCase()) {
+          const purchases = (s.totalPurchases || 0) + dPurch;
+          const paid = (s.totalPaid || 0) + dPaid;
+          return { ...s, totalPurchases: purchases, totalPaid: paid, remainingBalance: Math.max(0, purchases - paid) };
+        }
+        return s;
+      }));
+    }
     setPayments(prev => prev.filter(p => !(p.relatedType === 'expense' && p.relatedId === id)));
     logAudit('delete', 'expense', id, old?.description || 'Expense', `Deleted expense of $${old?.amount}`, `$${old?.amount}`, undefined, old?.projectId);
   };
@@ -2543,113 +2709,107 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Payments CRUD
+  // Wave 23: single choke-point for payment<->balance effects (balances are USD-based;
+  // the linked expense leg converts into the expense's own currency).
+  const applyPaymentDelta = (
+    pay: { relatedType?: Payment['relatedType']; relatedId?: string; partyName: string; projectId: string; exchangeRate?: number },
+    deltaUSD: number,
+  ) => {
+    if (!deltaUSD || !pay.relatedType) return;
+    const proj = projects.find(p => p.id === pay.projectId);
+    const rate = pay.exchangeRate || proj?.defaultExchangeRate || 70;
+    const adding = deltaUSD >= 0;
+    const mag = Math.abs(deltaUSD);
+    if (pay.relatedType === 'apartment_sale' && pay.relatedId) {
+      setApartments(prev => prev.map(u => {
+        if (u.id !== pay.relatedId) return u;
+        const salePrice = u.salePrice || 0;
+        if (adding) {
+          const newReceived = (u.amountReceived || 0) + mag;
+          return { ...u, amountReceived: newReceived, remainingBalance: Math.max(0, salePrice - newReceived), status: newReceived >= salePrice ? 'sold' : u.status };
+        }
+        const newReceived = Math.max(0, (u.amountReceived || 0) - mag);
+        return { ...u, amountReceived: newReceived, remainingBalance: Math.max(0, salePrice - newReceived), status: newReceived < salePrice && u.status === 'sold' ? 'reserved' : u.status };
+      }));
+    } else if ((pay.relatedType === 'material_steel' || pay.relatedType === 'steel') && pay.relatedId) {
+      setSteelRecords(prev => prev.map(s => {
+        if (s.id !== pay.relatedId) return s;
+        const paidAmount = adding ? (s.paidAmount || 0) + mag : Math.max(0, (s.paidAmount || 0) - mag);
+        return { ...s, paidAmount, remainingBalance: Math.max(0, s.totalAmount - paidAmount) };
+      }));
+    } else if ((pay.relatedType === 'material_concrete' || pay.relatedType === 'concrete') && pay.relatedId) {
+      setConcreteRecords(prev => prev.map(x => {
+        if (x.id !== pay.relatedId) return x;
+        const paidAmount = adding ? (x.paidAmount || 0) + mag : Math.max(0, (x.paidAmount || 0) - mag);
+        return { ...x, paidAmount, remainingBalance: Math.max(0, x.totalAmount - paidAmount) };
+      }));
+    } else if (pay.relatedType === 'contractor') {
+      setContractors(prev => prev.map(x => {
+        if (x.id !== pay.relatedId && x.name.toLowerCase() !== pay.partyName.toLowerCase()) return x;
+        const newPaid = adding ? (x.totalPaid || 0) + mag : Math.max(0, (x.totalPaid || 0) - mag);
+        return { ...x, totalPaid: newPaid, remainingBalance: Math.max(0, x.contractAmount - newPaid) };
+      }));
+    } else if (pay.relatedType === 'supplier') {
+      setSuppliers(prev => prev.map(s => {
+        if (s.id !== pay.relatedId && s.name.toLowerCase() !== pay.partyName.toLowerCase()) return s;
+        const newPaid = adding ? (s.totalPaid || 0) + mag : Math.max(0, (s.totalPaid || 0) - mag);
+        const purchases = s.totalPurchases || 0;
+        return { ...s, totalPaid: newPaid, remainingBalance: Math.max(0, purchases - newPaid) };
+      }));
+    } else if (pay.relatedType === 'expense' && pay.relatedId) {
+      const targetExp = expenses.find(e => e.id === pay.relatedId);
+      const expRate = targetExp?.exchangeRate || rate;
+      const deltaExp = targetExp && (targetExp.currency || 'USD').toUpperCase() === 'AFN' ? mag * expRate : mag;
+      setExpenses(prev => prev.map(e => {
+        if (e.id !== pay.relatedId) return e;
+        const paidAmount = adding ? (e.paidAmount || 0) + deltaExp : Math.max(0, (e.paidAmount || 0) - deltaExp);
+        return {
+          ...e,
+          paidAmount,
+          remainingAmount: Math.max(0, e.amount - paidAmount),
+          paymentStatus: paidAmount >= e.amount ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid'),
+        };
+      }));
+      const supplierName = targetExp?.partyName || pay.partyName;
+      if (supplierName && supplierName.trim()) {
+        setSuppliers(prev => prev.map(s => {
+          if (s.projectId === (targetExp?.projectId || pay.projectId) && s.name.trim().toLowerCase() === supplierName.trim().toLowerCase()) {
+            const newPaid = adding ? (s.totalPaid || 0) + mag : Math.max(0, (s.totalPaid || 0) - mag);
+            const purchases = s.totalPurchases || 0;
+            return { ...s, totalPaid: newPaid, remainingBalance: Math.max(0, purchases - newPaid) };
+          }
+          return s;
+        }));
+      }
+    }
+  };
+
   const addPayment = (paymentData: Omit<Payment, 'id' | 'createdAt' | 'createdBy'>) => {
     if (!guard('payments', 'create')) return;
     const time = paymentData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    const proj = projects.find(p => p.id === paymentData.projectId);
+    const exRate = paymentData.exchangeRate || proj?.defaultExchangeRate || 70;
+    const currency = paymentData.currency || 'USD';
+    const raw = Number(paymentData.amount) || 0;
+    const canon = canonicalMoney(raw, currency, exRate);
     const newPayment: Payment = {
       ...paymentData,
       time,
+      amount: raw,
+      currency,
+      exchangeRate: exRate,
+      amountInUSD: canon.usd,
+      amountInAFN: canon.afn,
+      amountUSD: canon.usd,
+      amountAFN: canon.afn,
+      docStatus: paymentData.docStatus || 'approved',
       id: 'pay-' + Date.now(),
       createdAt: new Date().toISOString(),
       createdBy: currentUser?.name || 'Admin',
     };
     setPayments(prev => [newPayment, ...prev]);
-
-    if (paymentData.relatedType === 'apartment_sale' && paymentData.relatedId) {
-      setApartments(prev => prev.map(u => {
-        if (u.id === paymentData.relatedId) {
-          const currentReceived = u.amountReceived || 0;
-          const newReceived = currentReceived + paymentData.amount;
-          const salePrice = u.salePrice || 0;
-          return {
-            ...u,
-            amountReceived: newReceived,
-            remainingBalance: Math.max(0, salePrice - newReceived),
-            status: newReceived >= salePrice ? 'sold' : u.status,
-          };
-        }
-        return u;
-      }));
-    } else if ((paymentData.relatedType === 'material_steel' || paymentData.relatedType === 'steel') && paymentData.relatedId) {
-      setSteelRecords(prev => prev.map(s => {
-        if (s.id === paymentData.relatedId) {
-          const paidAmount = (s.paidAmount || 0) + paymentData.amount;
-          return {
-            ...s,
-            paidAmount,
-            remainingBalance: Math.max(0, s.totalAmount - paidAmount),
-          };
-        }
-        return s;
-      }));
-    } else if ((paymentData.relatedType === 'material_concrete' || paymentData.relatedType === 'concrete') && paymentData.relatedId) {
-      setConcreteRecords(prev => prev.map(c => {
-        if (c.id === paymentData.relatedId) {
-          const paidAmount = (c.paidAmount || 0) + paymentData.amount;
-          return {
-            ...c,
-            paidAmount,
-            remainingBalance: Math.max(0, c.totalAmount - paidAmount),
-          };
-        }
-        return c;
-      }));
-    } else if (paymentData.relatedType === 'contractor') {
-      setContractors(prev => prev.map(c => {
-        if (c.id === paymentData.relatedId || c.name.toLowerCase() === paymentData.partyName.toLowerCase()) {
-          const currentPaid = c.totalPaid || 0;
-          const newPaid = currentPaid + paymentData.amount;
-          return {
-            ...c,
-            totalPaid: newPaid,
-            remainingBalance: Math.max(0, c.contractAmount - newPaid),
-          };
-        }
-        return c;
-      }));
-    } else if (paymentData.relatedType === 'supplier') {
-      setSuppliers(prev => prev.map(s => {
-        if (s.id === paymentData.relatedId || s.name.toLowerCase() === paymentData.partyName.toLowerCase()) {
-          const currentPaid = s.totalPaid || 0;
-          const newPaid = currentPaid + paymentData.amount;
-          const purchases = s.totalPurchases || 0;
-          return {
-            ...s,
-            totalPaid: newPaid,
-            remainingBalance: Math.max(0, purchases - newPaid),
-          };
-        }
-        return s;
-      }));
-    } else if (paymentData.relatedType === 'expense' && paymentData.relatedId) {
-      const targetExp = expenses.find(e => e.id === paymentData.relatedId);
-      setExpenses(prev => prev.map(e => {
-        if (e.id === paymentData.relatedId) {
-          const paidAmount = (e.paidAmount || 0) + paymentData.amount;
-          return {
-            ...e,
-            paidAmount,
-            remainingAmount: Math.max(0, e.amount - paidAmount),
-            paymentStatus: paidAmount >= e.amount ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid'),
-          };
-        }
-        return e;
-      }));
-      const supplierName = targetExp?.partyName || paymentData.partyName;
-      if (supplierName && supplierName.trim()) {
-        setSuppliers(prev => prev.map(s => {
-          if (s.projectId === (targetExp?.projectId || currentProjectId) && s.name.trim().toLowerCase() === supplierName.trim().toLowerCase()) {
-            const currentPaid = (s.totalPaid || 0) + paymentData.amount;
-            const purchases = s.totalPurchases || 0;
-            return {
-              ...s,
-              totalPaid: currentPaid,
-              remainingBalance: Math.max(0, purchases - currentPaid),
-            };
-          }
-          return s;
-        }));
-      }
+    if (newPayment.docStatus !== 'draft') {
+      applyPaymentDelta(newPayment, canon.usd);
     }
     logAudit('create', 'payment', newPayment.id, `Payment to/from: ${newPayment.partyName}`, `Amount: $${newPayment.amount.toLocaleString()} (${newPayment.method}) - ${newPayment.description}`, undefined, `$${newPayment.amount}`, newPayment.projectId);
   };
@@ -2658,111 +2818,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!guard('payments', 'del')) return;
     const old = payments.find(p => p.id === id);
     if (!old) return;
+    if (isLockedDoc(old) && !can('payments', 'approve')) { denyAccess('payments', 'del'); return; }
     setPayments(prev => prev.filter(p => p.id !== id));
-
-    if (old.relatedType === 'apartment_sale' && old.relatedId) {
-      setApartments(prev => prev.map(u => {
-        if (u.id === old.relatedId) {
-          const currentReceived = u.amountReceived || 0;
-          const newReceived = Math.max(0, currentReceived - old.amount);
-          const salePrice = u.salePrice || 0;
-          return {
-            ...u,
-            amountReceived: newReceived,
-            remainingBalance: Math.max(0, salePrice - newReceived),
-            status: newReceived < salePrice && u.status === 'sold' ? 'reserved' : u.status,
-          };
-        }
-        return u;
-      }));
-    } else if ((old.relatedType === 'material_steel' || old.relatedType === 'steel') && old.relatedId) {
-      setSteelRecords(prev => prev.map(s => {
-        if (s.id === old.relatedId) {
-          const paidAmount = Math.max(0, (s.paidAmount || 0) - old.amount);
-          return {
-            ...s,
-            paidAmount,
-            remainingBalance: Math.max(0, s.totalAmount - paidAmount),
-          };
-        }
-        return s;
-      }));
-    } else if ((old.relatedType === 'material_concrete' || old.relatedType === 'concrete') && old.relatedId) {
-      setConcreteRecords(prev => prev.map(c => {
-        if (c.id === old.relatedId) {
-          const paidAmount = Math.max(0, (c.paidAmount || 0) - old.amount);
-          return {
-            ...c,
-            paidAmount,
-            remainingBalance: Math.max(0, c.totalAmount - paidAmount),
-          };
-        }
-        return c;
-      }));
-    } else if (old.relatedType === 'contractor') {
-      setContractors(prev => prev.map(c => {
-        if (c.id === old.relatedId || c.name.toLowerCase() === old.partyName.toLowerCase()) {
-          const currentPaid = c.totalPaid || 0;
-          const newPaid = Math.max(0, currentPaid - old.amount);
-          return {
-            ...c,
-            totalPaid: newPaid,
-            remainingBalance: Math.max(0, c.contractAmount - newPaid),
-          };
-        }
-        return c;
-      }));
-    } else if (old.relatedType === 'supplier') {
-      setSuppliers(prev => prev.map(s => {
-        if (s.id === old.relatedId || s.name.toLowerCase() === old.partyName.toLowerCase()) {
-          const currentPaid = s.totalPaid || 0;
-          const newPaid = Math.max(0, currentPaid - old.amount);
-          const purchases = s.totalPurchases || 0;
-          return {
-            ...s,
-            totalPaid: newPaid,
-            remainingBalance: Math.max(0, purchases - newPaid),
-          };
-        }
-        return s;
-      }));
-    } else if (old.relatedType === 'expense' && old.relatedId) {
-      const targetExp = expenses.find(e => e.id === old.relatedId);
-      setExpenses(prev => prev.map(e => {
-        if (e.id === old.relatedId) {
-          const paidAmount = Math.max(0, (e.paidAmount || 0) - old.amount);
-          return {
-            ...e,
-            paidAmount,
-            remainingAmount: Math.max(0, e.amount - paidAmount),
-            paymentStatus: paidAmount >= e.amount ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid'),
-          };
-        }
-        return e;
-      }));
-      const supplierName = targetExp?.partyName || old.partyName;
-      if (supplierName && supplierName.trim()) {
-        setSuppliers(prev => prev.map(s => {
-          if (s.projectId === (targetExp?.projectId || old.projectId) && s.name.trim().toLowerCase() === supplierName.trim().toLowerCase()) {
-            const currentPaid = Math.max(0, (s.totalPaid || 0) - old.amount);
-            const purchases = s.totalPurchases || 0;
-            return {
-              ...s,
-              totalPaid: currentPaid,
-              remainingBalance: Math.max(0, purchases - currentPaid),
-            };
-          }
-          return s;
-        }));
-      }
+    if (old.docStatus !== 'draft') {
+      applyPaymentDelta(old, -payUSD(old));
     }
     logAudit('delete', 'payment', id, `Payment: ${old?.partyName}`, `Deleted payment voucher #${old?.receiptNumber || id}`, `$${old?.amount}`, undefined, old?.projectId);
   };
 
   const updatePayment = (id: string, updates: Partial<Payment>) => {
     if (!guard('payments', 'edit')) return;
-    setPayments(prev => prev.map(p => (p.id === id ? { ...p, ...updates } : p)));
-    logAudit('update', 'payment', id, updates.partyName || 'Payment', 'Updated payment details', undefined, undefined, currentProjectId);
+    const old = payments.find(p => p.id === id);
+    if (!old) return;
+    if (isLockedDoc(old) && !can('payments', 'approve')) { denyAccess('payments', 'edit'); return; }
+    const currency = updates.currency || old.currency || 'USD';
+    const proj = projects.find(pr => pr.id === (updates.projectId || old.projectId));
+    const exRate = updates.exchangeRate || old.exchangeRate || proj?.defaultExchangeRate || 70;
+    const raw = updates.amount !== undefined ? Number(updates.amount) || 0 : old.amount;
+    const canon = canonicalMoney(raw, currency, exRate);
+    const next: Payment = {
+      ...old,
+      ...updates,
+      amount: raw,
+      currency,
+      exchangeRate: exRate,
+      amountInUSD: canon.usd,
+      amountInAFN: canon.afn,
+      amountUSD: canon.usd,
+      amountAFN: canon.afn,
+    };
+    setPayments(prev => prev.map(p => (p.id === id ? next : p)));
+    // Re-apply balance effects: unapply old, apply new (handles amount + retarget edits).
+    const wasCounted = old.docStatus !== 'draft';
+    const isCounted = next.docStatus !== 'draft';
+    const targetChanged = updates.relatedId !== undefined || updates.relatedType !== undefined || updates.projectId !== undefined;
+    if (wasCounted && (targetChanged || !isCounted)) {
+      applyPaymentDelta(old, -payUSD(old));
+    }
+    if (isCounted) {
+      if (wasCounted && !targetChanged) {
+        const delta = canon.usd - payUSD(old);
+        if (delta !== 0) applyPaymentDelta(next, delta);
+      } else {
+        applyPaymentDelta(next, canon.usd);
+      }
+    }
+    logAudit('update', 'payment', id, updates.partyName || old.partyName || 'Payment', `Updated payment: $${old.amount} -> $${raw} ${currency}`, `$${old.amount}`, `$${raw}`, next.projectId);
   };
 
   const debtorParties = useMemo(() => {
@@ -3673,8 +3774,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       grantedProjects,
       accessNotice,
       clearAccessNotice,
-      approveExpense,
-      rejectExpense,
+  approveExpense,
+  rejectExpense,
+      postExpense,
+      unpostExpense,
+      reverseExpense,
+      postPayment,
+      unpostPayment,
+      reversePayment,
       updateReportCustomization,
       uploadCustomReportTemplate,
       isSectionProtected,
