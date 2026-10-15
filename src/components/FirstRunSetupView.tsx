@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShieldCheck, User, AtSign, Mail, Building2, KeyRound, Rocket } from 'lucide-react';
+import { ShieldCheck, User, AtSign, Mail, Building2, KeyRound, Rocket, Lock } from 'lucide-react';
+
+const API_BASE_URL = (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_API_URL || '/api';
 
 /**
  * Wave 37 go-live: first-run setup. Shown only when the production database
@@ -17,8 +19,9 @@ export const FirstRunSetupView: React.FC = () => {
   const [repeat, setRepeat] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [installKey, setInstallKey] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (password !== repeat) {
@@ -26,6 +29,34 @@ export const FirstRunSetupView: React.FC = () => {
       return;
     }
     setBusy(true);
+    // Go-live gate: random visitors must NOT spin up their own system on this
+    // domain. The installer key is verified server-side (api/install.php).
+    // Local `npm run dev` has no PHP, so the gate is skipped there only.
+    if (!import.meta.env.DEV) {
+      const key = installKey.trim();
+      if (!key) {
+        setBusy(false);
+        setError(tp('Installer key is required. Ask the system owner.', 'کلید نصب الزامی است. از مالک سیستم بخواهید.', 'د نصب کیلي اړینه ده. له سیسټم خاوند څخه یې وغواړئ.'));
+        return;
+      }
+      try {
+        const r = await fetch(`${API_BASE_URL}/install.php?action=verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.success) {
+          setBusy(false);
+          setError(tp('Invalid installer key.', 'کلید نصب اشتباه است.', 'د نصب کیلي سمه نه ده.'));
+          return;
+        }
+      } catch {
+        setBusy(false);
+        setError(tp('Cannot reach the server. Check your connection and try again.', 'ارتباط با سرور برقرار نشد. اتصال را بررسی و دوباره تلاش کنید.', 'له سرور سره اړیکه ټینګه نه شوه. اړیکه وګورئ او بیا هڅه وکړئ.'));
+        return;
+      }
+    }
     const res = bootstrapMasterAdmin({ name, username, email, password, companyName });
     setBusy(false);
     if (!res.success) setError(res.error || 'Failed.');
@@ -68,6 +99,12 @@ export const FirstRunSetupView: React.FC = () => {
           {error && (
             <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold">
               {error}
+            </div>
+          )}
+          {!import.meta.env.DEV && (
+            <div className="relative">
+              <Lock className="w-4 h-4 text-slate-400 absolute start-3 top-1/2 -translate-y-1/2" />
+              <input required value={installKey} onChange={e => setInstallKey(e.target.value)} placeholder={tp('Installer key (from system owner)', 'کلید نصب (از مالک سیستم)', 'د نصب کیلي (له سیسټم خاوند څخه)') as string} autoComplete="off" className={`${inputCls} font-mono`} dir="ltr" />
             </div>
           )}
           <div className="relative">

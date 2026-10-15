@@ -64,6 +64,16 @@ function main() {
   // --- 6b. service worker must not hijack .php navigations ---
   check('sw-php-denylist', read('vite.config.ts').includes('/\\.php([?#]|$)/'));
 
+  // --- 5b. installer-key gate (no free Office7 for random visitors) ---
+  const installPhp = read('api/install.php');
+  const setupView = read('src/components/FirstRunSetupView.tsx');
+  check('install-endpoint', installPhp.includes("$_GET['action'] ?? ''") && installPhp.includes("action=verify") && installPhp.includes('hash_equals($expected, $attempt)'));
+  check('install-keyfile', installPhp.includes('/.secrets/install.key'));
+  check('install-no-listing', installPhp.includes('Invalid installer key.') && !installPhp.includes('echo $expected') && !installPhp.includes('print $expected'));
+  check('setup-key-field', setupView.includes('Installer key (from system owner)') && setupView.includes('install.php?action=verify'));
+  check('setup-dev-bypass', setupView.includes('!import.meta.env.DEV'));
+  check('key-not-in-git', !exists('api/.secrets/install.key') && read('.gitignore').includes('api/.secrets/*.key'));
+
   // --- 6. deploy guide ---
   check('guide-golive', read('SHAHHOST_DEPLOYMENT_GUIDE.md').includes('Go-Live') && read('SHAHHOST_DEPLOYMENT_GUIDE.md').includes('password_hash'));
 
