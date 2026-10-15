@@ -68,6 +68,11 @@ import { computeBudgetReport, findUpdatableBudgetLine } from '../utils/budgetUti
 import { isOffice7Theme } from '../utils/configSnapshots';
 import { humanizeKey, labelPaymentMethod, labelExpenseCategory, labelUnit, DOC_CATEGORY_TKEY, normalizeLang, type StoredKind } from '../utils/displayLabels';
 import { sanitizeLayout, savePublishedLayout, clearDraftLayout } from '../utils/pageBuilder';
+import {
+  AI_GLOBAL_KEY, AI_LIMITS_KEY, DEFAULT_AI_GLOBAL, checkAiAccess, countUsage, loadUsageLog,
+  recordUsage, sanitizeGlobal, sanitizeUserLimits,
+  type AiAccessResult, type AiGlobalPolicy, type AiUserLimits,
+} from '../utils/aiGovernance';
 import type { PageLayout } from '../utils/pageBuilder';
 import { canDo, grantedProjectIds } from '../utils/permissions';
 import { validateEquityTransfer, applyEquityTransfer } from '../utils/partnerFinance';
@@ -79,6 +84,14 @@ interface AppContextType {
   setLanguage: (lang: Language) => void;
   tx: (kind: StoredKind, value: string | undefined) => string;
   getCompanyDefaultLang: (company?: string) => Language | null;
+  aiGlobal: AiGlobalPolicy;
+  setAiGlobal: (patch: Partial<AiGlobalPolicy>) => void;
+  getUserAiLimits: (userId: string) => AiUserLimits;
+  setUserAiLimits: (userId: string, limits: AiUserLimits | null) => void;
+  getUserAiUsage: (userId: string) => { today: number; month: number; total: number };
+  aiAccess: () => AiAccessResult;
+  recordAiUse: () => AiAccessResult;
+  aiUsageTick: number;
   setCompanyDefaultLang: (company: string | undefined, lang: Language) => void;
   t: ((key: string) => string) & typeof translations['en'];
   tp: (en: string, fa: string, ps: string) => string;
@@ -568,6 +581,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   // Wave 32: bumped on every builder publish so live pages re-resolve layouts.
   const [builderRev, setBuilderRev] = useState(0);
+  // Wave 34: AI governance — global policy + per-user overrides + usage tick.
+  const [aiGlobal, setAiGlobalState] = useState<AiGlobalPolicy>(() => {
+    try {
+      const raw = localStorage.getItem(AI_GLOBAL_KEY);
+      return sanitizeGlobal(raw ? JSON.parse(raw) : DEFAULT_AI_GLOBAL);
+    } catch {
+      return { ...DEFAULT_AI_GLOBAL };
+    }
+  });
+  const [aiLimitsMap, setAiLimitsMap] = useState<Record<string, AiUserLimits>>(() => {
+    try {
+      const raw = localStorage.getItem(AI_LIMITS_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      const out: Record<string, AiUserLimits> = {};
+      for (const [k, v] of Object.entries(parsed)) out[k.slice(0, 64)] = sanitizeUserLimits(v);
+      return out;
+    } catch {
+      return {};
+    }
+  });
+  const [aiUsageTick, setAiUsageTick] = useState(0);
   const [notificationPrefs, setNotificationPrefsState] = useState<NotificationPrefs>(() => {
     const loaded = loadFromStorage<Partial<NotificationPrefs>>('notificationPrefs', {});
     return {
@@ -3644,6 +3679,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearReadNotifications = () => {
     setNotifications(prev => prev.filter(n => !n.read && !n.dismissed));
   };
+  // Wave 34: AI governance setters — master-only (defense in depth; UI is Office7-only too).
+  const setAiGlobal = (patch: Partial<AiGlobalPolicy>): void => {
+    if (!currentUser?.isMasterSuperAdmin) { denyAccess('ai_governance', 'edit'); return; }
+    setAiGlobalState(prev => {
+      const next = sanitizeGlobal({ ...prev, ...patch });
+      try { localStorage.setItem(AI_GLOBAL_KEY, JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+    logAudit('update', 'settings', 'ai_global', 'AI global policy updated', JSON.stringify(patch).slice(0, 200));
+  };
+  const getUserAiLimits = (userId: string): AiUserLimits => aiLimitsMap[userId] || {};
+  const setUserAiLimits = (userId: string, limits: AiUserLimits | null): void => {
+    if (!currentUser?.isMasterSuperAdmin) { denyAccess('ai_governance', 'edit'); return; }
+    setAiLimitsMap(prev => {
+      const next = { ...prev };
+      if (!limits || (limits.dailyMax === undefined && limits.monthlyMax === undefined)) delete next[userId];
+      else next[userId] = sanitizeUserLimits(limits);
+      try { localStorage.setItem(AI_LIMITS_KEY, JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+    logAudit('update', 'user', userId, 'AI limits updated', limits ? JSON.stringify(limits) : 'reset to global');
+  };
+  const getUserAiUsage = (userId: string): { today: number; month: number; total: number } =>
+    countUsage(loadUsageLog(), userId);
+  const aiAccess = (): AiAccessResult =>
+    checkAiAccess(currentUser, aiGlobal, currentUser ? aiLimitsMap[currentUser.id] : undefined, loadUsageLog());
+  const recordAiUse = (): AiAccessResult => {
+    if (!currentUser) return aiAccess();
+    recordUsage(currentUser.id);
+    trackFeature('ai_assistant');
+    setAiUsageTick(t => t + 1);
+    return aiAccess();
+  };
+
   // Wave 32: publish a builder layout (sanitized) + clear its draft.
   const publishPageLayout = (pageKey: string, layout: PageLayout): void => {
     const clean = sanitizeLayout(layout);
@@ -3797,6 +3866,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       tx,
       getCompanyDefaultLang,
       setCompanyDefaultLang,
+      aiGlobal,
+      setAiGlobal,
+      getUserAiLimits,
+      setUserAiLimits,
+      getUserAiUsage,
+      aiAccess,
+      recordAiUse,
+      aiUsageTick,
       t,
       tp,
       currentUser,

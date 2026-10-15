@@ -93,6 +93,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     setSearchQuery,
     searchResults,
     appSettings,
+    aiAccess,
     toggleDarkMode,
     themeSchedule,
     cycleThemeSchedule,
@@ -493,8 +494,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* AI Assistant */}
-            {appSettings.aiEnabled !== false && onOpenAiAssistant && (
-              <div className="hidden lg:block">
+            {onOpenAiAssistant && aiAccess().allowed && (
+              <div className="block">
                 <button
                   type="button"
                   onClick={() => onOpenAiAssistant()}

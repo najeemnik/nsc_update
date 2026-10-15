@@ -8,6 +8,7 @@ import {
   OFFICE7_THEME_OPTIONS, isOffice7Theme, listSnapshots, saveSnapshot, deleteSnapshot,
   downloadSnapshot, parseSnapshotFile, remainingDays as licenseRemainingDays, type ConfigSnapshot,
 } from '../utils/configSnapshots';
+import { countUsageDayAll, loadUsageLog, sanitizeLimit } from '../utils/aiGovernance';
 
 /** Wave 30: sample contractor statement — computed (was hard-coded strings). */
 const SAMPLE_PAYOUT = contractorPayout(200000, 10, 2);
@@ -135,6 +136,12 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     changeOwnPassword,
     notificationPrefs,
     setNotificationPrefs,
+    aiGlobal,
+    setAiGlobal,
+    getUserAiLimits,
+    setUserAiLimits,
+    getUserAiUsage,
+    aiUsageTick,
     impersonateTenant,
     addUser,
     activityEvents,
@@ -251,6 +258,10 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
   const [editActive, setEditActive] = useState(true);
   const [editTheme, setEditTheme] = useState<AppTheme>('glassmorphism');
   const [editPlan, setEditPlan] = useState<NonNullable<User['subscriptionPlan']>>('trial');
+  // Wave 34: per-user AI quota overrides (empty = follow global; 0 = unlimited)
+  const [editAiDaily, setEditAiDaily] = useState('');
+  const [editAiMonthly, setEditAiMonthly] = useState('');
+  const [aiLimitsMsg, setAiLimitsMsg] = useState<string | null>(null);
   // Wave 31: config snapshots
   const [snapshots, setSnapshots] = useState<ConfigSnapshot[]>([]);
   const [snapshotNotice, setSnapshotNotice] = useState<string | null>(null);
@@ -358,6 +369,10 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     setEditPlan(user.subscriptionPlan || 'trial');
     setSnapshots(listSnapshots(user.id));
     setSnapshotNotice(null);
+    const ul = getUserAiLimits(user.id);
+    setEditAiDaily(ul.dailyMax !== undefined ? String(ul.dailyMax) : '');
+    setEditAiMonthly(ul.monthlyMax !== undefined ? String(ul.monthlyMax) : '');
+    setAiLimitsMsg(null);
     setEditLogoUrl(user.customLogoUrl || '');
 
     const bill = user.customBillDesign || {};
@@ -1275,6 +1290,75 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                     >
                       <span className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all ${editAiEnabled ? 'start-1' : 'end-1'}`} />
                     </button>
+                  </div>
+
+                  {/* Wave 34: per-user AI quotas + live usage (saves instantly) */}
+                  <div className="p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl space-y-3">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-600">
+                      <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200">
+                        {tp('Today:', 'امروز:', 'نن:')} {(() => { void aiUsageTick; return getUserAiUsage(selectedTenant.id).today; })()}
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200">
+                        {tp('Month:', 'ماه:', 'میاشت:')} {(() => { void aiUsageTick; return getUserAiUsage(selectedTenant.id).month; })()}
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200">
+                        {tp('Total:', 'کل:', 'ټول:')} {(() => { void aiUsageTick; return getUserAiUsage(selectedTenant.id).total; })()}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <label className="block text-slate-500 font-bold mb-1">{tp('Daily max (empty = global, 0 = ∞)', 'سقف روزانه (خالی = سراسری، ۰ = ∞)', 'ورځنی حد (تش = ټولیز، ۰ = ∞)')}</label>
+                        <input
+                          type="number" min={0} max={100000}
+                          value={editAiDaily}
+                          onChange={(e) => setEditAiDaily(e.target.value)}
+                          placeholder={String(aiGlobal.dailyMax)}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 font-bold mb-1">{tp('Monthly max (empty = global, 0 = ∞)', 'سقف ماهانه (خالی = سراسری، ۰ = ∞)', 'میاشتنی حد (تش = ټولیز، ۰ = ∞)')}</label>
+                        <input
+                          type="number" min={0} max={100000}
+                          value={editAiMonthly}
+                          onChange={(e) => setEditAiMonthly(e.target.value)}
+                          placeholder={String(aiGlobal.monthlyMax)}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 font-mono"
+                        />
+                      </div>
+                    </div>
+                    {aiLimitsMsg && (
+                      <p className="text-[11px] font-bold text-emerald-600">{aiLimitsMsg}</p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserAiLimits(selectedTenant.id, {
+                            ...(editAiDaily.trim() === '' ? {} : { dailyMax: sanitizeLimit(Number(editAiDaily)) }),
+                            ...(editAiMonthly.trim() === '' ? {} : { monthlyMax: sanitizeLimit(Number(editAiMonthly)) }),
+                          });
+                          setAiLimitsMsg(tp('Saved.', 'ذخیره شد.', 'خوندي شوه.'));
+                          setTimeout(() => setAiLimitsMsg(null), 2500);
+                        }}
+                        className="flex-1 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-black transition-colors"
+                      >
+                        {tp('Save quotas', 'ذخیرهٔ سهمیه', 'سهمیه خوندي کړه')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserAiLimits(selectedTenant.id, null);
+                          setEditAiDaily('');
+                          setEditAiMonthly('');
+                          setAiLimitsMsg(tp('Reset to global.', 'به سراسری برگشت.', 'ټولیز ته ستون شوه.'));
+                          setTimeout(() => setAiLimitsMsg(null), 2500);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black transition-colors border border-slate-300"
+                      >
+                        {tp('Reset', 'ریست', 'ریسټ')}
+                      </button>
+                    </div>
                   </div>
                   {(selectedTenant.role === 'admin' && !selectedTenant.ownerAdminId) ? (
                     <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
@@ -2521,12 +2605,13 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
             {officeTab === 'dashboard' && (
               <div className="space-y-5 animate-in fade-in">
                 {/* Stat cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   {([
                     { label: 'مالک‌های کمپنی', value: ownerList.length, icon: Crown, grad: 'from-indigo-500 to-violet-500', chip: 'shadow-indigo-500/30' },
                     { label: 'کل کارمندان', value: staffList.length, icon: Users, grad: 'from-cyan-500 to-sky-500', chip: 'shadow-cyan-500/30' },
                     { label: 'اشتراک فعال', value: tenantUsers.filter(u => !u.isLockedBySuperAdmin && (!u.subscriptionExpiresAt || new Date(u.subscriptionExpiresAt).getTime() >= Date.now())).length, icon: CheckCircle2, grad: 'from-emerald-500 to-teal-500', chip: 'shadow-emerald-500/30' },
                     { label: 'رویداد امروز', value: eventsToday.length, icon: Activity, grad: 'from-amber-500 to-orange-500', chip: 'shadow-amber-500/30' },
+                    { label: 'سؤال AI امروز', value: (() => { void aiUsageTick; return countUsageDayAll(loadUsageLog()); })(), icon: Sparkles, grad: 'from-violet-500 to-purple-500', chip: 'shadow-violet-500/30' },
                   ]).map((card, i) => {
                     const CardIcon = card.icon;
                     return (
@@ -2903,6 +2988,59 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                       <input type="number" min={1} max={90} value={notificationPrefs.inactivityDays} onChange={(e) => setNotificationPrefs({ inactivityDays: Math.max(1, Math.min(90, Number(e.target.value) || 14)) })} className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono" />
                     </div>
                   </div>
+                </div>
+                {/* Wave 34: AI governance — global kill-switch, visibility, default quotas */}
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-violet-600" />
+                    <h4 className="text-sm font-black text-slate-800">{tp('AI governance (global)', 'حاکمیت هوش مصنوعی (سراسری)', 'د مصنوعي ځیرکتیا حکومتولي (ټولیز)')}</h4>
+                  </div>
+                  <label className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                    <span className="text-xs font-black text-slate-800">{tp('AI enabled for the whole system', 'هوش مصنوعی برای کل سیستم فعال', 'مصنوعي ځیرکتیا د ټول سیسټم لپاره فعاله')}</span>
+                    <input
+                      type="checkbox"
+                      checked={aiGlobal.enabled}
+                      onChange={(e) => setAiGlobal({ enabled: e.target.checked })}
+                      className="w-5 h-5 accent-violet-600"
+                    />
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <label className="block text-slate-500 font-bold mb-1">{tp('Who sees AI', 'چه کسی AI را ببیند', 'څوک مصنوعي ځیرکتیا وویني')}</label>
+                      <select
+                        value={aiGlobal.visibility}
+                        onChange={(e) => setAiGlobal({ visibility: e.target.value as 'everyone' | 'owners_only' | 'master_only' })}
+                        className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold"
+                      >
+                        <option value="everyone">{tp('Everyone', 'همه', 'ټول')}</option>
+                        <option value="owners_only">{tp('Owners only', 'فقط مالک‌ها', 'یوازې خاوندان')}</option>
+                        <option value="master_only">{tp('Master only', 'فقط مالک ارشد', 'یوازې مشر خاوند')}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-500 font-bold mb-1">{tp('Default daily max (0 = ∞)', 'سقف روزانه پیش‌فرض (۰ = ∞)', 'ډیفالټ ورځنی حد (۰ = ∞)')}</label>
+                      <input
+                        type="number" min={0} max={100000}
+                        value={aiGlobal.dailyMax}
+                        onChange={(e) => setAiGlobal({ dailyMax: sanitizeLimit(Number(e.target.value)) })}
+                        className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-500 font-bold mb-1">{tp('Default monthly max (0 = ∞)', 'سقف ماهانه پیش‌فرض (۰ = ∞)', 'ډیفالټ میاشتنی حد (۰ = ∞)')}</label>
+                      <input
+                        type="number" min={0} max={100000}
+                        value={aiGlobal.monthlyMax}
+                        onChange={(e) => setAiGlobal({ monthlyMax: sanitizeLimit(Number(e.target.value)) })}
+                        className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    {tp('Per-user on/off and quota overrides live in Owners → inspector → Access tab. All changes apply instantly, no code touched.',
+                      'روشن/خاموش هر کاربر و سهمیهٔ اختصاصی در مالک‌ها ← بازرس ← برگهٔ دسترسی است. همهٔ تغییرات فوری اعمال می‌شوند، بدون دست‌کاری کود.',
+                      'د هر کارونکي بل/بند او ځانګړې سهمیه په خاوندانو ← څارونکي ← د لاسرسي پاڼه کې ده. ټول بدلونونه سمدستي پلې کېږي، پرته له کوډ ټېنګولو.')}
+                  </p>
                 </div>
               </div>
             )}
