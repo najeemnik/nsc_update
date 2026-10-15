@@ -18,9 +18,11 @@ import {
   ShieldCheck, 
   HardDrive,
   Globe,
-  LogOut
+  LogOut,
+  FileText
 } from 'lucide-react';
-import { AppTheme } from '../../types';
+import { AppTheme, CustomBillDesign } from '../../types';
+import { DocDesignEditor } from '../docs/DocDesignEditor';
 import { backendApi } from '../../services/backendApi';
 
 const THEME_OPTIONS: { id: AppTheme; labelKey: string; swatch: string }[] = [
@@ -68,6 +70,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
   const [backupStatus, setBackupStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [loggingOutAll, setLoggingOutAll] = useState(false);
   const [dangerStatus, setDangerStatus] = useState<string | null>(null);
+  const [docDesign, setDocDesign] = useState<CustomBillDesign>(appSettings.billDesign || {});
+  const [docLogoUrl, setDocLogoUrl] = useState(appSettings.logoUrl || '');
+  const [designSaved, setDesignSaved] = useState(false);
+
+  const handleSaveDesign = () => {
+    updateAppSettings({ billDesign: docDesign, logoUrl: docLogoUrl || undefined });
+    setDesignSaved(true);
+    setTimeout(() => setDesignSaved(false), 3000);
+  };
 
   const handleClearTestData = () => {
     const ok = confirm(tp(
@@ -378,6 +389,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
           </button>
         </div>
       </form>
+
+      {/* Wave 27: Documents & Print Design (self-service) */}
+      <div className="p-6 rounded-3xl bg-surface border border-line shadow-sm space-y-4">
+        <h3 className="font-bold text-base text-ink flex items-center gap-2">
+          <FileText className="w-5 h-5 text-indigo-600" />
+          <span>{tp('Documents & print design', 'طراحی بل‌ها و اسناد چاپی', 'د بلونو او چاپي سندونو طرحه')}</span>
+        </h3>
+        <p className="text-xs text-ink-muted">
+          {tp('Logo, texts, colors, font, paper, margins, section order and custom templates — applied to every voucher, bill, receipt and contract you print.',
+            'لوگو، متن‌ها، رنگ، فونت، کاغذ، حاشیه، ترتیب بخش‌ها و تمپلت دلخواه — روی همه واچرها، بل‌ها، رسیدها و قراردادهای چاپی شما اعمال می‌شود.',
+            'لوګو، متنونه، رنګ، فونټ، کاغذ، حاشیه، د برخو ترتیب او خپل تمپلېټ — په هر واؤچر، بل، رسید او قرارداد چې چاپوئ پلي کېږي.')}
+        </p>
+        <DocDesignEditor
+          design={docDesign}
+          onChange={setDocDesign}
+          logoUrl={docLogoUrl}
+          onLogoChange={setDocLogoUrl}
+          companyName={companyName}
+        />
+        <div className="flex justify-end items-center gap-3 pt-2 border-t border-line">
+          {designSaved && (
+            <span className="text-[11px] font-bold text-emerald-600">{tp('Design saved.', 'طرح ذخیره شد.', 'طرحه وساتل شوه.')}</span>
+          )}
+          <button
+            type="button"
+            onClick={handleSaveDesign}
+            className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition"
+          >
+            <Save className="w-4 h-4" />
+            <span>{tp('Save design', 'ذخیره طرح', 'طرحه ساتل')}</span>
+          </button>
+        </div>
+      </div>
 
       {/* Cloud & Backup Section */}
       <div className="p-6 rounded-3xl bg-surface border border-line shadow-sm space-y-4">

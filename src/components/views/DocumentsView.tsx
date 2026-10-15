@@ -13,9 +13,12 @@ import {
   File, 
   Image, 
   Eye, 
-  ExternalLink 
+  ExternalLink,
+  Pencil,
+  Printer
 } from 'lucide-react';
 import { DocumentRecord } from '../../types';
+import { DocComposerModal, ComposedDocPaper } from '../docs/DocComposerModal';
 
 interface DocumentsViewProps {
   onOpenAddDocument: () => void;
@@ -44,6 +47,9 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncNotice, setSyncNotice] = useState<{ ok: boolean; message: string } | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<DocumentRecord | null>(null);
+  const [printDoc, setPrintDoc] = useState<DocumentRecord | null>(null);
 
   const projectDocs = documents.filter(d => d.projectId === currentProject?.id);
 
@@ -51,7 +57,8 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     const matchesSearch = 
       (d.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (d.category || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (d.notes || '').toLowerCase().includes(searchTerm.toLowerCase());
+      (d.notes || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (d.content || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesCat = categoryFilter === 'all' || d.category === categoryFilter;
     return matchesSearch && matchesCat;
@@ -117,6 +124,18 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           </button>
 
           <button
+            onClick={() => {
+              if (!can('documents', 'create')) { denyAccess('documents', 'create'); return; }
+              setEditingDoc(null);
+              setComposerOpen(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-indigo-500/25 transition active:scale-95"
+          >
+            <Pencil className="w-4 h-4" />
+            <span>{tp('New document', 'سند جدید', 'نوی سند')}</span>
+          </button>
+
+          <button
             onClick={onOpenAddDocument}
             className="flex items-center gap-2 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-cyan-500/25 transition active:scale-95"
           >
@@ -166,7 +185,14 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-ink line-clamp-1">{doc.title}</h3>
-                    <p className="text-[11px] text-cyan-600 dark:text-cyan-400 font-semibold">{doc.category}</p>
+                    <p className="text-[11px] text-cyan-600 dark:text-cyan-400 font-semibold">
+                      {doc.category}
+                      {doc.sourceType === 'composed' && (
+                        <span className="ms-1.5 px-1.5 py-0.5 bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 rounded-md text-[9px] font-black">
+                          {tp('Composed', 'طراحی‌شده', 'جوړ شوی')}
+                        </span>
+                      )}
+                    </p>
                   </div>
                 </div>
 
@@ -193,7 +219,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             {/* Actions */}
             <div className="pt-4 border-t border-line flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
-                {doc.fileUrl && (
+                {doc.fileUrl && !doc.fileUrl.startsWith('#') && (
                   <a
                     href={doc.fileUrl}
                     target="_blank"
@@ -203,6 +229,31 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   >
                     <Eye className="w-4 h-4" />
                   </a>
+                )}
+                {doc.sourceType === 'composed' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        if (!can('documents', 'edit')) { denyAccess('documents', 'edit'); return; }
+                        setEditingDoc(doc);
+                        setComposerOpen(true);
+                      }}
+                      className="p-2 text-slate-600 dark:text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-800 rounded-xl transition"
+                      title={tp('Edit', 'ویرایش', 'سمول')}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!can('documents', 'print')) { denyAccess('documents', 'print'); return; }
+                        setPrintDoc(doc);
+                      }}
+                      className="p-2 text-slate-600 dark:text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-xl transition"
+                      title={tp('Print', 'چاپ', 'چاپ')}
+                    >
+                      <Printer className="w-4 h-4" />
+                    </button>
+                  </>
                 )}
                 {doc.googleDriveFileId && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 text-[10px] font-bold rounded-lg">
@@ -230,6 +281,18 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           </div>
         )}
       </div>
+
+      <DocComposerModal
+        isOpen={composerOpen}
+        onClose={() => {
+          setComposerOpen(false);
+          setEditingDoc(null);
+        }}
+        editing={editingDoc}
+      />
+      {printDoc && (
+        <ComposedDocPaper doc={printDoc} onClose={() => setPrintDoc(null)} />
+      )}
     </div>
   );
 };

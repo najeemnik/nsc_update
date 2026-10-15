@@ -3,6 +3,13 @@ import { useApp } from '../context/AppContext';
 import { backendApi } from '../services/backendApi';
 import { User, UserActivityEvent, CustomActionButton, CustomBillDesign, DEFAULT_ACTION_BUTTONS, ProjectGrant } from '../types';
 import { AccessMatrix } from './AccessMatrix';
+import { DocQr } from './docs/DocQr';
+import {
+  FONT_OPTIONS, SECTION_LABELS, DEFAULT_SECTION_ORDER, TEMPLATE_MAX_BYTES,
+  parseTemplateJson, exportTemplate, qrPayload, fontStackOf, paperOptionOf,
+} from '../utils/docDesign';
+import { sniffImageMime } from '../utils/scanEngine';
+import type { DocSectionId } from '../types';
 import { 
   ShieldCheck, 
   Lock, 
@@ -60,12 +67,13 @@ import {
   BookOpen,
   Scale,
   Landmark,
-  QrCode,
   MoveUp,
   MoveDown,
   Stamp,
   Printer,
-  Palette
+  Palette,
+  Download,
+  Type
 } from 'lucide-react';
 
 interface MasterAdminModalProps {
@@ -392,17 +400,83 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     setSaveSuccessNotice(null);
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [templateErr, setTemplateErr] = useState('');
+  const [logoErr, setLogoErr] = useState('');
+  const templateRef = useRef<HTMLInputElement>(null);
+
+  // Wave 27: validated logo upload (magic bytes + 1MB cap + downscale to 256px).
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setEditLogoUrl(event.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+    e.target.value = '';
+    setLogoErr('');
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      setLogoErr('حجم لوگو باید کمتر از ۱ مگابایت باشد.');
+      return;
     }
+    const buf = new Uint8Array(await file.arrayBuffer());
+    if (!sniffImageMime(buf)) {
+      setLogoErr('فقط عکس معتبر (JPG/PNG/WebP/GIF) پذیرفته می‌شود.');
+      return;
+    }
+    try {
+      const bmp = await createImageBitmap(new Blob([buf as unknown as BlobPart]));
+      const s = Math.min(1, 256 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(bmp.width * s));
+      c.height = Math.max(1, Math.round(bmp.height * s));
+      c.getContext('2d')?.drawImage(bmp, 0, 0, c.width, c.height);
+      bmp.close();
+      let url = c.toDataURL('image/png');
+      if (url.length > 400000) url = c.toDataURL('image/jpeg', 0.85);
+      setEditLogoUrl(url);
+    } catch {
+      setLogoErr('خواندن فایل لوگو ناموفق بود.');
+    }
+  };
+
+  const handleTemplateFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    setTemplateErr('');
+    if (!file) return;
+    if (file.size > TEMPLATE_MAX_BYTES) {
+      setTemplateErr('حجم فایل تمپلت بیش از ۱۰۰ کیلوبایت است.');
+      return;
+    }
+    const res = parseTemplateJson(await file.text());
+    if (!res.ok || !res.design) {
+      setTemplateErr('فایل معتبر نیست — تمپلت باید JSON طرح سند باشد.');
+      return;
+    }
+    if (!confirm('طرح فعلی این مالک با تمپلت آپلودشده جایگزین شود؟')) return;
+    setEditBillDesign(res.design);
+  };
+
+  const handleTemplateDownload = () => {
+    const blob = new Blob([exportTemplate(editBillDesign, editCompanyName)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `doc-template-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+  };
+
+  const moveSection = (id: DocSectionId, dir: -1 | 1) => {
+    setEditBillDesign(p => {
+      const cur = p.sectionOrder && p.sectionOrder.length > 0 ? [...p.sectionOrder] : [...DEFAULT_SECTION_ORDER];
+      const i = cur.indexOf(id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= cur.length) return p;
+      [cur[i], cur[j]] = [cur[j], cur[i]];
+      return { ...p, sectionOrder: cur };
+    });
   };
 
   const handleSaveTenantChanges = (e?: React.FormEvent) => {
@@ -1627,6 +1701,145 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                       </div>
                     </div>
 
+                    {/* Wave 27: Advanced — logo / font / margins / sections / template */}
+                    <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                      <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <Palette className="w-4 h-4 text-indigo-500" />
+                        <span>تنظیمات پیشرفته چاپ (فونت، حاشیه، لوگو، ترتیب بخش‌ها، تمپلت)</span>
+                      </h4>
+
+                      {/* Logo upload */}
+                      <div>
+                        <label className="block text-slate-500 font-bold mb-1 text-xs">لوگوی شرکت (آپلود عکس):</label>
+                        <div className="flex items-center gap-2">
+                          {editLogoUrl ? (
+                            <img src={editLogoUrl} alt="logo" className="w-12 h-12 rounded-xl object-contain bg-slate-100 dark:bg-slate-800 border border-line p-1" />
+                          ) : (
+                            <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 border border-line flex items-center justify-center text-[10px] font-black text-slate-400">NSC</div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => logoInputRef.current?.click()}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition"
+                          >
+                            <Upload className="w-3.5 h-3.5" /> آپلود لوگو
+                          </button>
+                          {editLogoUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setEditLogoUrl('')}
+                              className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold transition"
+                            >
+                              حذف
+                            </button>
+                          )}
+                          <input ref={logoInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleLogoUpload} />
+                        </div>
+                        {logoErr && <p className="text-[11px] text-rose-500 font-bold mt-1">{logoErr}</p>}
+                        <div className="mt-2">
+                          <div className="flex justify-between text-[11px] font-bold text-slate-500 mb-1">
+                            <span>اندازه لوگو در چاپ:</span>
+                            <span className="font-mono">{editBillDesign.logoSize || 56}px</span>
+                          </div>
+                          <input
+                            type="range" min={28} max={96} step={2}
+                            value={editBillDesign.logoSize || 56}
+                            onChange={e => setEditBillDesign(p => ({ ...p, logoSize: Number(e.target.value) }))}
+                            className="w-full h-2 accent-indigo-600 cursor-pointer"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Font + scale + margins */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <label className="block text-slate-500 font-bold mb-1">فونت اسناد چاپی:</label>
+                          <select
+                            value={editBillDesign.fontFamily || 'system'}
+                            onChange={e => setEditBillDesign(p => ({ ...p, fontFamily: e.target.value }))}
+                            className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-bold"
+                          >
+                            {FONT_OPTIONS.map(f => (
+                              <option key={f.id} value={f.id}>{f.labelFa}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <div className="flex justify-between text-slate-500 font-bold mb-1">
+                            <span>حاشیه صفحه (میلی‌متر):</span>
+                            <span className="font-mono">{editBillDesign.marginMm ?? 12}mm</span>
+                          </div>
+                          <input
+                            type="range" min={4} max={25} step={1}
+                            value={editBillDesign.marginMm ?? 12}
+                            onChange={e => setEditBillDesign(p => ({ ...p, marginMm: Number(e.target.value) }))}
+                            className="w-full h-2 accent-indigo-600 cursor-pointer mt-2"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-[11px] font-bold text-slate-500 mb-1">
+                          <span className="flex items-center gap-1"><Type className="w-3.5 h-3.5" /> مقیاس فونت:</span>
+                          <span className="font-mono">{Math.round((editBillDesign.fontScale ?? 1) * 100)}%</span>
+                        </div>
+                        <input
+                          type="range" min={0.85} max={1.3} step={0.05}
+                          value={editBillDesign.fontScale ?? 1}
+                          onChange={e => setEditBillDesign(p => ({ ...p, fontScale: Number(e.target.value) }))}
+                          className="w-full h-2 accent-indigo-600 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Section order */}
+                      <div>
+                        <label className="block text-slate-500 font-bold mb-1 text-xs">ترتیب بخش‌های پایین سند:</label>
+                        <div className="space-y-1">
+                          {(editBillDesign.sectionOrder && editBillDesign.sectionOrder.length > 0 ? editBillDesign.sectionOrder : DEFAULT_SECTION_ORDER).map(id => (
+                            <div key={id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">
+                              <span className="flex-1">{SECTION_LABELS[id as DocSectionId]?.fa || id}</span>
+                              <button type="button" onClick={() => moveSection(id as DocSectionId, -1)} className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition" aria-label="move up">
+                                <MoveUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button type="button" onClick={() => moveSection(id as DocSectionId, 1)} className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition" aria-label="move down">
+                                <MoveDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Template upload / download / reset */}
+                      <div>
+                        <label className="block text-slate-500 font-bold mb-1 text-xs">تمپلت دلخواه (فایل JSON طرح):</label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => templateRef.current?.click()}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition"
+                          >
+                            <Upload className="w-3.5 h-3.5" /> آپلود تمپلت
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleTemplateDownload}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold transition"
+                          >
+                            <Download className="w-3.5 h-3.5" /> دانلود طرح فعلی
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { if (confirm('طرح این مالک به پیش‌فرض سیستم برگردد؟')) setEditBillDesign({}); }}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold transition"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" /> پیش‌فرض
+                          </button>
+                          <input ref={templateRef} type="file" accept=".json,application/json" className="hidden" onChange={handleTemplateFile} />
+                        </div>
+                        {templateErr && <p className="text-[11px] text-rose-500 font-bold mt-1">{templateErr}</p>}
+                        <p className="text-[10px] text-slate-400 mt-1">تمپلت فقط تنظیمات ظاهری است (رنگ، فونت، حاشیه، متن‌ها) — فایل اجرایی پذیرفته نمی‌شود.</p>
+                      </div>
+                    </div>
+
                     {/* Live Preview Column (7 cols) */}
                     <div className="lg:col-span-7">
                       <div className="sticky top-20 bg-slate-200 dark:bg-slate-950 p-4 sm:p-6 rounded-3xl border border-slate-300 dark:border-slate-800 shadow-xl overflow-x-auto">
@@ -1643,6 +1856,8 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                             borderColor: editBillDesign.primaryColor || '#0f172a',
                             borderWidth: editBillDesign.borderStyle === 'double' ? '3px' : '1px',
                             borderStyle: editBillDesign.borderStyle || 'solid',
+                            fontFamily: fontStackOf(editBillDesign.fontFamily),
+                            maxWidth: paperOptionOf(editBillDesign.paperSize).maxWidthPx,
                           }}
                         >
                           {/* Security Watermark Background */}
@@ -1662,7 +1877,8 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                                 <img
                                   src={editLogoUrl}
                                   alt="Company Logo"
-                                  className="w-12 h-12 rounded-xl object-cover bg-white p-1"
+                                  style={{ height: editBillDesign.logoSize || 48, width: 'auto', maxWidth: 120 }}
+                                  className="rounded-xl object-contain bg-white p-1"
                                 />
                               ) : (
                                 <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center font-black text-lg">
@@ -1824,8 +2040,11 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                               {/* QR Code */}
                               {editBillDesign.showQrCode !== false && (
                                 <div className="p-1.5 bg-white border border-slate-300 rounded-xl shadow-xs text-center">
-                                  <QrCode className="w-10 h-10 text-slate-800 mx-auto" />
-                                  <span className="text-[8px] font-mono block text-slate-500 mt-0.5">اصالت سند</span>
+                                  <DocQr
+                                    payload={qrPayload({ company: editCompanyName || 'NSC', docNo: `${billPreviewType.toUpperCase()}-2026-0891`, date: new Date().toISOString().split('T')[0], usd: 1250, afn: 87500 })}
+                                    size={64}
+                                    caption="اصالت سند"
+                                  />
                                 </div>
                               )}
                             </div>

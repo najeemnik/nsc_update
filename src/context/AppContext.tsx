@@ -261,6 +261,7 @@ interface AppContextType {
   }>;
   documents: DocumentRecord[];
   addDocument: (doc: Omit<DocumentRecord, 'id' | 'createdAt'>) => void;
+  updateDocument: (id: string, updates: Partial<DocumentRecord>) => void;
   deleteDocument: (id: string) => void;
   auditLogs: AuditLog[];
   logAudit: (
@@ -2955,6 +2956,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAudit('create', 'expense', newDoc.id, `Document: ${newDoc.title}`, `Category: ${newDoc.category} - File: ${newDoc.fileName}`, undefined, undefined, newDoc.projectId);
   };
 
+  const updateDocument = (id: string, updates: Partial<DocumentRecord>) => {
+    if (!guard('documents', 'edit')) return;
+    const old = documents.find(d => d.id === id);
+    if (!old) return;
+    setDocuments(prev => prev.map(d => (d.id === id ? { ...d, ...updates } : d)));
+    logAudit('update', 'expense', id, `Document updated: ${old.title}`, `Fields: ${Object.keys(updates).join(', ')}`, undefined, undefined, old.projectId);
+  };
+
   const deleteDocument = (id: string) => {
     if (!guard('documents', 'del')) return;
     const old = documents.find(d => d.id === id);
@@ -3731,6 +3740,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       debtorParties,
       documents,
       addDocument,
+      updateDocument,
       deleteDocument,
       auditLogs,
       logAudit,

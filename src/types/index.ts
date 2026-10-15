@@ -164,6 +164,15 @@ export const DEFAULT_ACTION_BUTTONS: CustomActionButton[] = [
   { id: 'addAsset', label: 'ثبت ماشین‌آلات', labelFa: 'ثبت ماشین‌آلات', labelEn: 'Record Machinery', labelPs: 'ماشینونه ثبتول', actionKey: 'addAsset', enabled: true, isEnabled: true, color: 'amber', shape: 'rounded-xl', order: 12 },
 ];
 
+export type DocSectionId =
+  | 'bank'
+  | 'notes'
+  | 'terms'
+  | 'signatures'
+  | 'stamp'
+  | 'qr'
+  | 'footer';
+
 export interface CustomBillDesign {
   receiptTitle?: string;
   receiptHeader?: string;
@@ -194,6 +203,16 @@ export interface CustomBillDesign {
   showRetentionBox?: boolean;
   paperSize?: 'A4' | 'A5' | 'thermal';
   customNotesHtml?: string;
+  /** Wave 27: printable font stack key (see docDesign FONT_OPTIONS). */
+  fontFamily?: string;
+  /** Wave 27: base font scale 0.85..1.3 (default 1). */
+  fontScale?: number;
+  /** Wave 27: page margin in mm, 4..25 (default 12). */
+  marginMm?: number;
+  /** Wave 27: logo height in px, 28..96 (default 56). */
+  logoSize?: number;
+  /** Wave 27: order of optional sections below totals. */
+  sectionOrder?: DocSectionId[];
 }
 
 export interface User {
@@ -979,6 +998,10 @@ export interface DocumentRecord {
   googleDriveFileId?: string;
   googleDriveLink?: string;
   notes?: string;
+  /** Wave 28: composed (editor-made) document body, plain text with {{variables}}. */
+  content?: string;
+  /** Wave 28: 'file' = uploaded file (default), 'composed' = built in DocComposer. */
+  sourceType?: 'file' | 'composed';
   createdAt: string;
 }
 
