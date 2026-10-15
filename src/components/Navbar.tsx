@@ -562,18 +562,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* Language Selector */}
-            <div ref={langRef} className="relative hidden lg:block">
+            <div ref={langRef} className="relative block">
               <button
                 type="button"
                 onClick={() => setLangDropdownOpen(!langDropdownOpen)}
                 title={tp('Language', 'زبان', 'ژبه')}
-                className="flex items-center gap-1 h-9 px-3 rounded-full text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-700/70 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors shrink-0"
+                className="flex items-center justify-center gap-1 h-9 w-9 sm:w-auto sm:px-3 rounded-full text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-700/70 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors shrink-0"
               >
                 <Globe className="w-3.5 h-3.5 text-slate-500" />
-                <span>
+                <span className="hidden sm:inline">
                   {language === 'en' ? 'EN' : language === 'fa' ? 'دری' : 'پښتو'}
                 </span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
+                <ChevronDown className="hidden sm:block w-3 h-3 text-slate-400" />
               </button>
               {langDropdownOpen && (
                 <div className="absolute top-full mt-1.5 end-0 w-36 bg-surface rounded-2xl shadow-2xl border border-line py-1 z-50 animate-in fade-in zoom-in-95">

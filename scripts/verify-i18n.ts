@@ -5,6 +5,7 @@
 import { translations } from '../src/i18n/translations';
 import {
   humanizeKey, labelPaymentMethod, labelExpenseCategory, labelUnit, DOC_CATEGORY_TKEY,
+  normalizeLang, isRtlLang,
 } from '../src/utils/displayLabels';
 import { COMMON_CATEGORIES, categoryLabel, findCategoryDef } from '../src/data/expenseCategories';
 import { exportLayoutHTML, type PageLayout } from '../src/utils/pageBuilder';
@@ -53,6 +54,12 @@ function main() {
     if (v.includes('آپارتمان') || v.includes('گزارشات')) { hitsPs.push(k); }
   }
   check('ps-no-iranian-markers', hitsPs.length === 0, hitsPs.slice(0, 5).join(','));
+
+  // --- language switching contract ---
+  check('normalize', normalizeLang('fa') === 'fa' && normalizeLang('ps') === 'ps' && normalizeLang('en') === 'en');
+  check('normalize-fallback', normalizeLang('xx') === 'en' && normalizeLang(undefined) === 'en'
+    && normalizeLang('') === 'en' && normalizeLang(null) === 'en' && normalizeLang(42) === 'en');
+  check('rtl-detect', isRtlLang('fa') === true && isRtlLang('ps') === true && isRtlLang('en') === false && isRtlLang('xx') === false);
 
   // --- humanize ---
   check('humanize-camel', humanizeKey('steelRaber') === 'Steel Raber');

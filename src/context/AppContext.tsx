@@ -66,7 +66,7 @@ import { getAccount, getAccountName, getFullChart, nextLeafCode, sanitizeCustomA
 import type { Account } from '../data/chartOfAccounts';
 import { computeBudgetReport, findUpdatableBudgetLine } from '../utils/budgetUtils';
 import { isOffice7Theme } from '../utils/configSnapshots';
-import { humanizeKey, labelPaymentMethod, labelExpenseCategory, labelUnit, DOC_CATEGORY_TKEY, type StoredKind } from '../utils/displayLabels';
+import { humanizeKey, labelPaymentMethod, labelExpenseCategory, labelUnit, DOC_CATEGORY_TKEY, normalizeLang, type StoredKind } from '../utils/displayLabels';
 import { sanitizeLayout, savePublishedLayout, clearDraftLayout } from '../utils/pageBuilder';
 import type { PageLayout } from '../utils/pageBuilder';
 import { canDo, grantedProjectIds } from '../utils/permissions';
@@ -395,8 +395,7 @@ function saveToStorage<T>(key: string, value: T): boolean {
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
-    const stored = loadFromStorage<Language>('lang', 'en');
-    return stored === 'fa' || stored === 'ps' ? stored : 'en';
+    return normalizeLang(loadFromStorage<Language>('lang', 'en'));
   });
   const [users, setUsers] = useState<User[]>(() => loadFromStorage('users', initialUsers));
   const [accessNotice, setAccessNotice] = useState<{ section: string; action: string; at: number } | null>(null);
@@ -987,12 +986,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Wave 33: document-level lang/dir (a11y + correct RTL/LTR everywhere).
   const applyDocumentLang = (lang: Language) => {
     try {
-      document.documentElement.lang = lang === 'ps' ? 'ps' : lang === 'fa' ? 'fa' : 'en';
-      document.documentElement.dir = lang === 'en' ? 'ltr' : 'rtl';
+      const clean = normalizeLang(lang);
+      document.documentElement.lang = clean === 'ps' ? 'ps' : clean === 'fa' ? 'fa' : 'en';
+      document.documentElement.dir = clean === 'en' ? 'ltr' : 'rtl';
+      document.title = clean === 'ps' ? 'نیک اسمارت کاونټ | NIK Smart Count'
+        : clean === 'fa' ? 'نیک اسمارت کانت | NIK Smart Count' : 'NIK Smart Count';
     } catch { /* non-DOM env */ }
   };
   const setLanguage = (lang: Language) => {
-    const clean: Language = lang === 'fa' || lang === 'ps' ? lang : 'en';
+    const clean = normalizeLang(lang);
     setLanguageState(clean);
     saveToStorage('lang', clean);
     try { localStorage.setItem('lang_manual', '1'); } catch { /* noop */ }
@@ -1046,7 +1048,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const setCompanyDefaultLang = (company: string | undefined, lang: Language): void => {
-    const clean: Language = lang === 'fa' || lang === 'ps' ? lang : 'en';
+    const clean = normalizeLang(lang);
     try { localStorage.setItem(companyLangKey(company), clean); } catch { /* noop */ }
     logAudit('update', 'settings', companyLangKey(company), `Company default language set to ${clean}`, `Company: ${company || 'default'}`);
   };

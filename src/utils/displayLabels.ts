@@ -12,6 +12,14 @@ import { AVAILABLE_UNITS } from './unitConversion';
 
 export type StoredKind = 'payment' | 'category' | 'doc' | 'unit';
 
+/** Normalize any input to a supported language (default English). */
+export const normalizeLang = (v: unknown): Language =>
+  v === 'fa' || v === 'ps' ? v : 'en';
+
+/** True for RTL languages (Dari + Pashto). */
+export const isRtlLang = (v: unknown): boolean =>
+  normalizeLang(v) !== 'en';
+
 /** camelCase / snake-case → readable words. Non-Latin text passes through untouched. */
 export const humanizeKey = (key: string | undefined): string => {
   const s = (key || '').trim();
