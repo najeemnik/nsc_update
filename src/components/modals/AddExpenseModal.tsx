@@ -5,6 +5,7 @@ import type { AttachmentRef } from '../../types';
 import { Receipt, X, Camera, Clock, Calendar, PlusCircle, Check, Banknote, AlertCircle, ArrowRightLeft, Package, UserCheck, Upload, Building2 } from 'lucide-react';
 import { CurrencyAmountInput } from '../CurrencyAmountInput';
 import { AVAILABLE_UNITS, calculateUnitConversion } from '../../utils/unitConversion';
+import { COMMON_CATEGORIES } from '../../data/expenseCategories';
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -12,21 +13,7 @@ interface AddExpenseModalProps {
   defaultCategory?: string;
 }
 
-const COMMON_CATEGORIES = [
-  { id: 'scaffolding', labelFa: 'اسکافولد و داربست (کرایه و بستن)', labelPs: 'پایپ او داربست', labelEn: 'Scaffolding (Rental & Fix)' },
-  { id: 'formwork', labelFa: 'قالب‌بندی و نجاری (تخته و چوب)', labelPs: 'قالب بندي او تختې', labelEn: 'Formwork & Carpentry' },
-  { id: 'wood_supplier', labelFa: 'فروشنده چوب، پلی‌وود و تخت', labelPs: 'د لرګیو پلورونکی', labelEn: 'Plywood & Wood Supplier' },
-  { id: 'tie_wire', labelFa: 'سیم نجاری و سیخ‌بندی (سیم سیاه)', labelPs: 'د سیخ تړلو سیم', labelEn: 'Tie Wire & Steel Fixer' },
-  { id: 'electrical', labelFa: 'برق‌کاری و تأسیسات برقی', labelPs: 'د برېښنا کارونه', labelEn: 'Electrical Works' },
-  { id: 'steel', labelFa: 'سیخ‌گول (فولاد)', labelPs: 'سیخ ګول', labelEn: 'Steel / Rebar' },
-  { id: 'concrete', labelFa: 'کانکریت و پمپ', labelPs: 'کانکریت او پمپ', labelEn: 'Concrete & Pump' },
-  { id: 'materials', labelFa: 'مصالح ساختمانی (سمنت، خشت، ریگ)', labelPs: 'ودانیز توکي (سمنټ، شګه)', labelEn: 'Building Materials' },
-  { id: 'transport', labelFa: 'کرایه موتر و ترانسپورت', labelPs: 'ترانسپورت او کرایه', labelEn: 'Transportation & Fares' },
-  { id: 'municipality', labelFa: 'تعرفه ناحیه و شاروالی', labelPs: 'د ناحیې فیس', labelEn: 'District / Municipality Fee' },
-  { id: 'worker_food', labelFa: 'نان و غذای کارگران', labelPs: 'د مزدورانو ډوډۍ', labelEn: 'Worker Meals & Food' },
-  { id: 'daily_labour', labelFa: 'مزد کارگران روزمزد', labelPs: 'د ورځې مزدور مزدوري', labelEn: 'Daily Labour Wages' },
-  { id: 'miscellaneous', labelFa: 'مصارف متفرقه و پیش‌بینی‌نشده', labelPs: 'متفرقه لګښتونه', labelEn: 'Miscellaneous Expenses' },
-];
+
 
 const QUICK_ITEM_SUGGESTIONS = [
   'سیخ‌گول (Steel Rebar)',
@@ -390,7 +377,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
               <div className="p-2 rounded-xl bg-amber-100/60 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between font-semibold">
                 <span className="flex items-center gap-1.5">
                   <ArrowRightLeft className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
-                  <span>تبدیل خودکار استاندارد:</span>
+                  <span>تبدیل اتومات استاندارد:</span>
                 </span>
                 <span className="font-mono font-bold text-amber-800 dark:text-amber-300 bg-surface px-2 py-0.5 rounded shadow-2xs">
                   {conversionResult.explanation}

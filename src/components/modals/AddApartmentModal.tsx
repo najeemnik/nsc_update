@@ -85,7 +85,7 @@ export const AddApartmentModal: React.FC<AddApartmentModalProps> = ({ isOpen, on
     setFormError(null);
 
     if (!unitNumber.trim()) {
-      setFormError('شماره واحد یا آپارتمان الزامی است.');
+      setFormError('شماره واحد یا اپارتمان الزامی است.');
       return;
     }
     if (isNaN(parsedArea) || parsedArea <= 0) {
@@ -214,7 +214,7 @@ export const AddApartmentModal: React.FC<AddApartmentModalProps> = ({ isOpen, on
               <Home className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-sm">{t.addApartment || 'ثبت آپارتمان / فروش'}</h3>
+              <h3 className="font-extrabold text-sm">{t.addApartment || 'ثبت اپارتمان / فروش'}</h3>
               <p className="text-[11px] text-slate-400">{currentProject.name}</p>
             </div>
           </div>
@@ -321,7 +321,7 @@ export const AddApartmentModal: React.FC<AddApartmentModalProps> = ({ isOpen, on
                   onChange={(e) => setUnitType(e.target.value as UnitType)}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-surface text-xs font-semibold text-ink"
                 >
-                  <option value="apartment">آپارتمان رهایشی</option>
+                  <option value="apartment">اپارتمان رهایشی</option>
                   <option value="penthouse">پنت‌هاوس (طبقه آخر)</option>
                   <option value="shop">دکان تجارتی</option>
                   <option value="office">دفتر کار</option>

@@ -8,7 +8,7 @@
  *
  *   خرید سیخ (نقد/قرض)      ->  Dr 5100 Steel  /  Cr 2200 Supplier Payables
  *   پرداخت به فروشنده        ->  Dr 2200        /  Cr 1110/1120/1130/1140
- *   فروش آپارتمان           ->  Dr 1200 Receivable / Cr 4100 Unit Sales
+ *   فروش اپارتمان           ->  Dr 1200 Receivable / Cr 4100 Unit Sales
  *   رسید اقساط              ->  Dr Cash/Bank    /  Cr 1200 (or 2300 advance)
  *   سرمایه‌گذاری شریک        ->  Dr Cash/Bank    /  Cr 3100 (initial) | 3200 (additional)
  *

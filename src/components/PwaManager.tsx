@@ -84,7 +84,7 @@ export function PwaManager() {
           r.failed > 0
             ? tp(
                 `Sent ${r.sent}, ${r.failed} failed — will retry automatically.`,
-                `${r.sent} ارسال شد، ${r.failed} ناموفق — به‌صورت خودکار تلاش مجدد می‌شود.`,
+                `${r.sent} ارسال شد، ${r.failed} ناموفق — به‌صورت اتومات تلاش مجدد می‌شود.`,
                 `${r.sent} واستول شول، ${r.failed} ناکام — په اتومات ډول به بیا هڅه وشي.`,
               )
             : tp(
@@ -108,7 +108,7 @@ export function PwaManager() {
           <span>
             {tp(
               'Offline — changes are saved on this device and will be sent automatically.',
-              'آفلاین — تغییرات در همین دستگاه ذخیره و به‌صورت خودکار ارسال می‌شود.',
+              'آفلاین — تغییرات در همین دستگاه ذخیره و به‌صورت اتومات ارسال می‌شود.',
               'آفلاین — بدلونونه په همدې وسیله کې خوندي کېږي او په اتومات ډول به واستول شي.',
             )}
             {pending > 0 && (

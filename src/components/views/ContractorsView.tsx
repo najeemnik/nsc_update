@@ -43,6 +43,7 @@ export const ContractorsView: React.FC<ContractorsViewProps> = ({
     printIfAllowed,
     can,
     denyAccess,
+    tx,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -325,7 +326,7 @@ export const ContractorsView: React.FC<ContractorsViewProps> = ({
                             return (
                               <tr key={exp.id} className="hover:bg-surface-2/30">
                                 <td className="p-2.5 font-mono text-slate-400">{exp.date}</td>
-                                <td className="p-2.5 font-semibold text-ink">{exp.description || exp.category}</td>
+                                <td className="p-2.5 font-semibold text-ink">{exp.description || tx('category', exp.category)}</td>
                                 <td className="p-2.5 font-mono">{exp.invoiceNumber || '-'}</td>
                                 <td className="p-2.5 text-left font-mono font-bold">{formatCurrency(gross, 'USD')}</td>
                                 <td className="p-2.5 text-left font-mono text-amber-600">-{formatCurrency(ret, 'USD')}</td>

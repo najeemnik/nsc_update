@@ -51,6 +51,7 @@ export const ReportsView: React.FC = () => {
     printIfAllowed,
     can,
     denyAccess,
+    tx,
   } = useApp();
 
   const [reportType, setReportType] = useState<'financial' | 'materials' | 'contractors' | 'sales' | 'monthly_pnl'>('financial');
@@ -302,7 +303,7 @@ export const ReportsView: React.FC = () => {
                 return (
                   <div key={category} className="space-y-1.5">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-slate-700 dark:text-slate-200">{category}</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-200">{tx('category', category)}</span>
                       <span className="font-mono font-bold text-ink">
                         {formatCurrency(amount, 'USD')} ({percent}%)
                       </span>

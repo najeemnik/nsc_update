@@ -229,7 +229,7 @@ function MainApp() {
       {authNotice === 'server-lockout' && (
         <div className="relative bg-amber-500 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between gap-3" role="alert">
           <span>
-            {tp('Server is temporarily rate-limited (too many login attempts). Local mode works fine — online sync will resume automatically.', 'سرور موقتاً محدود شده است (تلاش ورود زیاد). حالت محلی سالم کار می‌کند — همگام‌سازی آنلاین خودکار برمی‌گردد.', 'سرور په موقتي توګه محدود شوی دی (ډېرې ننوتنې). ځايي حالت سم کار کوي — آنلاین همغږي به په اوتومات ډول بېرته شي.')}
+            {tp('Server is temporarily rate-limited (too many login attempts). Local mode works fine — online sync will resume automatically.', 'سرور موقتاً محدود شده است (تلاش ورود زیاد). حالت محلی سالم کار می‌کند — همگام‌سازی آنلاین اتومات برمی‌گردد.', 'سرور په موقتي توګه محدود شوی دی (ډېرې ننوتنې). ځايي حالت سم کار کوي — آنلاین همغږي به په اوتومات ډول بېرته شي.')}
           </span>
           <button type="button" onClick={clearAuthNotice} className="shrink-0 underline hover:no-underline">
             {tp('Dismiss', 'بستن', 'بندول')}

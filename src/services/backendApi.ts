@@ -336,7 +336,7 @@ class BackendApiService {
     });
   }
 
-  // --- گزارشات مدیریتی و P&L (Reports) ---
+  // --- راپورها مدیریتی و P&L (Reports) ---
   public async getDashboardMetrics() {
     return this.request<any>('reports.php?type=dashboard');
   }

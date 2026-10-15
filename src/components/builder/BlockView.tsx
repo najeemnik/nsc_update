@@ -2,7 +2,7 @@ import React from 'react';
 import type { BuilderBlock, BuilderBlockStyle } from '../../utils/pageBuilder';
 
 const alignCls = (a?: BuilderBlockStyle['align']): string =>
-  a === 'center' ? 'text-center' : a === 'end' ? 'text-left' : 'text-right';
+  a === 'center' ? 'text-center' : a === 'end' ? 'text-end' : 'text-start';
 
 const blockBox = (b: BuilderBlock): React.CSSProperties => ({
   ...(b.style?.color ? { color: b.style.color } : {}),

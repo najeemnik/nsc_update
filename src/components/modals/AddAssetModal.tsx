@@ -168,7 +168,7 @@ export const AddAssetModal: React.FC<AddAssetModalProps> = ({
           {successNotice && (
             <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
-              <span>{tp('Asset registered successfully with auto depreciation schedule!', 'دارایی جدید با جدول استهلاک خودکار با موفقیت ثبت شد!', 'نوې شتمني د اوتومات استهلاک له جدول سره په بریالیتوب ثبت شوه!')}</span>
+              <span>{tp('Asset registered successfully with auto depreciation schedule!', 'دارایی جدید با جدول استهلاک اتومات با موفقیت ثبت شد!', 'نوې شتمني د اوتومات استهلاک له جدول سره په بریالیتوب ثبت شوه!')}</span>
             </div>
           )}
 

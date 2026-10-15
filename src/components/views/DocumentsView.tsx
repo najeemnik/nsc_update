@@ -41,6 +41,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   ,
     can,
     denyAccess,
+    tx,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -186,7 +187,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   <div>
                     <h3 className="font-bold text-sm text-ink line-clamp-1">{doc.title}</h3>
                     <p className="text-[11px] text-cyan-600 dark:text-cyan-400 font-semibold">
-                      {doc.category}
+                      {tx('doc', doc.category)}
                       {doc.sourceType === 'composed' && (
                         <span className="ms-1.5 px-1.5 py-0.5 bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 rounded-md text-[9px] font-black">
                           {tp('Composed', 'طراحی‌شده', 'جوړ شوی')}

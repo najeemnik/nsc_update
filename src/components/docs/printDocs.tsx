@@ -13,7 +13,7 @@ const Row: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value
 
 /* ---------------- Payment voucher ---------------- */
 export const PaymentVoucherDoc: React.FC<{ payment: Payment; onClose: () => void }> = ({ payment: p, onClose }) => {
-  const { tp, formatNumber } = useApp();
+  const { tp, tx, formatNumber } = useApp();
   const st = docStateOf(p);
   return (
     <DocPrintLayout
@@ -27,7 +27,7 @@ export const PaymentVoucherDoc: React.FC<{ payment: Payment; onClose: () => void
       onClose={onClose}
     >
       <Row label={tp('Paid To', 'پرداخت به', 'ورکړه ته')} value={<span className="text-sm font-black">{p.recipientName}</span>} />
-      <Row label={tp('Payment Method', 'روش پرداخت', 'د ورکړې لاره')} value={p.paymentMethod} />
+      <Row label={tp('Payment Method', 'روش پرداخت', 'د ورکړې لاره')} value={tx('payment', p.paymentMethod)} />
       {p.referenceNumber && <Row label={tp('Reference', 'مرجع', 'ماخذ')} value={<span className="font-mono">{p.referenceNumber}</span>} />}
       <Row label={tp('Original Amount', 'مبلغ اصلی', 'اصلي پیسې')} value={`${formatNumber(p.amount ?? 0, 0)} ${p.currency || 'USD'}`} />
       {p.relatedType === 'expense' && p.relatedId && <Row label={tp('For Expense', 'بابت مصرف', 'د لګښت لپاره')} value={<span className="font-mono">#EXP-{String(p.relatedId).slice(0, 8).toUpperCase()}</span>} />}
@@ -38,7 +38,7 @@ export const PaymentVoucherDoc: React.FC<{ payment: Payment; onClose: () => void
 
 /* ---------------- Expense bill (with qty/unit verification table) ---------------- */
 export const ExpenseBillDoc: React.FC<{ expense: Expense; onClose: () => void }> = ({ expense: e, onClose }) => {
-  const { tp, formatNumber } = useApp();
+  const { tp, tx, formatNumber } = useApp();
   const st = docStateOf(e);
   const qty = e.quantity ?? 1;
   const unitPrice = e.amount ?? 0;
@@ -55,7 +55,7 @@ export const ExpenseBillDoc: React.FC<{ expense: Expense; onClose: () => void }>
       onClose={onClose}
     >
       <Row label={tp('Title', 'شرح', 'شرحه')} value={e.title || e.description} />
-      <Row label={tp('Category', 'کتگوری', 'کټګوري')} value={e.category} />
+      <Row label={tp('Category', 'کتگوری', 'کټګوري')} value={tx('category', e.category)} />
       {e.invoiceNumber && <Row label={tp('Invoice No', 'نمبر فاکتور', 'د بیل نمبر')} value={<span className="font-mono">{e.invoiceNumber}</span>} />}
       {e.recipientName && <Row label={tp('Supplier / Contractor', 'تمویل‌کننده / قراردادی', 'تمویلوونکی / قراردادي')} value={e.recipientName} />}
       <table className="w-full text-xs mt-3 border border-slate-200 rounded-xl overflow-hidden">
@@ -85,7 +85,7 @@ export const ExpenseBillDoc: React.FC<{ expense: Expense; onClose: () => void }>
 
 /* ---------------- Goods receipt (supplier delivery) ---------------- */
 export const GoodsReceiptDoc: React.FC<{ expense: Expense; onClose: () => void }> = ({ expense: e, onClose }) => {
-  const { tp, formatNumber } = useApp();
+  const { tp, tx, formatNumber } = useApp();
   const qty = e.quantity ?? 1;
   return (
     <DocPrintLayout

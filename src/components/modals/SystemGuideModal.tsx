@@ -65,7 +65,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
       id: 'report' as const,
       icon: BarChart3,
       color: 'text-rose-700 bg-rose-100 dark:bg-rose-950/60 dark:text-rose-400',
-      title: language === 'ps' ? '۵. مالي راپورونه' : tp('5. Financial Reports', '۵. گزارشات مالی A4', '۵. A4 مالي راپورونه'),
+      title: language === 'ps' ? '۵. مالي راپورونه' : tp('5. Financial Reports', '۵. راپورهای مالی A4', '۵. A4 مالي راپورونه'),
       badge: language === 'ps' ? 'راپور' : tp('Auditing', 'حسابرسی', 'پلټنه'),
     },
     {
@@ -286,14 +286,14 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
                 <div className="border-b border-line pb-3">
                   <h3 className="text-base font-black text-ink flex items-center gap-2">
                     <BarChart3 className="w-5 h-5 text-rose-600" />
-                    <span>گزارشات چاپی و خروجی اکسل</span>
+                    <span>راپورهای چاپی و خروجی اکسل</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">تولید بیلان کامل مالی در قطع A4 و فایل CSV/Excel</p>
                 </div>
                 <div className="space-y-3 text-xs">
                   <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl">
                     <strong className="text-rose-900 dark:text-rose-200 block font-bold mb-1">تفکیک دالر و افغانی:</strong>
-                    تمامی گزارشات دارای تفکیک دقیق مبالغ به هر دو اسعار دالر و افغانی به همراه تراز نهایی می‌باشند.
+                    تمام راپورها دارای تفکیک دقیق مبالغ به هر دو اسعار دالر و افغانی به همراه تراز نهایی می‌باشند.
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="p-3 rounded-2xl bg-surface-2/60 border border-line">
@@ -338,7 +338,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
                 </div>
                 <div className="space-y-3 text-xs">
                   <div className="p-3.5 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/60 rounded-2xl">
-                    <strong className="text-sky-900 dark:text-sky-200 block font-bold mb-1">پشتیبان‌گیری ابری خودکار:</strong>
+                    <strong className="text-sky-900 dark:text-sky-200 block font-bold mb-1">پشتیبان‌گیری ابری اتومات:</strong>
                     دیتابیس کامل سیستم شامل پروژه‌ها، خریدهای سیخ، کانکریت و اسناد در پوشه "NIK SMART COUNT" در گوگل درایو شخصی شما ذخیره می‌شود.
                   </div>
                   <div className="p-3.5 bg-surface-2/60 border border-line rounded-2xl">

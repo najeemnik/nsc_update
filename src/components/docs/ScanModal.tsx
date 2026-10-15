@@ -447,8 +447,8 @@ export const ScanModal: React.FC<ScanModalProps> = ({ isOpen, onClose, onDone, t
                   className="text-[11px] font-bold text-indigo-600 hover:underline"
                 >
                   {active.adjust.bwThreshold === undefined
-                    ? tp('Auto threshold (Otsu) — tap for manual', 'آستانه خودکار — برای دستی بزنید', 'اتومات حد — د لاسي لپاره ووهئ')
-                    : tp('Manual threshold 127 — tap for auto', 'آستانه دستی ۱۲۷ — برای خودکار بزنید', 'لاسي حد ۱۲۷ — د اتومات لپاره ووهئ')}
+                    ? tp('Auto threshold (Otsu) — tap for manual', 'آستانه اتومات — برای دستی بزنید', 'اتومات حد — د لاسي لپاره ووهئ')
+                    : tp('Manual threshold 127 — tap for auto', 'آستانه دستی ۱۲۷ — برای اتومات بزنید', 'لاسي حد ۱۲۷ — د اتومات لپاره ووهئ')}
                 </button>
               )}
 

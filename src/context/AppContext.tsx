@@ -66,6 +66,7 @@ import { getAccount, getAccountName, getFullChart, nextLeafCode, sanitizeCustomA
 import type { Account } from '../data/chartOfAccounts';
 import { computeBudgetReport, findUpdatableBudgetLine } from '../utils/budgetUtils';
 import { isOffice7Theme } from '../utils/configSnapshots';
+import { humanizeKey, labelPaymentMethod, labelExpenseCategory, labelUnit, DOC_CATEGORY_TKEY, type StoredKind } from '../utils/displayLabels';
 import { sanitizeLayout, savePublishedLayout, clearDraftLayout } from '../utils/pageBuilder';
 import type { PageLayout } from '../utils/pageBuilder';
 import { canDo, grantedProjectIds } from '../utils/permissions';
@@ -76,6 +77,9 @@ import { backendApi } from '../services/backendApi';
 interface AppContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
+  tx: (kind: StoredKind, value: string | undefined) => string;
+  getCompanyDefaultLang: (company?: string) => Language | null;
+  setCompanyDefaultLang: (company: string | undefined, lang: Language) => void;
   t: ((key: string) => string) & typeof translations['en'];
   tp: (en: string, fa: string, ps: string) => string;
   currentUser: User | null;
@@ -390,7 +394,10 @@ function saveToStorage<T>(key: string, value: T): boolean {
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>(() => loadFromStorage<Language>('lang', 'en'));
+  const [language, setLanguageState] = useState<Language>(() => {
+    const stored = loadFromStorage<Language>('lang', 'en');
+    return stored === 'fa' || stored === 'ps' ? stored : 'en';
+  });
   const [users, setUsers] = useState<User[]>(() => loadFromStorage('users', initialUsers));
   const [accessNotice, setAccessNotice] = useState<{ section: string; action: string; at: number } | null>(null);
   const clearAccessNotice = () => setAccessNotice(null);
@@ -977,9 +984,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [language]);
 
+  // Wave 33: document-level lang/dir (a11y + correct RTL/LTR everywhere).
+  const applyDocumentLang = (lang: Language) => {
+    try {
+      document.documentElement.lang = lang === 'ps' ? 'ps' : lang === 'fa' ? 'fa' : 'en';
+      document.documentElement.dir = lang === 'en' ? 'ltr' : 'rtl';
+    } catch { /* non-DOM env */ }
+  };
   const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
-    saveToStorage('lang', lang);
+    const clean: Language = lang === 'fa' || lang === 'ps' ? lang : 'en';
+    setLanguageState(clean);
+    saveToStorage('lang', clean);
+    try { localStorage.setItem('lang_manual', '1'); } catch { /* noop */ }
+    applyDocumentLang(clean);
   };
 
   const t = useMemo(() => {
@@ -1002,6 +1019,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (language === 'fa') return fa;
     return en;
   };
+
+  // Wave 33: render a STORED value (payment method, category, doc id, unit)
+  // in the active language — never leak the storage language into the UI.
+  const tx = (kind: StoredKind, value: string | undefined): string => {
+    if (kind === 'doc') {
+      const tkey = DOC_CATEGORY_TKEY[(value || '').trim().toLowerCase()];
+      if (tkey) return t(tkey);
+      return humanizeKey(value);
+    }
+    if (kind === 'payment') return labelPaymentMethod(value, language);
+    if (kind === 'unit') return labelUnit(value, language);
+    return labelExpenseCategory(value, language);
+  };
+
+  // Wave 33: per-company default language (owner-set). Applies on login only
+  // when this device never had a manual language choice.
+  const companyLangKey = (company?: string): string =>
+    `lang_default_${(company || 'default').trim().slice(0, 80) || 'default'}`;
+  const getCompanyDefaultLang = (company?: string): Language | null => {
+    try {
+      const v = localStorage.getItem(companyLangKey(company));
+      return v === 'fa' || v === 'ps' || v === 'en' ? v : null;
+    } catch {
+      return null;
+    }
+  };
+  const setCompanyDefaultLang = (company: string | undefined, lang: Language): void => {
+    const clean: Language = lang === 'fa' || lang === 'ps' ? lang : 'en';
+    try { localStorage.setItem(companyLangKey(company), clean); } catch { /* noop */ }
+    logAudit('update', 'settings', companyLangKey(company), `Company default language set to ${clean}`, `Company: ${company || 'default'}`);
+  };
+
+  useEffect(() => { applyDocumentLang(language); }, [language]);
 
   const currentProject = useMemo(() => {
     return projects.find(p => p.id === currentProjectId) || projects[0] || null;
@@ -1132,6 +1182,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Wave 31: per-user theme assigned by Office7 (validated allow-list; legacy users keep current theme).
       ...(isOffice7Theme(found.customTheme) ? { theme: found.customTheme as AppTheme } : {}),
     }));
+    // Wave 33: company default language wins only when the device has no manual choice.
+    try {
+      if (!localStorage.getItem('lang_manual')) {
+        const companyDefault = getCompanyDefaultLang(found.companyName || undefined);
+        if (companyDefault) {
+          setLanguageState(companyDefault);
+          saveToStorage('lang', companyDefault);
+          applyDocumentLang(companyDefault);
+        }
+      }
+    } catch { /* noop */ }
     logAudit('login', 'user', found.id, `User ${found.name} logged in (${found.role})`, 'Authenticated successfully');
     // همگام‌سازی توکن سرور در پس‌زمینه؛ فقط قفل موقت (429) را به کاربر نشان بده
     backendApi.login(trimmedInput, password || '').then((res) => {
@@ -3731,6 +3792,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       language,
       setLanguage,
+      tx,
+      getCompanyDefaultLang,
+      setCompanyDefaultLang,
       t,
       tp,
       currentUser,

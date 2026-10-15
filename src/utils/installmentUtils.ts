@@ -197,7 +197,7 @@ export function normalizeApartmentInstallments(apartment: ApartmentUnit, now: Da
             receiptNumber: `REC-${apartment.unitNumber}-${i + 1}`,
             notes: 'پرداخت قسمتی از قسط'
           }] : [],
-          notes: `قسط شماره ${i + 1} آپارتمان ${apartment.unitNumber}`,
+          notes: `قسط شماره ${i + 1} اپارتمان ${apartment.unitNumber}`,
           date: instDueDate,
           received: remaining === 0,
           receivedDate: remaining === 0 ? instDueDate : undefined
@@ -232,34 +232,34 @@ type Tpl = { en: string; fa: string; ps: string };
 const T: Record<string, Tpl> = {
   overdueTitle: {
     en: 'Overdue installment #{n} (unit {u})',
-    fa: 'تأخیر در پرداخت قسط #{n} (آپارتمان {u})',
+    fa: 'تأخیر در پرداخت قسط #{n} (اپارتمان {u})',
     ps: 'د #{n} قسط په ورکړه کې ځنډ (اپارتمان {u})',
   },
   overdueMsg: {
     en: 'Installment #{n} of unit {u} ({b}) is overdue: {amt} still due, {d} day(s) late.',
-    fa: 'قسط شماره {n} آپارتمان {u} ({b}) سررسید شده و هنوز {amt} باقی مانده است. مدت تأخیر: {d} روز.',
+    fa: 'قسط شماره {n} اپارتمان {u} ({b}) سررسید شده و هنوز {amt} باقی مانده است. مدت تأخیر: {d} روز.',
     ps: 'د اپارتمان {u} ({b}) #{n} قسط نېټه تېره شوې او لا {amt} پاتې دي. ځنډ: {d} ورځې.',
   },
   dueSoonTitle: {
     en: 'Installment #{n} due {when} (unit {u})',
-    fa: 'قسط #{n} {when} سررسید می‌شود (آپارتمان {u})',
+    fa: 'قسط #{n} {when} سررسید می‌شود (اپارتمان {u})',
     ps: 'د اپارتمان {u} #{n} قسط {when} نېټه رسېږي',
   },
   dueSoonMsg: {
     en: 'Reminder: installment #{n} of unit {u} ({b}), remaining {amt}, due {date} ({when}).',
-    fa: 'یادآوری قسط: قسط شماره {n} آپارتمان {u} ({b}) به مبلغ باقی‌مانده {amt} در تاریخ {date} سررسید می‌شود ({when}).',
+    fa: 'یادآوری قسط: قسط شماره {n} اپارتمان {u} ({b}) به مبلغ باقی‌مانده {amt} در تاریخ {date} سررسید می‌شود ({when}).',
     ps: 'د قسط یادونه: د اپارتمان {u} ({b}) #{n} قسط، پاتې {amt}، نېټه {date} ({when}).',
   },
   todayWord: { en: 'today', fa: 'امروز', ps: 'نن' },
   daysLeftWord: { en: '{d} day(s) left', fa: '{d} روز باقی مانده', ps: '{d} ورځې پاتې' },
   paidTitle: {
     en: 'Installment #{n} fully paid (unit {u})',
-    fa: 'قسط #{n} به‌طور کامل پرداخت شد (آپارتمان {u})',
+    fa: 'قسط #{n} به‌طور کامل پرداخت شد (اپارتمان {u})',
     ps: 'د اپارتمان {u} #{n} قسط پوره ورکړل شو',
   },
   paidMsg: {
     en: 'Installment #{n} of unit {u} ({b}) was fully paid on {date}.',
-    fa: 'قسط شماره {n} آپارتمان {u} ({b}) در تاریخ {date} به‌طور کامل پرداخت شد.',
+    fa: 'قسط شماره {n} اپارتمان {u} ({b}) در تاریخ {date} به‌طور کامل پرداخت شد.',
     ps: 'د اپارتمان {u} ({b}) #{n} قسط په {date} نېټه پوره ورکړل شو.',
   },
   buyerWord: { en: 'buyer', fa: 'خریدار', ps: 'پېرودونکی' },

@@ -89,7 +89,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
             <span>معاشات و کارکرد کارگران ساحه (Labor & Payroll)</span>
           </h1>
           <p className="text-xs text-ink-muted mt-1">
-            {currentProject?.name} • تسویه روزمزدها و کارمزد با کسر خودکار مساعده‌های دریافتی
+            {currentProject?.name} • تسویه روزمزدها و کارمزد با کسر اتومات مساعده‌های دریافتی
           </p>
         </div>
 

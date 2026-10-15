@@ -44,6 +44,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
     printIfAllowed,
     can,
     denyAccess,
+    tx,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -199,7 +200,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
                   </td>
                   <td className="py-3.5 px-4">
                     <span className="px-2 py-0.5 bg-surface-2 rounded-md text-[11px] font-medium text-slate-600 dark:text-slate-300">
-                      {p.paymentMethod}
+                      {tx('payment', p.paymentMethod)}
                     </span>
                   </td>
                   <td className="py-3.5 px-4 font-mono text-slate-400">{p.referenceNumber || '—'}</td>

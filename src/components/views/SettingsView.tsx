@@ -54,6 +54,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
     t, 
     language, tp,
     setLanguage,
+    currentUser,
+    getCompanyDefaultLang,
+    setCompanyDefaultLang,
     setTheme,
     themeSchedule,
     setThemeSchedule,
@@ -377,6 +380,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenGoogleDrive })
               </button>
             </div>
           </div>
+
+          {/* Wave 33: company default language (owner only) — applies on login
+              to devices that never had a manual language choice. */}
+          {(currentUser?.role === 'admin' || currentUser?.isMasterSuperAdmin) && (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                {tp('Company default language', 'زبان پیش‌فرض شرکت', 'د شرکت ډیفالټ ژبه')}
+              </label>
+              <div className="flex gap-2">
+                {([
+                  ['fa', 'دری'],
+                  ['ps', 'پښتو'],
+                  ['en', 'English'],
+                ] as Array<['fa' | 'ps' | 'en', string]>).map(([code, label]) => {
+                  const active = (getCompanyDefaultLang(currentUser?.companyName || undefined) || 'en') === code;
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => {
+                        setCompanyDefaultLang(currentUser?.companyName || undefined, code);
+                        setSavedSuccess(true);
+                        setTimeout(() => setSavedSuccess(false), 2500);
+                      }}
+                      className={`flex-1 py-2 text-xs rounded-xl font-bold transition ${
+                        active ? 'bg-emerald-600 text-white' : 'bg-surface-2 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                {tp('New devices of this company start with this language. A manual choice on a device always wins.',
+                  'دستگاه‌های جدید این شرکت با این زبان شروع می‌کنند. انتخاب دستی روی هر دستگاه همیشه مقدم است.',
+                  'د دې شرکت نوې وسیلې په دې ژبه پیل کوي. په هرې وسیلې لاسي ټاکنه تل لومړیتوب لري.')}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end pt-4 border-t border-line">

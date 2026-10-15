@@ -9,7 +9,7 @@ export const AiAssistantModal: React.FC<{ isOpen: boolean; onClose: () => void }
   const [messages, setMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string; time: string }>>([
     {
       sender: 'ai',
-      text: `سلام! من دستیار هوش مصنوعی پروژه شما هستم. می‌توانید درباره میزان مصرف سیخ، حجم کانکریت، وضعیت مصارف، طلبکاری‌ها یا فروش آپارتمان‌ها از من بپرسید.`,
+      text: `سلام! من دستیار هوش مصنوعی پروژه شما هستم. می‌توانید درباره میزان مصرف سیخ، حجم کانکریت، وضعیت مصارف، طلبکاری‌ها یا فروش اپارتمان‌ها از من بپرسید.`,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
   ]);
@@ -86,7 +86,7 @@ export const AiAssistantModal: React.FC<{ isOpen: boolean; onClose: () => void }
   const quickPrompts = [
     'چقدر سیخ تا حالا خریدیم؟',
     'وضعیت کانکریت‌ریزی چطور است؟',
-    'چند واحد آپارتمان فروخته شده؟',
+    'چند واحد اپارتمان فروخته شده؟',
     'طلبکاری‌ها و بدهی‌های فعلی چقدر است؟'
   ];
 

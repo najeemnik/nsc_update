@@ -91,7 +91,7 @@ export const AVAILABLE_UNITS: UnitDefinition[] = [
     nameEn: 'Square Meter (m²)',
     category: 'area',
     hasStandardConversion: false,
-    description: 'مساحت آپارتمان و کارگری',
+    description: 'مساحت اپارتمان و کارگری',
   },
   // Length Units
   {

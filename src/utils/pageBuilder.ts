@@ -354,7 +354,7 @@ const styleAttr = (st?: BuilderBlockStyle): string => {
   if (st.color) parts.push(`color:${escHtml(st.color)}`);
   if (st.background) parts.push(`background:${escHtml(st.background)}`);
   if (st.fontSize !== undefined) parts.push(`font-size:${st.fontSize}px`);
-  if (st.align) parts.push(`text-align:${st.align === 'start' ? 'right' : st.align === 'end' ? 'left' : 'center'}`);
+  if (st.align) parts.push(`text-align:${st.align}`);
   if (st.marginTop !== undefined) parts.push(`margin-top:${st.marginTop}px`);
   if (st.marginBottom !== undefined) parts.push(`margin-bottom:${st.marginBottom}px`);
   if (st.padding !== undefined) parts.push(`padding:${st.padding}px`);
@@ -364,7 +364,7 @@ const styleAttr = (st?: BuilderBlockStyle): string => {
 };
 
 /** Static HTML snapshot of content blocks (dashboard_section refs become placeholders). */
-export const exportLayoutHTML = (layout: PageLayout, title: string): string => {
+export const exportLayoutHTML = (layout: PageLayout, title: string, dir: 'rtl' | 'ltr' = 'rtl'): string => {
   const clean = sanitizeLayout(layout);
   const body = clean.blocks.filter(b => !b.hidden).map(b => {
     const st = styleAttr(b.style);
@@ -393,7 +393,7 @@ export const exportLayoutHTML = (layout: PageLayout, title: string): string => {
         return '';
     }
   }).join('\n');
-  return `<!DOCTYPE html>\n<html lang="fa" dir="rtl">\n<head><meta charset="utf-8"><title>${escHtml(title)}</title></head>\n<body>\n${body}\n</body>\n</html>`;
+  return `<!DOCTYPE html>\n<html lang="${dir === 'ltr' ? 'en' : 'fa'}" dir="${dir}">\n<head><meta charset="utf-8"><title>${escHtml(title)}</title></head>\n<body>\n${body}\n</body>\n</html>`;
 };
 
 export const downloadTextFile = (filename: string, text: string, mime: string): void => {

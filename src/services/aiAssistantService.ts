@@ -34,7 +34,7 @@ export function answerProjectQuestionLocally(
 
   // Apartments & Sales question
   if (
-    q.includes('آپارتمان') || 
+    q.includes('اپارتمان') || 
     q.includes('فروش') || 
     q.includes('باقی') || 
     q.includes('قسط') || 
@@ -42,7 +42,7 @@ export function answerProjectQuestionLocally(
     q.includes('apartment') || 
     q.includes('sold')
   ) {
-    return `🏢 وضعیت آپارتمان‌های پروژه "${summary.projectName}":
+    return `🏢 وضعیت اپارتمان‌های پروژه "${summary.projectName}":
 • تعداد کل واحدها: ${summary.apartmentsTotal} واحد
 • فروخته شده: ${summary.apartmentsSold} واحد
 • واحد‌های باقیمانده (خالی): ${summary.apartmentsAvailable} واحد
@@ -63,7 +63,7 @@ export function answerProjectQuestionLocally(
   if (q.includes('قرض') || q.includes('طلب') || q.includes('باقیداری') || q.includes('debt') || q.includes('balance')) {
     return `⚖️ وضعیت بدهی و طلبکاری پروژه "${summary.projectName}":
 • بدهی پروژه به تأمین‌کنندگان و قراردادی‌ها: $${summary.totalDebtUSD.toLocaleString()}
-• طلب پروژه از خریداران آپارتمان (اقساط معوق): $${summary.salesDueUSD.toLocaleString()}`;
+• طلب پروژه از خریداران اپارتمان (اقساط معوق): $${summary.salesDueUSD.toLocaleString()}`;
   }
 
   // All Projects summary

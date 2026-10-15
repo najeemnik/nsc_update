@@ -927,7 +927,7 @@ export const ProjectPartnersModal: React.FC<ProjectPartnersModalProps> = ({
                     <span className={`font-mono font-black ${(profitCurrency === 'USD' ? realProfit.profitUSD : realProfit.profitAFN) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {formatNumber(profitCurrency === 'USD' ? realProfit.profitUSD : realProfit.profitAFN, 0)} {profitCurrency}
                     </span>
-                    <span className="block text-[10px] mt-0.5">درآمد = فروش قطعی آپارتمان‌ها + رسیدهای نقدی • مصارف = بل‌های غیرمردود + آهن + کانکریت + دستمزد ناخالص (پرداخت‌ها چون تسویه همان بل‌ها هستند، دوباره حساب نشده‌اند)</span>
+                    <span className="block text-[10px] mt-0.5">درآمد = فروش قطعی اپارتمان‌ها + رسیدهای نقدی • مصارف = بل‌های غیرمردود + آهن + کانکریت + دستمزد ناخالص (پرداخت‌ها چون تسویه همان بل‌ها هستند، دوباره حساب نشده‌اند)</span>
                   </div>
                   <button
                     type="button"

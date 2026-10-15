@@ -117,7 +117,7 @@ const TAB_OPTIONS: Array<{ id: string; label: string }> = [
   { id: 'accounting',  label: 'دفاتر حسابداری' },
   { id: 'journal',     label: 'اسناد روزنامچه' },
   { id: 'documents',   label: 'اسناد و بِل‌ها' },
-  { id: 'reports',     label: 'گزارشات' },
+  { id: 'reports',     label: 'راپورها' },
   { id: 'builder',     label: 'بیلدر تصویری' },
   { id: 'settings',    label: 'تنظیمات' },
   { id: 'users',       label: 'مدیریت کارمندان' },
@@ -1109,7 +1109,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                   <ArrowRight className="w-4 h-4" />
                   <span>بازگشت به لیست</span>
                 </button>
-                <div className="border-r border-slate-300 pe-3 flex items-center gap-2">
+                <div className="border-s border-slate-300 pe-3 flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-500">شرکت منتخب:</span>
                   <span className="text-sm font-black text-amber-400">{editCompanyName || editName}</span>
                 </div>
@@ -1229,7 +1229,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                       className={`relative w-14 h-8 rounded-full transition-colors shrink-0 ${editActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
                       title={editActive ? tp('Active — click to deactivate', 'فعال — برای غیرفعال‌سازی کلیک کنید', 'فعال — د غیرفعالولو لپاره کلیک وکړئ') : tp('Inactive — click to activate', 'غیرفعال — برای فعال‌سازی کلیک کنید', 'غیرفعال — د فعالولو لپاره کلیک وکړئ')}
                     >
-                      <span className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all ${editActive ? 'right-1' : 'left-1'}`} />
+                      <span className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all ${editActive ? 'start-1' : 'end-1'}`} />
                     </button>
                   </div>
 
@@ -1273,7 +1273,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                       }}
                       className={`relative w-14 h-8 rounded-full transition-colors shrink-0 ${editAiEnabled ? 'bg-violet-500' : 'bg-slate-300'}`}
                     >
-                      <span className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all ${editAiEnabled ? 'right-1' : 'left-1'}`} />
+                      <span className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all ${editAiEnabled ? 'start-1' : 'end-1'}`} />
                     </button>
                   </div>
                   {(selectedTenant.role === 'admin' && !selectedTenant.ownerAdminId) ? (
@@ -1389,7 +1389,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                       { id: 'expenses', label: 'مصارف روزمره', desc: 'خریدهای عمومی و متفرقه', icon: Receipt },
                       { id: 'contractors', label: 'قراردادی‌ها', desc: 'قراردادها، پیشرفت و حسن نیت', icon: HardHat },
                       { id: 'suppliers', label: 'تأمین‌کنندگان', desc: 'فروشندگان مصالح و طلبکاری', icon: Building2 },
-                      { id: 'apartments', label: 'آپارتمان‌ها', desc: 'فروش، متراژ و اقساط', icon: Home },
+                      { id: 'apartments', label: 'اپارتمان‌ها', desc: 'فروش، متراژ و اقساط', icon: Home },
                       { id: 'payments', label: 'پرداخت و رسید', desc: 'صدور رسید و ثبت چک و بانکی', icon: CreditCard },
                       { id: 'treasury', label: 'بانک و خزانه‌داری', desc: 'حساب‌های بانکی و موجودی آنی', icon: Landmark },
                       { id: 'pettyCash', label: 'تنخواه‌گردان کارگاه', desc: 'مصارف خرد و واچرهای روزمره', icon: Wallet },
@@ -1397,7 +1397,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                       { id: 'transfers', label: 'انتقالات پروژه‌ای', desc: 'انتقال پول و مصالح بین پروژه‌ها', icon: ArrowLeftRight },
                       { id: 'journal', label: 'دفتر روزنامچه و تعدیلات', desc: 'اسناد دوبل دبت/کردت و اصلاحی', icon: BookOpen },
                       { id: 'documents', label: 'اسناد و بل‌ها', desc: 'آرشیو تصاویر و اسناد', icon: FileCheck2 },
-                      { id: 'reports', label: 'گزارشات A4 و P&L', desc: 'بیلان چاپی و سود/زیان پروژه', icon: BarChart3 },
+                      { id: 'reports', label: 'راپورهای A4 و P&L', desc: 'بیلان چاپی و سود/زیان پروژه', icon: BarChart3 },
                       { id: 'auditLogs', label: 'لاگ امنیتی', desc: 'ردیابی تمام تغییرات سیستم', icon: History },
                     ].map(mod => {
                       const isEnabled = (editModules as any)[mod.id] !== false;
@@ -1743,7 +1743,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                               />
                             </div>
                             <div>
-                              <label className="block text-slate-500 font-bold mb-1">تلفن تماس شرکت:</label>
+                              <label className="block text-slate-500 font-bold mb-1">شماره تماس شرکت:</label>
                               <input
                                 type="text"
                                 value={editBillDesign.receiptContact || ''}

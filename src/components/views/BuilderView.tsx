@@ -73,7 +73,7 @@ const DEVICE_WIDTH: Record<Device, string> = {
 };
 
 export const BuilderView: React.FC<BuilderViewProps> = ({ setActiveTab }) => {
-  const { currentUser, publishPageLayout, builderRev, tp } = useApp();
+  const { currentUser, publishPageLayout, builderRev, tp, language } = useApp();
   const pageKey = useMemo(
     () => dashboardPageKey(currentUser?.companyName || currentUser?.username),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -283,7 +283,7 @@ export const BuilderView: React.FC<BuilderViewProps> = ({ setActiveTab }) => {
               className="p-2 rounded-xl border border-line text-[11px] font-black text-ink hover:border-indigo-400 flex items-center justify-center gap-1">
               <Download className="w-3.5 h-3.5" /> JSON
             </button>
-            <button type="button" onClick={() => downloadTextFile('dashboard-export.html', exportLayoutHTML(layout, 'Dashboard'), 'text/html')}
+            <button type="button" onClick={() => downloadTextFile('dashboard-export.html', exportLayoutHTML(layout, 'Dashboard', language === 'en' ? 'ltr' : 'rtl'), 'text/html')}
               className="p-2 rounded-xl border border-line text-[11px] font-black text-ink hover:border-indigo-400 flex items-center justify-center gap-1">
               <Download className="w-3.5 h-3.5" /> HTML
             </button>
@@ -325,7 +325,7 @@ export const BuilderView: React.FC<BuilderViewProps> = ({ setActiveTab }) => {
                   </div>
                 )}
                 {selectedId === b.id && (
-                  <div className="absolute -top-3 left-2 flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-900 text-white shadow-lg" onClick={(e) => e.stopPropagation()}>
+                  <div className="absolute -top-3 start-2 flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-900 text-white shadow-lg" onClick={(e) => e.stopPropagation()}>
                     <ToolBtn title="up" onClick={() => commit(moveBlock(layout.blocks, b.id, -1))}><ChevronUp className="w-3.5 h-3.5" /></ToolBtn>
                     <ToolBtn title="down" onClick={() => commit(moveBlock(layout.blocks, b.id, 1))}><ChevronDown className="w-3.5 h-3.5" /></ToolBtn>
                     <ToolBtn title="duplicate" onClick={() => commit(duplicateBlock(layout.blocks, b.id))}><Copy className="w-3.5 h-3.5" /></ToolBtn>

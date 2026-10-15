@@ -49,6 +49,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const { 
     currentUser, 
     builderRev, 
+    tx, 
     currentProject, 
     projects, 
     expenses, 
@@ -336,9 +337,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               >
                 <div className="min-w-0">
                   <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{exp.title}</p>
-                  <p className="text-[11px] text-slate-400 truncate">{exp.category} • {exp.date}</p>
+                  <p className="text-[11px] text-slate-400 truncate">{tx('category', exp.category)} • {exp.date}</p>
                 </div>
-                <div className="text-right shrink-0">
+                <div className="text-end shrink-0">
                   <p className="font-extrabold text-rose-600 dark:text-rose-400">
                     {formatCurrency(exp.totalAmountUSD, 'USD')}
                   </p>
@@ -382,9 +383,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               >
                 <div className="min-w-0">
                   <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{pay.recipientName}</p>
-                  <p className="text-[11px] text-slate-400 truncate">{pay.paymentMethod} • {pay.date}</p>
+                  <p className="text-[11px] text-slate-400 truncate">{tx('payment', pay.paymentMethod)} • {pay.date}</p>
                 </div>
-                <div className="text-right shrink-0">
+                <div className="text-end shrink-0">
                   <p className="font-extrabold text-emerald-600 dark:text-emerald-400">
                     {formatCurrency(pay.amountUSD, 'USD')}
                   </p>

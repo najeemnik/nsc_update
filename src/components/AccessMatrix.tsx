@@ -21,7 +21,7 @@ const SECTION_LABEL: Record<string, [string, string, string]> = {
   labor: ['Labor', 'کارگران', 'کارګران'],
   suppliers: ['Suppliers', 'تمویل‌کنندگان', 'تمویلوونکي'],
   assets: ['Assets', 'دارایی‌ها', 'شتمنۍ'],
-  apartments: ['Apartments', 'آپارتمان‌ها', 'اپارتمانونه'],
+  apartments: ['Apartments', 'اپارتمان‌ها', 'اپارتمانونه'],
   payments: ['Payments', 'پرداخت‌ها', 'تادیات'],
   budget: ['Budget', 'بودجه', 'بودیجه'],
   documents: ['Documents', 'اسناد', 'اسناد'],

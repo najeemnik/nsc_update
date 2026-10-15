@@ -56,7 +56,8 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
     rejectExpense,
     postExpense,
     unpostExpense,
-    reverseExpense
+    reverseExpense,
+    tx,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -314,7 +315,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                         <td className="py-3 px-3 font-mono text-slate-400">{exp.date}</td>
                         <td className="py-3 px-3">
                           <span className="px-2 py-0.5 rounded-lg bg-surface-2 text-slate-600 dark:text-slate-300 font-semibold">
-                            {exp.category}
+                            {tx('category', exp.category)}
                           </span>
                         </td>
                         <td className="py-3 px-3 font-semibold text-ink max-w-xs truncate">
@@ -384,14 +385,14 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                   </td>
                   <td className="py-3.5 px-4">
                     <span className="px-2.5 py-1 bg-surface-2 rounded-lg text-[11px] font-medium text-slate-600 dark:text-slate-300">
-                      {exp.category}
+                      {tx('category', exp.category)}
                     </span>
                   </td>
                   <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
                     {exp.recipientName || '—'}
                   </td>
                   <td className="py-3.5 px-4 text-ink-muted whitespace-nowrap">
-                    {exp.quantity ? `${exp.quantity} ${exp.unit || ''}` : '—'}
+                    {exp.quantity ? `${exp.quantity} ${tx('unit', exp.unit || '')}` : '—'}
                   </td>
                   <td className="py-3.5 px-4 text-right whitespace-nowrap font-bold text-rose-600 dark:text-rose-400">
                     <div>{formatCurrency(expUSD(exp), 'USD')}</div>

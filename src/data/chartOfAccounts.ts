@@ -71,7 +71,7 @@ export const CHART_OF_ACCOUNTS: Account[] = [
   { code: '1120', type: 'asset', normalBalance: 'debit', parentCode: '1100', nameEn: 'Cash (USD)', nameFa: 'صندوق دالر', namePs: 'د ډالرو صندوق', system: true, activePhase: 1 },
   { code: '1130', type: 'asset', normalBalance: 'debit', parentCode: '1100', nameEn: 'Bank Account', nameFa: 'حساب بانکی', namePs: 'بانکي حساب', system: true, activePhase: 1 },
   { code: '1140', type: 'asset', normalBalance: 'debit', parentCode: '1100', nameEn: 'Hawala / Sarafi Balance', nameFa: 'کمیون صرافی (حواله)', namePs: 'د صرافۍ حساب (حواله)', system: true, activePhase: 1 },
-  { code: '1200', type: 'asset', normalBalance: 'debit', parentCode: '1000', nameEn: 'Apartment Receivables', nameFa: 'دریافتنی از خریداران آپارتمان', namePs: 'د اپارتمانونو له پیرودونکو ترلاسه کیدونکي', system: true, activePhase: 1,
+  { code: '1200', type: 'asset', normalBalance: 'debit', parentCode: '1000', nameEn: 'Apartment Receivables', nameFa: 'دریافتنی از خریداران اپارتمان', namePs: 'د اپارتمانونو له پیرودونکو ترلاسه کیدونکي', system: true, activePhase: 1,
     description: 'Amounts still owed by unit buyers (sale price minus receipts).' },
   { code: '1300', type: 'asset', normalBalance: 'debit', parentCode: '1000', nameEn: 'Advances to Suppliers', nameFa: 'پیش‌پرداخت به فروشنده‌گان', namePs: 'پلورونکو ته مخکینۍ تادیه', system: true, activePhase: 3 },
   { code: '1400', type: 'asset', normalBalance: 'debit', parentCode: '1000', nameEn: 'Material Inventory', nameFa: 'موجودی مواد', namePs: 'د موادو زیرمه', system: true, activePhase: 3 },
@@ -103,7 +103,7 @@ export const CHART_OF_ACCOUNTS: Account[] = [
 
   /* ============================ 4000 REVENUE ========================== */
   { code: '4000', type: 'revenue', normalBalance: 'credit', nameEn: 'Revenue', nameFa: 'درآمد', namePs: 'عاید', isHeader: true, system: true },
-  { code: '4100', type: 'revenue', normalBalance: 'credit', parentCode: '4000', nameEn: 'Apartment & Unit Sales', nameFa: 'فروش آپارتمان و واحدها', namePs: 'د اپارتمانونو او واحدونو پلور', system: true, activePhase: 1 },
+  { code: '4100', type: 'revenue', normalBalance: 'credit', parentCode: '4000', nameEn: 'Apartment & Unit Sales', nameFa: 'فروش اپارتمان و واحدها', namePs: 'د اپارتمانونو او واحدونو پلور', system: true, activePhase: 1 },
   { code: '4200', type: 'revenue', normalBalance: 'credit', parentCode: '4000', nameEn: 'Rental Income', nameFa: 'درآمد کرایه (دوکان‌ها و غیره)', namePs: 'د کرایې عاید', system: true, activePhase: 2 },
   { code: '4300', type: 'revenue', normalBalance: 'credit', parentCode: '4000', nameEn: 'Other Project Revenue', nameFa: 'سایر درآمدها (فروش مواد مازاد، ضایعات)', namePs: 'د پروژې نور عایدونه', system: true, activePhase: 1 },
 

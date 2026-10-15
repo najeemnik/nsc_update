@@ -301,7 +301,7 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  {tp('From account / store', 'از حساب / انبار', 'له حساب / ګدام څخه')}
+                  {tp('From account / store', 'از حساب / گدام', 'له حساب / ګدام څخه')}
                 </label>
                 <input
                   type="text"
@@ -312,7 +312,7 @@ export const AddTransferModal: React.FC<AddTransferModalProps> = ({
               </div>
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  {tp('To account / store', 'به حساب / انبار', 'حساب / ګدام ته')}
+                  {tp('To account / store', 'به حساب / گدام', 'حساب / ګدام ته')}
                 </label>
                 <input
                   type="text"

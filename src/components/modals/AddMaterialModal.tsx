@@ -118,7 +118,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 {tp('Material Purchase & Procurement', 'ثبت و تدارکات خرید مصالح (تعداد × فی)', 'د مصالحو د پېر ثبت او تدارکات (شمېر × فی)')}
               </h2>
               <p className="text-xs text-ink-muted">
-                {tp('Auto-calculated Total Cost connected to Actual Cost', 'محاسبه خودکار سرجمع و اتصال مستقیم به مصارف و تأمین‌کننده', 'د سرجمع اوتومات محاسبه او له مصارفو او عرضه کوونکي سره مستقیمه نښلول')}
+                {tp('Auto-calculated Total Cost connected to Actual Cost', 'محاسبه اتومات سرجمع و اتصال مستقیم به مصارف و تأمین‌کننده', 'د سرجمع اوتومات محاسبه او له مصارفو او عرضه کوونکي سره مستقیمه نښلول')}
               </p>
             </div>
           </div>

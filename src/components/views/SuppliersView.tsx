@@ -41,6 +41,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
     printIfAllowed,
     can,
     denyAccess,
+    tx,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -163,7 +164,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                     </div>
                     <div>
                       <h3 className="font-bold text-base text-ink">{s.name}</h3>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">{s.category}</p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">{tx('category', s.category)}</p>
                     </div>
                   </div>
 

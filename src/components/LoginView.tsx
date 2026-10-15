@@ -287,7 +287,7 @@ export const LoginView: React.FC = () => {
                 <>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                   {appSettings.darkMode ? <Moon className="w-3.5 h-3.5 text-indigo-400" /> : <Sun className="w-3.5 h-3.5 text-amber-500" />}
-                  <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">خودکار</span>
+                  <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">اتومات</span>
                 </>
               ) : appSettings.darkMode ? (
                 <>

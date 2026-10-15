@@ -171,7 +171,7 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
                 onChange={e => setIncomeType(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-surface-2 border border-line rounded-xl text-ink font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
               >
-                <option value="client_installment">{tp('Apartment Installment', 'قسط پیش‌فروش آپارتمان / مشتری', 'د اپارټمنټ مخکې پلور قسط / پېرودونکی')}</option>
+                <option value="client_installment">{tp('Apartment Installment', 'قسط پیش‌فروش اپارتمان / مشتری', 'د اپارټمنټ مخکې پلور قسط / پېرودونکی')}</option>
                 <option value="partner_equity">{tp('Partner Equity', 'سرمایه‌گذاری شریک / افزایش سرمایه', 'د شریک پانګونه / د پانګې زیاتول')}</option>
                 <option value="advance_payment">{tp('Client Advance', 'پیش‌پرداخت قرارداد کارفرما', 'د کارفرما د قرارداد مخکې تادیه')}</option>
                 <option value="scrap_material_sale">{tp('Scrap / Material Sale', 'فروش ضایعات آهن و مصالح مازاد', 'د اوسپنې سکړپ او اضافي مصالحو پلور')}</option>
