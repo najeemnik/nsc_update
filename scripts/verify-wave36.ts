@@ -106,6 +106,15 @@ function main() {
   // --- 12. temp probe removed ---
   check('probe-removed', !exists('scripts/audit-probe.ts'));
 
+  // --- 13. navbar desktop fixes: visible + button + reachable logout ---
+  const navbar = read('src/components/Navbar.tsx');
+  check('nav-no-bg-conflict', !navbar.includes('circleBtn} bg-amber-600') && !navbar.includes('circleBtn} bg-white'));
+  check('nav-amber-solid', navbar.includes('circleBtnAmber') && navbar.includes('bg-amber-600 hover:bg-amber-700 text-white'));
+  check('nav-role-pill-button', navbar.includes('rolePillRef') && navbar.includes('<button') && navbar.includes('Account menu'));
+  check('nav-pill-toggles-menu', navbar.includes('setUserDropdownOpen(v => !v)'));
+  check('nav-pill-outside-guard', navbar.includes('rolePillRef.current.contains(target)'));
+  check('nav-panel-below-lg', navbar.includes('ref={userRef} className="relative"') && navbar.includes('hidden lg:flex items-center gap-1.5 ps-1 pe-2 py-1'));
+
   for (const r of results) console.log(r);
   console.log(`\nwave36: ${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);

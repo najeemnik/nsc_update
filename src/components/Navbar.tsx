@@ -115,12 +115,17 @@ export const Navbar: React.FC<NavbarProps> = ({
     tp('Viewer', 'بیننده', 'کتونکی');
 
   const circleBtn = 'w-9 h-9 rounded-full flex items-center justify-center bg-white/80 dark:bg-slate-700/70 text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors shrink-0 tap-target';
+  // Audit fix: solid variants WITHOUT layering circleBtn (its bg/text/hover classes
+  // conflict with overrides and can render white-on-white in day mode).
+  const circleBtnSolid = 'w-9 h-9 rounded-full flex items-center justify-center bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow transition-colors shrink-0 tap-target';
+  const circleBtnAmber = 'w-9 h-9 rounded-full flex items-center justify-center bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors shrink-0 tap-target';
 
   const searchRef = useRef<HTMLDivElement | null>(null);
   const quickAddRef = useRef<HTMLDivElement | null>(null);
   const projectRef = useRef<HTMLDivElement | null>(null);
   const langRef = useRef<HTMLDivElement | null>(null);
   const userRef = useRef<HTMLDivElement | null>(null);
+  const rolePillRef = useRef<HTMLButtonElement | null>(null);
   const moreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -130,7 +135,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       if (quickAddRef.current && !quickAddRef.current.contains(target)) setQuickAddOpen(false);
       if (projectRef.current && !projectRef.current.contains(target)) setProjectDropdownOpen(false);
       if (langRef.current && !langRef.current.contains(target)) setLangDropdownOpen(false);
-      if (userRef.current && !userRef.current.contains(target)) setUserDropdownOpen(false);
+      if (userRef.current && !userRef.current.contains(target) && !(rolePillRef.current && rolePillRef.current.contains(target))) setUserDropdownOpen(false);
       if (moreRef.current && !moreRef.current.contains(target)) setMoreMenuOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -251,10 +256,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* Role pill (BRYZOS style) */}
-            <div className="hidden md:flex items-center px-4 py-1.5 rounded-full bg-white/60 dark:bg-slate-700/60 text-[11px] font-extrabold tracking-[0.2em] text-slate-500 dark:text-slate-300 uppercase shrink-0">
+            {/* Role pill (BRYZOS style) — opens the account menu (logout lives here) */}
+            <button
+              ref={rolePillRef}
+              type="button"
+              onClick={() => setUserDropdownOpen(v => !v)}
+              title={tp('Account menu', 'منوی حساب کاربری', 'د کارن حساب مینو')}
+              aria-haspopup="menu"
+              aria-expanded={userDropdownOpen}
+              className="hidden md:flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/60 dark:bg-slate-700/60 hover:bg-white dark:hover:bg-slate-700 text-[11px] font-extrabold tracking-[0.2em] text-slate-500 dark:text-slate-300 uppercase shrink-0 transition-colors cursor-pointer"
+            >
               {roleLabel}
-            </div>
+              <ChevronDown className="w-3 h-3 shrink-0" />
+            </button>
           </div>
 
           {/* Center icon circles (BRYZOS style) */}
@@ -267,14 +281,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab('dashboard')}
                 title={tp('Dashboard', 'داشبورد', 'ډشبورډ')}
                 aria-label={tp('Dashboard', 'داشبورد', 'ډشبورډ')}
-                className={`${circleBtn} bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow`}
+                className={circleBtnSolid}
               >
                 <Home className="w-4 h-4" />
               </button>
             </div>
 
             {/* Notifications (Wave 12) */}
-            <NotificationBell className={`${circleBtn} bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow`} />
+            <NotificationBell className={circleBtnSolid} />
 
             {/* Direct Quick Action (Highest configured priority) */}
             {(() => {
@@ -374,7 +388,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setQuickAddOpen(!quickAddOpen)}
                 title={t.quickActions}
                 aria-label={t.quickActions}
-                className={`${circleBtn} bg-amber-600 hover:bg-amber-700 text-white`}
+                className={circleBtnAmber}
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -605,11 +619,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* User Profile Dropdown */}
-            <div ref={userRef} className="relative hidden lg:block">
+            {/* zero-size anchor below lg: panel must still open from the role pill */}
+            <div ref={userRef} className="relative">
               <button
                 type="button"
-                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className="flex items-center gap-1.5 ps-1 pe-2 py-1 rounded-full bg-white/80 dark:bg-slate-700/70 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors"
+                onClick={() => setUserDropdownOpen(v => !v)}
+                className="hidden lg:flex items-center gap-1.5 ps-1 pe-2 py-1 rounded-full bg-white/80 dark:bg-slate-700/70 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors"
               >
                 <span className="hidden xl:inline max-w-[100px] truncate text-xs font-extrabold tracking-wide text-slate-700 dark:text-slate-100 uppercase">{currentUser?.name}</span>
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
