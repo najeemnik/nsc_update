@@ -106,6 +106,22 @@ export function computeBudgetActuals(input: BudgetReportInput): Map<string, Budg
   return acc;
 }
 
+/**
+ * Wave 16: find the stored line that a new budget line should update (upsert).
+ * Standard lines are unique per (project, account): re-adding updates.
+ * Custom (user-named) lines are always independent rows — an incoming custom
+ * never merges, and stored customs are never matched for upsert.
+ */
+export function findUpdatableBudgetLine<T extends { projectId: string; accountCode: string; customLabel?: string }>(
+  lines: T[],
+  projectId: string,
+  accountCode: string,
+  customLabel?: string,
+): T | undefined {
+  if (customLabel && customLabel.trim()) return undefined;
+  return lines.find(b => b.projectId === projectId && b.accountCode === accountCode && !b.customLabel);
+}
+
 export function getBudgetStatus(usagePct: number | null, hasBudget: boolean): BudgetStatus {
   if (!hasBudget || usagePct === null) return 'unbudgeted';
   if (usagePct >= BUDGET_OVER_THRESHOLD) return 'over';

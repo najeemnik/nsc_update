@@ -61,7 +61,7 @@ import { calculateInstallmentStatus, normalizeApartmentInstallments, generateSma
 import { buildJournal, computeAccountBalances, buildTrialBalance } from '../utils/journalEngine';
 import { CHART_OF_ACCOUNTS, getAccountName } from '../data/chartOfAccounts';
 import type { Account } from '../data/chartOfAccounts';
-import { computeBudgetReport } from '../utils/budgetUtils';
+import { computeBudgetReport, findUpdatableBudgetLine } from '../utils/budgetUtils';
 import { backendApi } from '../services/backendApi';
 
 interface AppContextType {
@@ -2999,8 +2999,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addProjectBudget = (data: Omit<ProjectBudget, 'id' | 'createdAt' | 'createdBy'>) => {
     // Standard: single budget line per (project, account). If one exists,
-    // update it instead of creating a duplicate row.
-    const existing = projectBudgets.find(b => b.projectId === data.projectId && b.accountCode === data.accountCode);
+    // update it instead of creating a duplicate row. Custom lines always
+    // create independent rows (Wave 16).
+    const existing = findUpdatableBudgetLine(projectBudgets, data.projectId, data.accountCode, data.customLabel);
     if (existing) {
       updateProjectBudget(existing.id, data);
       return;
@@ -3014,7 +3015,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdBy: currentUser?.name || 'Admin',
     };
     setProjectBudgets(prev => [...prev, newBudget]);
-    logAudit('create', 'expense', newBudget.id, `Budget: ${getAccountName(newBudget.accountCode, 'fa')}`, `Set budget ${newBudget.amount.toLocaleString()} ${newBudget.currency} for account ${newBudget.accountCode}`, undefined, `${newBudget.amount} ${newBudget.currency}`, newBudget.projectId);
+    logAudit('create', 'expense', newBudget.id, `Budget: ${newBudget.customLabel || getAccountName(newBudget.accountCode, 'fa')}`, `Set budget ${newBudget.amount.toLocaleString()} ${newBudget.currency} for account ${newBudget.accountCode}`, undefined, `${newBudget.amount} ${newBudget.currency}`, newBudget.projectId);
   };
 
   const updateProjectBudget = (id: string, updates: Partial<ProjectBudget>) => {

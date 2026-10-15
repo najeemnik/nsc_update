@@ -1,20 +1,32 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Plus, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Account, getBudgetTradeGroups } from '../data/chartOfAccounts';
 
 /**
- * Budget sheet form (Wave 15): every plannable cost from the Chart of
+ * Budget sheet form (Wave 15+16): every plannable cost from the Chart of
  * Accounts listed with an amount box in front of it — nothing to pick,
  * just fill numbers. Small (minor) expenses sit collapsed per trade.
+ * Wave 16: each trade can grow user-defined custom rows (editable name +
+ * amount), stored as independent budget lines under the trade main.
  */
-interface BudgetSheetFormProps {
-  currency: 'USD' | 'AFN';
-  value: Record<string, number>;
-  onChange: (accountCode: string, amount: number) => void;
+export interface BudgetSheetLine {
+  /** COA code for standard rows, `custom-<unique>` for user rows */
+  key: string;
+  /** Trade main code for customs, exact COA code for standard rows */
+  accountCode: string;
+  /** Set only on user-defined rows (editable in the form) */
+  customName?: string;
+  amount: number;
 }
 
-export const BudgetSheetForm: React.FC<BudgetSheetFormProps> = ({ currency, value, onChange }) => {
+interface BudgetSheetFormProps {
+  currency: 'USD' | 'AFN';
+  lines: BudgetSheetLine[];
+  onChange: (lines: BudgetSheetLine[]) => void;
+}
+
+export const BudgetSheetForm: React.FC<BudgetSheetFormProps> = ({ currency, lines, onChange }) => {
   const { tp, language } = useApp();
   const [openMinors, setOpenMinors] = useState<Set<string>>(new Set());
 
@@ -22,6 +34,29 @@ export const BudgetSheetForm: React.FC<BudgetSheetFormProps> = ({ currency, valu
 
   const nameOf = (a: Account): string =>
     language === 'ps' ? a.namePs : language === 'en' ? a.nameEn : a.nameFa;
+
+  const amountOf = (key: string): number => {
+    const l = lines.find(x => x.key === key);
+    return l && l.amount > 0 ? l.amount : 0;
+  };
+
+  const setLine = (key: string, accountCode: string, amount: number, customName?: string) => {
+    const rest = lines.filter(x => x.key !== key);
+    if (amount > 0 || (customName !== undefined && customName.trim() !== '')) {
+      onChange([...rest, { key, accountCode, amount, ...(customName !== undefined ? { customName } : {}) }]);
+    } else {
+      onChange(rest);
+    }
+  };
+
+  const addCustom = (mainCode: string) => {
+    const key = `custom-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    onChange([...lines, { key, accountCode: mainCode, customName: '', amount: 0 }]);
+  };
+
+  const removeCustom = (key: string) => {
+    onChange(lines.filter(x => x.key !== key));
+  };
 
   const toggleMinors = (mainCode: string) => {
     setOpenMinors(prev => {
@@ -32,39 +67,75 @@ export const BudgetSheetForm: React.FC<BudgetSheetFormProps> = ({ currency, valu
     });
   };
 
-  const groupSubtotal = (codes: string[]): number =>
-    codes.reduce((s, c) => s + (value[c] > 0 ? value[c] : 0), 0);
+  const customsOf = (mainCode: string): BudgetSheetLine[] =>
+    lines.filter(x => x.customName !== undefined && x.accountCode === mainCode);
+
+  const groupSubtotal = (mainCode: string, codes: string[]): number => {
+    const inGroup = new Set(codes);
+    return lines.reduce((s, x) => {
+      const belongs = x.customName !== undefined ? x.accountCode === mainCode : inGroup.has(x.key);
+      return s + (belongs && x.amount > 0 ? x.amount : 0);
+    }, 0);
+  };
 
   const fmt = (n: number): string =>
     n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
   const grandTotal = useMemo(
-    () => Object.values(value).reduce((s, v) => s + (v > 0 ? v : 0), 0),
-    [value],
+    () => lines.reduce((s, x) => s + (x.amount > 0 ? x.amount : 0), 0),
+    [lines],
   );
 
-  const row = (acc: Account) => (
+  const amountBox = (val: number, setVal: (v: number) => void) => (
+    <div className="relative w-32 sm:w-36 shrink-0">
+      <input
+        type="number"
+        min="0"
+        step="any"
+        placeholder="0"
+        value={val > 0 ? val : ''}
+        onChange={e => {
+          const v = parseFloat(e.target.value);
+          setVal(Number.isFinite(v) && v > 0 ? v : 0);
+        }}
+        className="w-full ps-2 pe-10 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 font-mono font-bold text-[11px] text-ink focus:ring-2 focus:ring-amber-500/30 focus:outline-none"
+      />
+      <span className="absolute end-2 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400">
+        {currency}
+      </span>
+    </div>
+  );
+
+  const standardRow = (acc: Account) => (
     <div key={acc.code} className="flex items-center gap-2 py-1">
       <span className="flex-1 min-w-0 text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate" title={`${acc.code} — ${nameOf(acc)}`}>
         {nameOf(acc)}
       </span>
-      <div className="relative w-32 sm:w-36 shrink-0">
-        <input
-          type="number"
-          min="0"
-          step="any"
-          placeholder="0"
-          value={value[acc.code] > 0 ? value[acc.code] : ''}
-          onChange={e => {
-            const v = parseFloat(e.target.value);
-            onChange(acc.code, Number.isFinite(v) && v > 0 ? v : 0);
-          }}
-          className="w-full ps-2 pe-10 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 font-mono font-bold text-[11px] text-ink focus:ring-2 focus:ring-amber-500/30 focus:outline-none"
-        />
-        <span className="absolute end-2 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400">
-          {currency}
-        </span>
-      </div>
+      {amountBox(amountOf(acc.code), v => setLine(acc.code, acc.code, v))}
+    </div>
+  );
+
+  const customRow = (line: BudgetSheetLine) => (
+    <div key={line.key} className="flex items-center gap-2 py-1">
+      <span className="shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+        {tp('NEW', 'جدید', 'نوی')}
+      </span>
+      <input
+        type="text"
+        placeholder={tp('Expense name…', 'نام مصرف…', 'د لګښت نوم…')}
+        value={line.customName || ''}
+        onChange={e => setLine(line.key, line.accountCode, line.amount, e.target.value)}
+        className="flex-1 min-w-0 px-2 py-1.5 border border-indigo-200 dark:border-indigo-800 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/30 text-[11px] font-bold text-ink focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
+      />
+      {amountBox(line.amount, v => setLine(line.key, line.accountCode, v, line.customName || ''))}
+      <button
+        type="button"
+        onClick={() => removeCustom(line.key)}
+        title={tp('Remove', 'حذف', 'لرې کول')}
+        className="shrink-0 p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 
@@ -72,7 +143,8 @@ export const BudgetSheetForm: React.FC<BudgetSheetFormProps> = ({ currency, valu
     <div className="space-y-3">
       {groups.map(g => {
         const allCodes = [...g.majors, ...g.minors].map(a => a.code);
-        const sub = groupSubtotal(allCodes);
+        const customs = customsOf(g.main.code);
+        const sub = groupSubtotal(g.main.code, allCodes);
         const minorsOpen = openMinors.has(g.main.code);
         return (
           <div key={g.main.code} className="border border-line rounded-2xl overflow-hidden bg-white dark:bg-slate-800/60">
@@ -87,7 +159,18 @@ export const BudgetSheetForm: React.FC<BudgetSheetFormProps> = ({ currency, valu
               )}
             </div>
             <div className="px-3 py-1.5 divide-y divide-slate-100 dark:divide-slate-800">
-              {g.majors.map(row)}
+              {g.majors.map(standardRow)}
+              {customs.map(customRow)}
+            </div>
+            <div className="px-3 pb-2">
+              <button
+                type="button"
+                onClick={() => addCustom(g.main.code)}
+                className="w-full py-1.5 border border-dashed border-indigo-300 dark:border-indigo-700 hover:border-indigo-500 text-indigo-600 dark:text-indigo-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>{tp('Add new expense', 'افزودن مصرف جدید', 'نوی لګښت ورزياتول')}</span>
+              </button>
             </div>
             {g.minors.length > 0 && (
               <div className="border-t border-dashed border-slate-200 dark:border-slate-700">
@@ -103,7 +186,7 @@ export const BudgetSheetForm: React.FC<BudgetSheetFormProps> = ({ currency, valu
                 </button>
                 {minorsOpen && (
                   <div className="px-3 pb-2 divide-y divide-slate-100 dark:divide-slate-800">
-                    {g.minors.map(row)}
+                    {g.minors.map(standardRow)}
                   </div>
                 )}
               </div>

@@ -767,6 +767,11 @@ export interface ProjectBudget {
   projectId: string;
   /** COA code: 4-digit trade main (e.g. '5950') or 6-digit leaf (e.g. '595008') */
   accountCode: string;
+  /**
+   * Wave 16: user-defined line name. When set, this is an independent custom
+   * row under the trade (never upsert-merged); reports roll it into the main.
+   */
+  customLabel?: string;
   amount: number;
   currency: string;
   exchangeRate?: number;

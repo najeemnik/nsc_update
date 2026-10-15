@@ -96,6 +96,7 @@ const BudgetModal: React.FC<BudgetModalProps> = ({ onClose, editing, presetAccou
   const tradeGroups = useMemo(() => getBudgetTradeGroups(), []);
 
   const [accountCode, setAccountCode] = useState<string>(editing?.accountCode || presetAccountCode || '5100');
+  const [customName, setCustomName] = useState<string>(editing?.customLabel || '');
   const [amount, setAmount] = useState<string>(editing ? String(editing.amount) : '');
   const [currency, setCurrency] = useState<'USD' | 'AFN'>((editing?.currency as 'USD' | 'AFN') || 'USD');
   const [rate, setRate] = useState<number>(editing?.exchangeRate || currentProject?.defaultExchangeRate || 70);
@@ -111,6 +112,8 @@ const BudgetModal: React.FC<BudgetModalProps> = ({ onClose, editing, presetAccou
       currency,
       exchangeRate: rate,
       notes: notes.trim() || undefined,
+      // Wave 16: a filled name turns this line into an independent custom row.
+      customLabel: customName.trim() || undefined,
     };
     if (editing) {
       updateProjectBudget(editing.id, payload);
@@ -158,6 +161,17 @@ const BudgetModal: React.FC<BudgetModalProps> = ({ onClose, editing, presetAccou
               ))}
             </select>
             <p className="text-[10px] text-ink-muted mt-1">{t('budgetAccountHint') || 'Budgets attach to Chart-of-Accounts cost codes — purchases auto-map here.'}</p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-ink mb-1.5">{t('budgetCustomName') || 'Custom expense name (optional)'}</label>
+            <input
+              type="text"
+              value={customName}
+              onChange={e => setCustomName(e.target.value)}
+              placeholder={t('budgetCustomNameHint') || 'Leave empty for a standard line — fill to create your own expense row'}
+              className="w-full px-3 py-2.5 bg-surface-2/80 border border-line rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            />
           </div>
 
           <CurrencyAmountInput
@@ -340,6 +354,23 @@ export const BudgetView: React.FC = () => {
     }
   };
 
+  // Wave 16: single custom-line edit/delete (sub-rows under each trade).
+  const lineUSD = (b: ProjectBudget): number =>
+    b.amountUSD ?? (b.currency === 'USD' ? b.amount : (b.exchangeRate && b.exchangeRate > 0 ? b.amount / b.exchangeRate : b.amount));
+  const handleEditLine = (b: ProjectBudget) => {
+    setEditingBudget(b);
+    setPresetCode(null);
+    setIsModalOpen(true);
+  };
+  const handleDeleteLine = (b: ProjectBudget) => {
+    const msg = language === 'en'
+      ? `Remove custom budget "${b.customLabel}"?`
+      : language === 'ps'
+        ? `د "${b.customLabel}" بودجې کرښه حذف شي؟`
+        : `ردیف بودجه «${b.customLabel}» حذف شود؟`;
+    if (confirm(msg)) deleteProjectBudget(b.id);
+  };
+
   const kpis = [
     { label: t('budgetTotalBudget') || 'Total Project Budget', value: fmt(totals.totalBudgetUSD), Icon: PiggyBank, color: 'text-indigo-600 dark:text-indigo-400', bg: 'from-indigo-500/10 to-indigo-600/5 border-indigo-500/20' },
     { label: t('budgetTotalSpent') || 'Total Spent (Committed)', value: fmt(totals.totalCommittedUSD), Icon: TrendingUp, color: 'text-amber-600 dark:text-amber-400', bg: 'from-amber-500/10 to-amber-600/5 border-amber-500/20' },
@@ -424,7 +455,8 @@ export const BudgetView: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {budgetedRows.map(r => (
-                <tr key={r.accountCode} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                <React.Fragment key={r.accountCode}>
+                <tr className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
                   <td className="py-3 px-4">
                     <div className="font-bold text-ink">{nameOf(r)}</div>
                     <div className="text-[10px] text-ink-muted font-mono">{r.accountCode}</div>
@@ -456,6 +488,32 @@ export const BudgetView: React.FC = () => {
                     </td>
                   )}
                 </tr>
+                {/* Wave 16: user-defined custom lines under this trade */}
+                {projectBudgets
+                  .filter(b => b.projectId === currentProject?.id && b.customLabel && toBudgetMain(b.accountCode) === r.accountCode)
+                  .map(b => (
+                    <tr key={b.id} className="bg-indigo-50/40 dark:bg-indigo-950/20">
+                      <td className="py-2 px-4">
+                        <div className="ps-5 font-bold text-ink text-[11px]">✏️ {b.customLabel}</div>
+                        <div className="ps-5 text-[10px] text-ink-muted font-mono">{b.accountCode}</div>
+                      </td>
+                      <td className="py-2 px-4 text-end font-mono font-bold text-ink whitespace-nowrap">{fmt(lineUSD(b))}</td>
+                      <td colSpan={6} />
+                      {canManage && (
+                        <td className="py-2 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button onClick={() => handleEditLine(b)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-800 rounded-lg transition" title={t('edit') || 'Edit'}>
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDeleteLine(b)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition" title={t('delete') || 'Delete'}>
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </React.Fragment>
               ))}
               {budgetedRows.length === 0 && (
                 <tr>

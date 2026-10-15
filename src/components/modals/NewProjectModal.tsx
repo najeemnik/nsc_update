@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Building2, X, Plus, Trash2, Receipt, ArrowRight, Check, AlertCircle, Users, Coins, PieChart } from 'lucide-react';
 import { GeneralExpenseItem, ProjectPartner } from '../../types';
-import { BudgetSheetForm } from '../BudgetSheetForm';
+import { BudgetSheetForm, BudgetSheetLine } from '../BudgetSheetForm';
 
 interface InitialPartnerRow {
   id: string;
@@ -38,8 +38,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Wave 15: optional budget sheet (accountCode -> amount in project currency)
-  const [budgetLines, setBudgetLines] = useState<Record<string, number>>({});
+  // Wave 15+16: optional budget sheet (standard + user-defined custom lines)
+  const [budgetSheetLines, setBudgetSheetLines] = useState<BudgetSheetLine[]>([]);
 
   // Optional Initial Partners & Capital
   const [initialPartners, setInitialPartners] = useState<InitialPartnerRow[]>([
@@ -190,10 +190,14 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
       partners: validPartners,
     });
 
-    // Wave 15: optional budget sheet — only filled (>0) lines are stored.
-    Object.entries(budgetLines).forEach(([accountCode, amount]) => {
-      if (amount > 0) {
-        addProjectBudget({ projectId: createdProject.id, accountCode, amount, currency, exchangeRate });
+    // Wave 15+16: optional budget sheet — filled standard lines + named custom lines.
+    budgetSheetLines.forEach(l => {
+      if (!(l.amount > 0)) return;
+      if (l.customName !== undefined) {
+        if (!l.customName.trim()) return;
+        addProjectBudget({ projectId: createdProject.id, accountCode: l.accountCode, amount: l.amount, currency, exchangeRate, customLabel: l.customName.trim() });
+      } else {
+        addProjectBudget({ projectId: createdProject.id, accountCode: l.accountCode, amount: l.amount, currency, exchangeRate });
       }
     });
 
@@ -465,8 +469,8 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onClos
 
               <BudgetSheetForm
                 currency={currency}
-                value={budgetLines}
-                onChange={(code, amount) => setBudgetLines(prev => ({ ...prev, [code]: amount }))}
+                lines={budgetSheetLines}
+                onChange={setBudgetSheetLines}
               />
 
               <div className="pt-3 border-t border-line flex items-center justify-between">

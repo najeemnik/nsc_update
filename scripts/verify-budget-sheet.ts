@@ -9,7 +9,7 @@ import {
   resolveExpenseAccount,
   toBudgetMain,
 } from '../src/data/chartOfAccounts';
-import { computeBudgetReport } from '../src/utils/budgetUtils';
+import { computeBudgetReport, findUpdatableBudgetLine } from '../src/utils/budgetUtils';
 import type { Expense, Project, ProjectBudget } from '../src/types';
 
 let passed = 0;
@@ -95,6 +95,28 @@ function main() {
   });
   const row5100 = legacy.find(r => r.accountCode === '5100');
   check('legacy-row', row5100?.budgetUSD === 1000 && row5100?.committedUSD === 200 && row5100?.usagePct === 20);
+
+  // --- Wave 16: custom lines never upsert-merge ---
+  type BL = { projectId: string; accountCode: string; customLabel?: string };
+  const stored: BL[] = [
+    { projectId: 'p1', accountCode: '5950' },
+    { projectId: 'p1', accountCode: '5950', customLabel: 'My paint' },
+  ];
+  check('upsert-standard-found', findUpdatableBudgetLine(stored, 'p1', '5950', undefined)?.customLabel === undefined);
+  check('upsert-incoming-custom-skips', findUpdatableBudgetLine(stored, 'p1', '5950', 'Another') === undefined);
+  check('upsert-blank-name-is-standard', findUpdatableBudgetLine(stored, 'p1', '5950', '  ') !== undefined);
+  check('upsert-other-project-miss', findUpdatableBudgetLine(stored, 'p2', '5950', undefined) === undefined);
+
+  // --- Wave 16: custom lines roll into their trade in reports ---
+  const mkCustom = (code: string, amount: number, label: string): ProjectBudget =>
+    as<ProjectBudget>({ id: `c-${label}`, projectId: 'p1', accountCode: code, amount, currency: 'USD', exchangeRate: 70, customLabel: label });
+  const customReport = computeBudgetReport({
+    projectId: 'p1', project: proj,
+    budgets: [mkCustom('5950', 100, 'A'), mkCustom('5950', 50, 'B'), mkCustom('595008', 70, 'C')],
+    expenses: [], steelRecords: [], concreteRecords: [],
+  });
+  check('custom-sum-in-trade', customReport.find(r => r.accountCode === '5950')?.budgetUSD === 220,
+    `got=${customReport.find(r => r.accountCode === '5950')?.budgetUSD}`);
 
   for (const r of results) console.log((r.startsWith('PASS') ? '✅' : '❌') + ' ' + r.slice(5));
   console.log(`\n${failed === 0 ? '🎉 ALL BUDGET-SHEET CHECKS PASSED' : '💥 FAILURES PRESENT'} (${passed} passed, ${failed} failed)`);
