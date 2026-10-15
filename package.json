@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js host_upload",
     "lint": "tsc --noEmit",
-    "verify:journal": "tsx scripts/verify-journal.ts"
+    "verify:journal": "esbuild scripts/verify-journal.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-journal.cjs --log-level=error && node node_modules/.cache/verify-journal.cjs",
+    "test:accounting": "esbuild scripts/verify-accounting-edges.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-edges.cjs --log-level=error && node node_modules/.cache/verify-edges.cjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

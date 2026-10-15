@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { backendApi } from '../services/backendApi';
 import { User, UserActivityEvent, CustomActionButton, CustomBillDesign, DEFAULT_ACTION_BUTTONS } from '../types';
 import { 
   ShieldCheck, 
@@ -115,7 +116,8 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     addUser,
     activityEvents,
     logout,
-    t 
+    t,
+    tp
   } = useApp();
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -238,6 +240,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
   const [newGateKey, setNewGateKey] = useState('');
   const [newGateKeyRepeat, setNewGateKeyRepeat] = useState('');
   const [gateKeyMsg, setGateKeyMsg] = useState<string | null>(null);
+  const [gateKeyOk, setGateKeyOk] = useState(false);
 
   const tenantUsers = users.filter(u => !u.isMasterSuperAdmin);
 
@@ -273,21 +276,15 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     e.preventDefault();
     if (lockoutUntil && Date.now() < lockoutUntil) {
       const remainingSecs = Math.ceil((lockoutUntil - Date.now()) / 1000);
-      setAuthError(`دسترسی برای ${remainingSecs} ثانیه مسدود است.`);
+      setAuthError(tp(`Access blocked for ${remainingSecs} seconds.`, `دسترسی برای ${remainingSecs} ثانیه مسدود است.`, `لاسرسی د ${remainingSecs} ثانیو لپاره بند دی.`));
       return;
     }
 
     const cleanPwd = securityPassword.trim();
     const customKey = localStorage.getItem('nsc_office7_key') || '';
     const masterAccountPwd = users.find(u => u.isMasterSuperAdmin)?.password || '';
-    const validMasterKeys = [
-      customKey,
-      masterAccountPwd,
-      'nik@master2026',
-      '0093783788278',
-      'najeemnik@2026',
-      'password123'
-    ].filter(Boolean);
+    // فقط کلید ثبت‌شده توسط مالک و رمز خود اکانت مالک — هیچ کلید پیش‌فرضی وجود ندارد
+    const validMasterKeys = [customKey, masterAccountPwd].filter(Boolean);
 
     if (validMasterKeys.includes(cleanPwd)) {
       setIsAuthenticated(true);
@@ -299,9 +296,9 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
       setFailedAttempts(newAttempts);
       if (newAttempts >= 5) {
         setLockoutUntil(Date.now() + 30000);
-        setAuthError('تلاش‌های ناموفق بیش از حد. دسترسی ۳۰ ثانیه معلق شد.');
+        setAuthError(tp('Too many failed attempts. Access suspended for 30 seconds.', 'تلاش‌های ناموفق بیش از حد. دسترسی ۳۰ ثانیه معلق شد.', 'ډېرې ناکامې هڅې. لاسرسی د ۳۰ ثانیو لپاره وځنډېد.'));
       } else {
-        setAuthError(`رمز امنیتی ماستر نادرست است. (${5 - newAttempts} تلاش باقیمانده)`);
+        setAuthError(tp(`Wrong master security key. (${5 - newAttempts} attempts left)`, `رمز امنیتی ماستر نادرست است. (${5 - newAttempts} تلاش باقیمانده)`, `د ماسټر امنیتي کیلي ناسمه ده. (${5 - newAttempts} هڅې پاتې)`));
       }
     }
   };
@@ -563,20 +560,37 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     );
   };
 
-  const handleSaveGateKey = (e: React.FormEvent) => {
+  const handleSaveGateKey = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newGateKey.trim() || newGateKey.trim().length < 4) {
-      setGateKeyMsg('کلید جدید باید لااقل ۴ حرف باشد.');
+    const key = newGateKey.trim();
+    if (!key || key.length < 10) {
+      setGateKeyOk(false);
+      setGateKeyMsg(tp('New gate key must be at least 10 characters.', 'کلید جدید باید حداقل ۱۰ کاراکتر باشد.', 'نوی دروازې کیلي باید لږ تر لږه ۱۰ توري وي.'));
       return;
     }
     if (newGateKey !== newGateKeyRepeat) {
-      setGateKeyMsg('تکرار کلید مطابقت ندارد.');
+      setGateKeyOk(false);
+      setGateKeyMsg(tp('Key confirmation does not match.', 'تکرار کلید مطابقت ندارد.', 'د کیلي تکرار سمون نه خوري.'));
       return;
     }
-    localStorage.setItem('nsc_office7_key', newGateKey.trim());
-    setNewGateKey('');
-    setNewGateKeyRepeat('');
-    setGateKeyMsg('کلید دفتر هفت با موفقیت تغییر کرد. رمز اکانت najeemnik هم همواره مقبول باقی می‌ماند.');
+    setGateKeyOk(false);
+    setGateKeyMsg(tp('Saving…', 'در حال ذخیره…', 'په ثبتېدو کې…'));
+    try {
+      const res = await backendApi.changeOffice7GateKey(key);
+      if (!res.success) {
+        setGateKeyOk(false);
+        setGateKeyMsg(res.error || tp('Failed to change gate key.', 'تغییر کلید ناموفق بود.', 'د کیلي بدلول ناکام شول.'));
+        return;
+      }
+      backendApi.setOffice7GateKey(key);
+      setNewGateKey('');
+      setNewGateKeyRepeat('');
+      setGateKeyOk(true);
+      setGateKeyMsg(tp('Office 7 gate key changed successfully on the server.', 'کلید دفتر هفت با موفقیت در سرور تغییر کرد.', 'د دفتر اووه کیلي په سرور کې په بریالیتوب بدله شوه.'));
+    } catch (err: any) {
+      setGateKeyOk(false);
+      setGateKeyMsg(err.message || tp('Server connection error.', 'خطا در ارتباط با سرور.', 'له سرور سره په اړیکه کې تېروتنه.'));
+    }
   };
 
   // ---- دفتر هفت usage analytics (who used which option how much & when) ----
@@ -780,9 +794,9 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
               <KeyRound className="w-10 h-10" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-black text-slate-900">ورود محرمانه به دفتر هفت</h3>
+              <h3 className="text-lg font-black text-slate-900">{tp('Confidential Office 7 Login', 'ورود محرمانه به دفتر هفت', 'دفتر اووه ته محرم ننوتل')}</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
-                کلید امنیتی دفتر هفت یا همان رمز اکانت مالک (najeemnik) را وارد فرمایید. در صورت فراموشی، کلید پیش‌فرض سیستم نیز پذیرفته می‌شود.
+                {tp('Enter the Office 7 security gate key or the owner account password.', 'کلید امنیتی دفتر هفت یا رمز اکانت مالک را وارد فرمایید.', 'د دفتر اووه امنیتي کیلي یا د خاوند حساب پټ نوم ولیکئ.')}
               </p>
             </div>
 
@@ -807,7 +821,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                 type="submit"
                 className="w-full py-3 bg-gradient-to-l from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-black text-xs rounded-xl shadow-lg shadow-indigo-500/30 transition-all flex items-center justify-center gap-2"
               >
-                <span>احراز هویت و ورود</span>
+                <span>{tp('Authenticate & Enter', 'احراز هویت و ورود', 'تائید او ننوتل')}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
@@ -1870,6 +1884,14 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
           /* SCREEN 3: دفتر هفت — light SaaS dashboard (etikto-inspired, distinct from the main app) */
           <div className="flex-1 overflow-y-auto scroll-touch p-4 sm:p-6 space-y-5 bg-gradient-to-br from-slate-50 via-slate-100/50 to-indigo-100/40">
 
+            {['password123', 'admin123', ''].includes(users.find(u => u.isMasterSuperAdmin)?.password || '') && (
+              <div className="p-3.5 rounded-2xl text-xs font-bold bg-red-50 border border-red-200 text-red-700">
+                {tp('⚠️ SECURITY: the owner account still uses a default/weak password. Change it in Staff Management immediately.',
+                   '⚠️ هشدار امنیتی: اکانت مالک هنوز رمز پیش‌فرض/ضعیف دارد. فوراً از بخش مدیریت کارمندان تغییرش دهید.',
+                   '⚠️ امنیتي خبرداری: د خاوند حساب لا هم ډیفلټ/کمزوری پټ نوم لري. سمدستي یې د کارکوونکو له مدیریت څخه بدل کړئ.')}
+              </div>
+            )}
+
             {/* Internal nav */}
             <div className="flex flex-wrap items-center gap-1.5 p-1 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-2xl w-fit shadow-sm sticky top-0 z-10">
               {([
@@ -2219,7 +2241,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                     <h4 className="text-sm font-black text-slate-800">تغییر کلید ورود دفتر هفت</h4>
                   </div>
                   <p className="text-[11px] text-slate-500 leading-relaxed">
-                    کلید جدید فوراً فعال می‌شود. تذکر: <span className="font-bold text-slate-700">رمز اکانت najeemnik</span> همواره به عنوان کلید پشتیبان پذیرفته است تا هیچ‌وقت بیرون نمانید.
+                    {tp('The new key activates immediately on the server. Keep it in a safe place — it cannot be recovered if lost.', 'کلید جدید فوراً در سرور فعال می‌شود. آن را در جای امن نگه دارید — در صورت گم شدن قابل بازیابی نیست.', 'نوې کیلي سمدستي په سرور کې فعالېږي. په خوندي ځای کې یې وساتئ — که ورکه شي بېرته نه ترلاسه کېږي.')}
                   </p>
                   <form onSubmit={handleSaveGateKey} className="space-y-3">
                     <input
@@ -2240,7 +2262,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                     />
                     {gateKeyMsg && (
                       <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
-                        gateKeyMsg.includes('موفقیت') ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
+                        gateKeyOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
                       }`}>
                         <CheckCircle2 className="w-4 h-4 shrink-0" />
                         <span>{gateKeyMsg}</span>
