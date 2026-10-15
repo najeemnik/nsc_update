@@ -56,6 +56,7 @@ import { MasterAdminModal } from './components/MasterAdminModal';
 import { AiAssistantModal } from './components/AiAssistantModal';
 import { CameraModal } from './components/CameraModal';
 import { PwaManager } from './components/PwaManager';
+import { NotificationToasts } from './components/NotificationCenter';
 import { Project } from './types';
 
 function MainApp() {
@@ -109,6 +110,21 @@ function MainApp() {
     window.addEventListener('nsc:session-expired', onSessionExpired);
     return () => window.removeEventListener('nsc:session-expired', onSessionExpired);
   }, [notifySessionExpired, logout]);
+
+  // Wave 12: notification deep-links (tab only — payload project is set via context).
+  useEffect(() => {
+    const VALID_TABS = new Set([
+      'dashboard', 'projects', 'apartments', 'expenses', 'payments', 'suppliers',
+      'contractors', 'labor', 'steel', 'concrete', 'assets', 'documents',
+      'budget', 'accounting', 'reports', 'users', 'settings', 'audit_logs',
+    ]);
+    const onGotoTab = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
+      if (tab && VALID_TABS.has(tab)) setActiveTab(tab);
+    };
+    window.addEventListener('nsc:goto-tab', onGotoTab);
+    return () => window.removeEventListener('nsc:goto-tab', onGotoTab);
+  }, []);
 
   // دفتر هفت telemetry: log every section a user opens (who, where, when)
   const { trackFeature } = useApp();
@@ -485,6 +501,7 @@ function MainApp() {
       <CameraModal />
 
       <PwaManager />
+      <NotificationToasts />
     </div>
   );
 }

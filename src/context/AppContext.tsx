@@ -23,6 +23,7 @@ import {
   InstallmentRecord,
   InstallmentPaymentRecord,
   SystemReminderNotification,
+  NotificationPrefs,
   JournalEntry,
   AccountBalance,
   TrialBalanceRow,
@@ -36,6 +37,7 @@ import {
   FixedAsset,
   PartnerEquityTransfer
 } from '../types';
+import { DEFAULT_NOTIFICATION_PREFS } from '../types';
 import { 
   initialUsers, 
   initialProjects, 
@@ -55,7 +57,7 @@ import {
 import { translations } from '../i18n/translations';
 import { initAuth, googleSignIn, googleSignOut, getAccessToken } from '../services/googleDriveAuth';
 import { getOrCreateFolder, uploadFileToGoogleDrive, listGoogleDriveFiles, deleteGoogleDriveFile } from '../services/googleDriveService';
-import { calculateInstallmentStatus, normalizeApartmentInstallments, generateSmartReminders } from '../utils/installmentUtils';
+import { calculateInstallmentStatus, normalizeApartmentInstallments, generateSmartReminders, pruneNotifications, type ReminderLang } from '../utils/installmentUtils';
 import { buildJournal, computeAccountBalances, buildTrialBalance } from '../utils/journalEngine';
 import { CHART_OF_ACCOUNTS, getAccountName } from '../data/chartOfAccounts';
 import type { Account } from '../data/chartOfAccounts';
@@ -204,11 +206,15 @@ interface AppContextType {
   updateInstallment: (apartmentId: string, installmentId: string, updates: Partial<InstallmentRecord>) => void;
   addInstallmentToApartment: (apartmentId: string, installmentData: Omit<InstallmentRecord, 'id' | 'remainingAmount' | 'status' | 'paymentHistory'>) => void;
   deleteInstallment: (apartmentId: string, installmentId: string) => void;
-  // NOTE (Wave 1): the notification-center API declarations were removed here.
-  // They were declared but never implemented, had no UI and no callers, so any
-  // use would have crashed at runtime. The full notification system (categories,
-  // quiet hours, read status, reminder engine) will be implemented in Wave 8
-  // together with its UI. See `generateSmartReminders` in utils/installmentUtils.
+  // Wave 12: full notification center (revives the Wave-1 stub).
+  notifications: SystemReminderNotification[];
+  unreadNotificationCount: number;
+  notificationPrefs: NotificationPrefs;
+  markNotificationRead: (id: string) => void;
+  dismissNotification: (id: string) => void;
+  markAllNotificationsRead: () => void;
+  clearReadNotifications: () => void;
+  setNotificationPrefs: (patch: Partial<NotificationPrefs>) => void;
   payments: Payment[];
   addPayment: (payment: Omit<Payment, 'id' | 'createdAt' | 'createdBy'>) => void;
   updatePayment: (id: string, updates: Partial<Payment>) => void;
@@ -502,6 +508,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [documents, setDocuments] = useState<DocumentRecord[]>(() => loadFromStorage('documents', initialDocuments));
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => loadFromStorage('auditLogs', initialAuditLogs));
   const [activityEvents, setActivityEvents] = useState<UserActivityEvent[]>(() => loadFromStorage('activityEvents', []));
+  const [notifications, setNotifications] = useState<SystemReminderNotification[]>(() => loadFromStorage('notifications', []));
+  const [notificationPrefs, setNotificationPrefsState] = useState<NotificationPrefs>(() => {
+    const loaded = loadFromStorage<Partial<NotificationPrefs>>('notificationPrefs', {});
+    return {
+      ...DEFAULT_NOTIFICATION_PREFS,
+      ...loaded,
+      categories: { ...DEFAULT_NOTIFICATION_PREFS.categories, ...(loaded.categories || {}) },
+    };
+  });
   const [projectPartners, setProjectPartners] = useState<ProjectPartner[]>(() => loadFromStorage('projectPartners', initialProjectPartners));
   const [projectInvestments, setProjectInvestments] = useState<ProjectInvestment[]>(() => loadFromStorage('projectInvestments', initialProjectInvestments));
   const [partnerEquityTransfers, setPartnerEquityTransfers] = useState<PartnerEquityTransfer[]>(() => loadFromStorage('partnerEquityTransfers', []));
@@ -571,6 +586,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { if (!saveToStorage('documents', documents)) { setStorageError('documents'); } }, [documents]);
   useEffect(() => { if (!saveToStorage('auditLogs', auditLogs)) { setStorageError('auditLogs'); } }, [auditLogs]);
   useEffect(() => { if (!saveToStorage('activityEvents', activityEvents.slice(-600))) { setStorageError('activityEvents'); } }, [activityEvents]);
+  useEffect(() => { if (!saveToStorage('notifications', notifications.slice(-150))) { setStorageError('notifications'); } }, [notifications]);
+  useEffect(() => { if (!saveToStorage('notificationPrefs', notificationPrefs)) { setStorageError('notificationPrefs'); } }, [notificationPrefs]);
   useEffect(() => { if (!saveToStorage('projectPartners', projectPartners)) { setStorageError('projectPartners'); } }, [projectPartners]);
   useEffect(() => { if (!saveToStorage('projectInvestments', projectInvestments)) { setStorageError('projectInvestments'); } }, [projectInvestments]);
   useEffect(() => { if (!saveToStorage('partnerEquityTransfers', partnerEquityTransfers)) { setStorageError('partnerEquityTransfers'); } }, [partnerEquityTransfers]);
@@ -3177,6 +3194,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return await uploadDocumentToGoogleDrive(doc.id);
   };
 
+  // ---- Notification center (Wave 12) ----
+  const markNotificationRead = (id: string) => {
+    setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)));
+  };
+  const dismissNotification = (id: string) => {
+    setNotifications(prev => prev.map(n => (n.id === id ? { ...n, dismissed: true } : n)));
+  };
+  const markAllNotificationsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+  const clearReadNotifications = () => {
+    setNotifications(prev => prev.filter(n => !n.read && !n.dismissed));
+  };
+  const setNotificationPrefs = (patch: Partial<NotificationPrefs>) => {
+    setNotificationPrefsState(prev => ({
+      ...prev,
+      ...patch,
+      categories: { ...prev.categories, ...(patch.categories || {}) },
+    }));
+  };
+  const unreadNotificationCount = useMemo(
+    () => notifications.filter(n => !n.read && !n.dismissed).length,
+    [notifications],
+  );
+
+  const regenNotifications = () => {
+    if (!notificationPrefs.enabled) return;
+    const enabledTypes = (Object.keys(notificationPrefs.categories) as Array<keyof typeof notificationPrefs.categories>)
+      .filter(k => notificationPrefs.categories[k]);
+    const lang: ReminderLang = language === 'fa' || language === 'ps' ? language : 'en';
+    setNotifications(prev => {
+      const fresh = generateSmartReminders({
+        apartments,
+        expenses,
+        payments,
+        contractors,
+        suppliers,
+        documents,
+        projects,
+        existingNotifications: prev,
+        now: new Date(),
+        formatCurrency,
+        projectBudgets,
+        steelRecords,
+        concreteRecords,
+        lang,
+        dueSoonDays: Math.max(1, Math.min(30, notificationPrefs.dueSoonDays || 7)),
+        inactivityDays: Math.max(1, Math.min(90, notificationPrefs.inactivityDays || 14)),
+        enabledTypes,
+      });
+      return fresh.length > 0 ? pruneNotifications([...prev, ...fresh]) : prev;
+    });
+  };
+  // Regenerate whenever any source data, language or prefs change…
+  useEffect(() => {
+    regenNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apartments, expenses, payments, contractors, suppliers, documents, projects, projectBudgets, steelRecords, concreteRecords, language, notificationPrefs]);
+  // …and every 10 minutes so day-rollover reminders appear without interaction.
+  useEffect(() => {
+    const t = setInterval(regenNotifications, 10 * 60 * 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apartments, expenses, payments, contractors, suppliers, documents, projects, projectBudgets, steelRecords, concreteRecords, language, notificationPrefs]);
+
   const restoreFromGoogleDrive = async (fileId: string) => {
     const token = await getAccessToken();
     if (!token) throw new Error('Not authenticated with Google Drive.');
@@ -3204,6 +3286,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addUser,
       activityEvents,
       trackFeature,
+      notifications,
+      unreadNotificationCount,
+      notificationPrefs,
+      markNotificationRead,
+      dismissNotification,
+      markAllNotificationsRead,
+      clearReadNotifications,
+      setNotificationPrefs,
       updateUser,
       toggleUserActive,
       createTenantCompanyOwnerBySuperAdmin,

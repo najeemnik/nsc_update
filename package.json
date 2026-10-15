@@ -12,7 +12,8 @@
     "lint": "tsc --noEmit",
     "verify:journal": "esbuild scripts/verify-journal.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-journal.cjs --log-level=error && node node_modules/.cache/verify-journal.cjs",
     "test:accounting": "esbuild scripts/verify-accounting-edges.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-edges.cjs --log-level=error && node node_modules/.cache/verify-edges.cjs",
-    "test:offline": "esbuild scripts/verify-offline-queue.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-offline.cjs --log-level=error && node node_modules/.cache/verify-offline.cjs"
+    "test:offline": "esbuild scripts/verify-offline-queue.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-offline.cjs --log-level=error && node node_modules/.cache/verify-offline.cjs",
+    "test:notifications": "esbuild scripts/verify-notifications.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-notif.cjs --log-level=error && node node_modules/.cache/verify-notif.cjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { NotificationBell } from './NotificationCenter';
 import { 
   Building2, 
   ChevronDown, 
@@ -259,6 +260,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Home className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Notifications (Wave 12) */}
+            <NotificationBell className={`${circleBtn} bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow`} />
 
             {/* Direct Quick Action (Highest configured priority) */}
             {(() => {

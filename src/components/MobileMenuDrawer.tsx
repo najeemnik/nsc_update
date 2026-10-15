@@ -14,6 +14,7 @@
 
 import React from 'react';
 import { useApp } from '../context/AppContext';
+import { NotificationBell } from './NotificationCenter';
 import { Language } from '../types';
 import {
   LayoutDashboard,
@@ -172,6 +173,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({ isOpen, onCl
             <span className={`text-[10px] px-1.5 py-0.5 rounded-lg font-bold uppercase shrink-0 ${roleBadge}`}>
               {roleLabel}
             </span>
+            <NotificationBell className="p-2 text-ink-muted hover:text-ink rounded-xl transition shrink-0" />
             <button onClick={onClose} className="p-2 text-ink-muted hover:text-ink rounded-xl transition shrink-0" aria-label="Close">
               <X className="w-4 h-4" />
             </button>

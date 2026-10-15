@@ -617,6 +617,33 @@ export interface SystemReminderNotification {
   actionPayload?: any;
 }
 
+export interface NotificationPrefs {
+  enabled: boolean;
+  categories: Record<NotificationType, boolean>;
+  quietStart: string; // HH:MM — toasts muted inside this window
+  quietEnd: string; // HH:MM
+  dueSoonDays: number;
+  inactivityDays: number;
+}
+
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  enabled: true,
+  categories: {
+    installment_overdue: true,
+    installment_due_soon: true,
+    installment_paid: true,
+    unpaid_purchase: true,
+    outstanding_debt: true,
+    missing_document: true,
+    project_inactivity: true,
+    general_financial: true,
+  },
+  quietStart: '22:00',
+  quietEnd: '07:00',
+  dueSoonDays: 7,
+  inactivityDays: 14,
+};
+
 export interface FixedAsset {
   id: string;
   assetTag: string;
