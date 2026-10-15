@@ -93,6 +93,25 @@ export interface AppSettings {
 
 export type SettlementMode = 'cash' | 'credit' | 'partial';
 
+/** Wave 19: the 7 separable access rights (per project × per section). */
+export type GrantAction = 'view' | 'create' | 'edit' | 'del' | 'approve' | 'print' | 'export';
+
+export interface SectionGrant {
+  view: boolean;
+  create: boolean;
+  edit: boolean;
+  del: boolean;
+  approve: boolean;
+  print: boolean;
+  export: boolean;
+}
+
+/** Access to one project ('*' = all current + future projects). */
+export interface ProjectGrant {
+  projectId: string;
+  sections: Partial<Record<string, Partial<SectionGrant>>>;
+}
+
 export interface UserPermissions {
   allowedTabs?: string[];
   canManageSales?: boolean;
@@ -161,6 +180,8 @@ export interface CustomBillDesign {
   accentColor?: string;
   borderStyle?: string;
   termsAndConditions?: string;
+  /** Wave 19: bank details printed on bills/receipts. */
+  bankDetails?: string;
   customNote?: string;
   watermarkText?: string;
   themeColor?: string;
@@ -194,6 +215,10 @@ export interface User {
   subscriptionExpiresAt?: string;
   isLockedBySuperAdmin?: boolean;
   permissions?: UserPermissions;
+  /** Wave 19: explicit per-project × per-section grants (owner-managed). */
+  projectGrants?: ProjectGrant[];
+  /** Wave 19: optional access expiry (ISO date); past date = access denied. */
+  accessExpiresAt?: string;
   customTheme?: AppTheme;
   customBackgroundUrl?: string;
   customLogoUrl?: string;
@@ -371,6 +396,10 @@ export interface Expense {
   partyId?: string;
   partyName?: string;
   paymentStatus?: PaymentStatus;
+  /** Wave 19: owner approval workflow. undefined = legacy (counts normally). */
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
+  approvedBy?: string;
+  approvedAt?: string;
   paymentMethod?: 'Cash' | 'Bank' | 'Hawala' | 'Personal' | string;
   billNumber?: string;
   paidAmount?: number;

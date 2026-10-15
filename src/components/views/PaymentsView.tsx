@@ -10,9 +10,11 @@ import {
   DollarSign, 
   User, 
   FileText, 
-  CheckCircle2 
+  CheckCircle2,
+  Download
 } from 'lucide-react';
 import { Payment } from '../../types';
+import { downloadCsv } from '../../utils/csvExport';
 
 interface PaymentsViewProps {
   onOpenAddPayment: () => void;
@@ -27,6 +29,10 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
     formatNumber, 
     t, 
     language 
+  ,
+    printIfAllowed,
+    can,
+    denyAccess,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,15 +57,26 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
   const totalPaidAFN = filteredPayments.reduce((sum, p) => sum + (p.amountAFN || 0), 0);
 
   const handleDelete = (id: string, recipient: string) => {
+    if (!can('payments', 'del')) { denyAccess('payments', 'del'); return; }
     if (confirm(t('confirmDeletePayment') || `Are you sure you want to delete payment to "${recipient}"?`)) {
       deletePayment(id);
     }
   };
 
+  const handleExportCsv = () => {
+    if (!can('payments', 'export')) { denyAccess('payments', 'export'); return; }
+    downloadCsv(`payments-${currentProject?.code || 'project'}-${new Date().toISOString().split('T')[0]}`,
+      ['Date', 'Recipient', 'Method', 'Reference', 'Amount USD', 'Amount AFN', 'Notes'],
+      filteredPayments.map(p => [
+        p.date, p.recipientName || (p as any).partyName || '', p.paymentMethod || (p as any).method || '',
+        p.referenceNumber || '', p.amountUSD ?? (p as any).amountInUSD ?? '', p.amountAFN ?? (p as any).amountInAFN ?? '', p.notes || '',
+      ]));
+  };
+
   const handlePrintVoucher = (p: Payment) => {
     setSelectedReceiptPayment(p);
     setTimeout(() => {
-      window.print();
+      printIfAllowed('payments');
     }, 200);
   };
 
@@ -77,9 +94,9 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={() => window.print()}
+            onClick={() => printIfAllowed('payments')}
             className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-semibold transition"
           >
             <Printer className="w-4 h-4" />
@@ -87,7 +104,15 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
           </button>
 
           <button
-            onClick={onOpenAddPayment}
+            onClick={handleExportCsv}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-2xl text-xs font-bold shadow-lg shadow-teal-500/25 transition active:scale-95"
+          >
+            <Download className="w-4 h-4" />
+            <span>{t('exportCsv') || 'CSV'}</span>
+          </button>
+
+          <button
+            onClick={() => { if (can('payments', 'create')) onOpenAddPayment(); else denyAccess('payments', 'create'); }}
             className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-emerald-500/25 transition active:scale-95"
           >
             <Plus className="w-4 h-4" />
@@ -256,7 +281,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({ onOpenAddPayment }) 
 
             <div className="mt-6 flex justify-end gap-2 print:hidden">
               <button
-                onClick={() => window.print()}
+                onClick={() => printIfAllowed('payments')}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold"
               >
                 {t('print') || 'Print Voucher'}

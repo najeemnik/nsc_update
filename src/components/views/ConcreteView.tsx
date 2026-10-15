@@ -24,6 +24,10 @@ export const ConcreteView: React.FC<ConcreteViewProps> = ({ onOpenAddConcrete })
     formatNumber, 
     t, 
     language 
+  ,
+    printIfAllowed,
+    can,
+    denyAccess,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,6 +50,7 @@ export const ConcreteView: React.FC<ConcreteViewProps> = ({ onOpenAddConcrete })
   const totalCostUSD = filteredConcrete.reduce((sum, c) => sum + (c.totalCostUSD || 0), 0);
 
   const handleDelete = (id: string) => {
+    if (!can('concrete', 'del')) { denyAccess('concrete', 'del'); return; }
     if (confirm(t('confirmDeleteConcrete') || 'Are you sure you want to delete this concrete record?')) {
       deleteConcreteRecord(id);
     }
@@ -67,7 +72,7 @@ export const ConcreteView: React.FC<ConcreteViewProps> = ({ onOpenAddConcrete })
 
         <div className="flex items-center gap-2.5">
           <button
-            onClick={() => window.print()}
+            onClick={() => printIfAllowed('concrete')}
             className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-semibold transition"
           >
             <Printer className="w-4 h-4" />

@@ -38,6 +38,10 @@ export const ContractorsView: React.FC<ContractorsViewProps> = ({
     formatCurrency, 
     t,
     language 
+  ,
+    printIfAllowed,
+    can,
+    denyAccess,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -80,6 +84,7 @@ export const ContractorsView: React.FC<ContractorsViewProps> = ({
   };
 
   const handleDelete = (id: string, name: string) => {
+    if (!can('contractors', 'del')) { denyAccess('contractors', 'del'); return; }
     if (confirm(t('confirmDeleteContractor') || `Are you sure you want to remove contractor "${name}"?`)) {
       deleteContractor(id);
     }
@@ -235,7 +240,7 @@ export const ContractorsView: React.FC<ContractorsViewProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => window.print()}
+                    onClick={() => printIfAllowed('contractors')}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 transition"
                   >
                     <Printer className="w-4 h-4 text-slate-500" />

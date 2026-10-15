@@ -85,7 +85,7 @@ export function computeBudgetActuals(input: BudgetReportInput): Map<string, Budg
     acc.set(accountCode, cur);
   };
 
-  for (const e of expenses.filter(x => x.projectId === projectId)) {
+  for (const e of expenses.filter(x => x.projectId === projectId && x.approvalStatus !== 'rejected')) {
     const committed = e.amountInUSD ?? toUSD(e.amount, e.currency, e.exchangeRate);
     const paid = toUSD(e.paidAmount || 0, e.currency, e.exchangeRate);
     push(resolveExpenseAccount(e.category), committed, Math.min(paid, committed));

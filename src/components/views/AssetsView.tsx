@@ -29,6 +29,10 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
     formatNumber, 
     t, 
     language 
+  ,
+    printIfAllowed,
+    can,
+    denyAccess,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,6 +70,7 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
   };
 
   const handleDelete = (id: string, name: string) => {
+    if (!can('assets', 'del')) { denyAccess('assets', 'del'); return; }
     if (confirm(`آیا از حذف دارایی "${name}" از دفاتر اموال ثابت اطمینان دارید؟`)) {
       deleteAsset(id);
     }
@@ -103,7 +108,7 @@ export const AssetsView: React.FC<AssetsViewProps> = ({ onOpenAddAsset }) => {
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => printIfAllowed('assets')}
             className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-semibold transition"
           >
             <Printer className="w-4 h-4" />

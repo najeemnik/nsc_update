@@ -33,6 +33,8 @@ import {
   UserActivityEvent,
   CustomBillDesign,
   CustomActionButton,
+  GrantAction,
+  ProjectGrant,
   LaborRecord,
   FixedAsset,
   PartnerEquityTransfer
@@ -62,6 +64,7 @@ import { buildJournal, computeAccountBalances, buildTrialBalance } from '../util
 import { getAccount, getAccountName, getFullChart, nextLeafCode, sanitizeCustomAccounts, setCustomAccounts as setRegistryAccounts, accountDeleteBlocker } from '../data/chartOfAccounts';
 import type { Account } from '../data/chartOfAccounts';
 import { computeBudgetReport, findUpdatableBudgetLine } from '../utils/budgetUtils';
+import { canDo, grantedProjectIds } from '../utils/permissions';
 import { backendApi } from '../services/backendApi';
 
 interface AppContextType {
@@ -74,7 +77,7 @@ interface AppContextType {
   logout: () => void;
   switchUserRole: (role: 'admin' | 'accountant' | 'viewer') => void;
   users: User[];
-  addUser: (user: Omit<User, 'id' | 'createdAt'>) => void;
+  addUser: (user: Omit<User, 'id' | 'createdAt'>) => { success: boolean; error?: string };
   /** دفتر هفت: per-user usage telemetry (features visited, login/logout moments) */
   activityEvents: UserActivityEvent[];
   trackFeature: (feature: string, label?: string) => void;
@@ -141,6 +144,8 @@ interface AppContextType {
     active?: boolean;
     /** Master-level permission merge (tab access, manage flags) */
     permissions?: Partial<UserPermissions>;
+    projectGrants?: ProjectGrant[];
+    accessExpiresAt?: string;
   }) => { success: boolean; error?: string };
   impersonateTenant: (user: User) => void;
   toggleDarkMode: () => void;
@@ -149,6 +154,18 @@ interface AppContextType {
   setThemeSchedule: (mode: 'auto' | 'light' | 'dark') => void;
   cycleThemeSchedule: () => void;
   isTabAllowed: (tabId: string) => boolean;
+  /** Wave 19: can current user do `action` on `section` (default project = current)? */
+  can: (section: string, action: GrantAction, projectId?: string) => boolean;
+  /** Wave 19: record + surface an access denial. */
+  denyAccess: (section: string, action: GrantAction) => void;
+  /** Wave 19: window.print() only with the print grant, else deny + toast. */
+  printIfAllowed: (section: string) => void;
+  /** Wave 19: projects the current user may open. */
+  grantedProjects: Project[];
+  accessNotice: { section: string; action: string; at: number } | null;
+  clearAccessNotice: () => void;
+  approveExpense: (id: string) => void;
+  rejectExpense: (id: string) => void;
   updateReportCustomization: (updates: Partial<import('../types').ReportCustomization>) => void;
   uploadCustomReportTemplate: (fileName: string, fileContent: string) => void;
   projects: Project[];
@@ -353,6 +370,8 @@ function saveToStorage<T>(key: string, value: T): boolean {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => loadFromStorage<Language>('lang', 'en'));
   const [users, setUsers] = useState<User[]>(() => loadFromStorage('users', initialUsers));
+  const [accessNotice, setAccessNotice] = useState<{ section: string; action: string; at: number } | null>(null);
+  const clearAccessNotice = () => setAccessNotice(null);
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     return loadFromStorage<User | null>('currentUser', initialUsers[1]); // Default to admin for immediate preview
   });
@@ -802,38 +821,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cameraTargetData, setCameraTargetData] = useState<{ title?: string; relatedType?: string; relatedId?: string; amount?: number } | null>(null);
 
   const updateAppSettings = (updates: Partial<AppSettings>) => {
+    if (!guard('settings', 'edit')) return;
     setAppSettings(prev => ({ ...prev, ...updates }));
     logAudit('update', 'user', 'settings', 'App Settings & Branding', 'Updated system branding, theme or wallpaper');
   };
 
-  const isTabAllowed = (tabId: string): boolean => {
-    if (!currentUser) return false;
-    if (currentUser.isMasterSuperAdmin) {
-      return true;
-    }
-    // بررسی وضعیت ماژول غیرفعال‌شده توسط دفتر هفت
-    const modules = currentUser.customEnabledModules;
-    if (modules && (modules as any)[tabId] === false) {
-      return false;
-    }
-    if (currentUser.role === 'admin') {
-      return true;
-    }
-    if (tabId === 'settings' || tabId === 'users' || tabId === 'admin') {
-      return false;
-    }
-    const allowed = currentUser.permissions?.allowedTabs;
-    if (Array.isArray(allowed) && allowed.length > 0) {
-      return allowed.includes(tabId);
-    }
-    if (currentUser.role === 'accountant') {
-      return ['dashboard', 'projects', 'steel', 'concrete', 'expenses', 'contractors', 'suppliers', 'payments', 'budget', 'accounting', 'documents', 'reports'].includes(tabId);
-    }
-    if (currentUser.role === 'viewer') {
-      return ['dashboard', 'projects', 'apartments', 'budget', 'accounting', 'documents', 'reports'].includes(tabId);
-    }
-    return true;
+  // Wave 19: unified permission gate — explicit grants, legacy fallback inside canDo().
+  const can = (section: string, action: GrantAction, projectId?: string): boolean =>
+    canDo(currentUser, projectId ?? currentProjectId ?? '', section, action);
+
+  const denyAccess = (section: string, action: GrantAction): void => {
+    logAudit('denied', 'user', currentUser?.id || 'anon', `Access denied: ${action} on ${section}`, `User: ${currentUser?.username || 'anonymous'}`);
+    setAccessNotice({ section, action, at: Date.now() });
   };
+
+  const printIfAllowed = (section: string): void => {
+    if (can(section, 'print')) { window.print(); return; }
+    denyAccess(section, 'print');
+  };
+
+  const guard = (section: string, action: GrantAction): boolean => {
+    if (can(section, action)) return true;
+    denyAccess(section, action);
+    return false;
+  };
+
+  const grantedProjects = useMemo(() => {
+    const ids = new Set(grantedProjectIds(currentUser?.projectGrants, projects.map(p => p.id)));
+    return projects.filter(p => ids.has(p.id));
+  }, [currentUser, projects]);
+
+  const isTabAllowed = (tabId: string): boolean => can(tabId, 'view');
 
   const cycleThemeSchedule = () => {
     setAppSettings(prev => {
@@ -1000,7 +1018,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (found.isLockedBySuperAdmin) {
       return { success: false, error: 'حساب کاربری توسط مدیریت مسدود شده است' };
     }
-    if (found.password && password && found.password !== password && password !== 'master123') {
+    if (found.password && password && found.password !== password) {
       return { success: false, error: 'رمز عبور اشتباه است / Incorrect password' };
     }
     if (!found.isMasterSuperAdmin && found.subscriptionExpiresAt) {
@@ -1012,6 +1030,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           success: false, 
           error: 'اشتراک این حساب منقضی شده است. لطفا با شماره 0093783788278 تماس بگیرید.' 
         };
+      }
+    }
+    if (found.accessExpiresAt) {
+      const expMs = new Date(found.accessExpiresAt).getTime();
+      if (!Number.isNaN(expMs) && Date.now() > expMs) {
+        return { success: false, error: 'دسترسی این حساب به پایان رسیده است / Access period has expired' };
       }
     }
     const updatedUser = { ...found, lastLoginAt: new Date().toISOString() };
@@ -1055,6 +1079,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     phone: string;
     companyName: string;
     companyAddress?: string;
+    companyPhone?: string;
+    companyEmail?: string;
+    taxNumber?: string;
+    bankDetails?: string;
     subscriptionMonths?: number;
     initialProjectName?: string;
   }): { success: boolean; user?: User; error?: string } => {
@@ -1089,6 +1117,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isMasterSuperAdmin: false,
       subscriptionPlan: months >= 24 ? 'lifetime' : months === 12 ? '1_year' : '6_months',
       subscriptionExpiresAt: expiresAt,
+      customBillDesign: {
+        companyAddress: data.companyAddress?.trim() || '',
+        companyPhone: data.companyPhone?.trim() || '',
+        companyEmail: data.companyEmail?.trim() || '',
+        taxNumber: data.taxNumber?.trim() || '',
+        bankDetails: data.bankDetails?.trim() || '',
+        receiptContact: [data.companyPhone?.trim(), data.companyEmail?.trim()].filter(Boolean).join(' / '),
+      },
       createdAt: new Date().toISOString(),
       permissions: {
         aiEnabled: true,
@@ -1160,14 +1196,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setUsers(prev => [...prev, newUser]);
-    
-    updateAppSettings({
+
+    setAppSettings(prev => ({
+      ...prev,
       companyName: data.companyName.trim(),
       companySubtitle: `مدیریت و حسابداری ساختمانی ${data.companyName.trim()}`,
       receiptHeader: `${data.companyName.trim()} - سند رسمی پرداخت و رسید`,
       receiptContact: `${data.phone.trim()} / ${data.email.trim()}`,
       receiptFooter: `اسناد رسمی شرکت ساختمانی ${data.companyName.trim()} با امضا و مهر معتبر است.`,
-    });
+    }));
 
     setProjects([]);
     setExpenses([]);
@@ -1355,6 +1392,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     active?: boolean;
     /** Master-level permission merge (tab access, manage flags) */
     permissions?: Partial<UserPermissions>;
+    projectGrants?: ProjectGrant[];
+    accessExpiresAt?: string;
   }): { success: boolean; error?: string } => {
     let targetFound = false;
     setUsers(prev => prev.map(u => {
@@ -1381,6 +1420,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           isLockedBySuperAdmin: updates.isLockedBySuperAdmin !== undefined ? updates.isLockedBySuperAdmin : u.isLockedBySuperAdmin,
           active: updates.active !== undefined ? updates.active : u.active,
           permissions: newPermissions,
+          projectGrants: updates.projectGrants !== undefined ? updates.projectGrants : u.projectGrants,
+          accessExpiresAt: updates.accessExpiresAt !== undefined ? updates.accessExpiresAt : u.accessExpiresAt,
         };
         if (currentUser?.id === userId) {
           setCurrentUser(uUpdated);
@@ -1444,6 +1485,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
+  // Wave 19: auto-logout when the account is deactivated / locked / expired.
+  useEffect(() => {
+    if (!currentUser || currentUser.isMasterSuperAdmin) return;
+    const fresh = users.find(u => u.id === currentUser.id);
+    if (!fresh) return;
+    const expired = fresh.accessExpiresAt
+      ? (!Number.isNaN(new Date(fresh.accessExpiresAt).getTime()) && Date.now() > new Date(fresh.accessExpiresAt).getTime())
+      : false;
+    if (fresh.active === false || fresh.isLockedBySuperAdmin === true || expired) {
+      setAccessNotice({ section: 'session', action: 'expired', at: Date.now() });
+      setCurrentUser(null);
+      saveToStorage('currentUser', null);
+      backendApi.setToken(null);
+    }
+  }, [users, currentUser]);
+
+  // Wave 19: keep current project inside the granted set.
+  useEffect(() => {
+    if (!currentUser || currentUser.isMasterSuperAdmin) return;
+    if (!currentUser.projectGrants || currentUser.projectGrants.length === 0) return;
+    const ids = new Set(grantedProjectIds(currentUser.projectGrants, projects.map(p => p.id)));
+    if (currentProjectId && !ids.has(currentProjectId)) {
+      const first = projects.find(p => ids.has(p.id));
+      setCurrentProjectIdState(first ? first.id : '');
+      saveToStorage('currentProjId', first ? first.id : '');
+    }
+  }, [currentUser, projects, currentProjectId]);
+
   const logout = () => {
     if (currentUser) {
       recordActivity(currentUser, 'logout');
@@ -1472,22 +1541,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveToStorage('currentUser', target);
   };
 
-  const addUser = (userData: Omit<User, 'id' | 'createdAt'>) => {
+  const addUser = (userData: Omit<User, 'id' | 'createdAt'>): { success: boolean; error?: string } => {
+    if (!guard('users', 'create')) return { success: false, error: 'access-denied' };
+    const cleanUsername = userData.username.trim().toLowerCase();
+    const cleanEmail = userData.email.trim().toLowerCase();
+    const duplicate = users.find(u =>
+      u.username.toLowerCase() === cleanUsername ||
+      u.email.toLowerCase() === cleanEmail
+    );
+    if (duplicate) {
+      return {
+        success: false,
+        error: duplicate.username.toLowerCase() === cleanUsername
+          ? 'این نام کاربری قبلاً استفاده شده است'
+          : 'این ایمیل قبلاً ثبت گردیده است',
+      };
+    }
     const newUser: User = {
       ...userData,
+      username: userData.username.trim(),
+      email: userData.email.trim(),
       id: 'user-' + Date.now(),
       createdAt: new Date().toISOString(),
     };
     setUsers(prev => [...prev, newUser]);
     logAudit('create', 'user', newUser.id, `Created user ${newUser.name}`, `Role: ${newUser.role}`);
+    return { success: true };
   };
 
   const updateUser = (id: string, updates: Partial<User>) => {
+    const keys = Object.keys(updates);
+    const selfPasswordOnly = currentUser && id === currentUser.id && keys.length > 0 && keys.every(k => k === 'password');
+    if (!selfPasswordOnly && !guard('users', 'edit')) return;
     setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...updates } : u)));
     logAudit('update', 'user', id, `Updated user profile`, JSON.stringify(updates));
   };
 
   const toggleUserActive = (id: string) => {
+    if (!guard('users', 'edit')) return;
     setUsers(prev => prev.map(u => {
       if (u.id === id) {
         const updated = { ...u, active: !u.active };
@@ -1499,12 +1590,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteUser = (id: string) => {
+    if (!guard('users', 'del')) return;
     setUsers(prev => prev.filter(u => u.id !== id));
     logAudit('delete', 'user', id, 'Deleted user account', 'User removed from team');
   };
 
+  // Wave 19: expense approval workflow
+  const approveExpense = (id: string) => {
+    if (!guard('expenses', 'approve')) return;
+    setExpenses(prev => prev.map(e => (e.id === id
+      ? { ...e, approvalStatus: 'approved' as const, approvedBy: currentUser?.name || currentUser?.username, approvedAt: new Date().toISOString() }
+      : e)));
+    logAudit('update', 'expense', id, 'Approved expense', `By ${currentUser?.name || currentUser?.username || 'unknown'}`);
+  };
+
+  const rejectExpense = (id: string) => {
+    if (!guard('expenses', 'approve')) return;
+    setExpenses(prev => prev.map(e => (e.id === id
+      ? { ...e, approvalStatus: 'rejected' as const, approvedBy: currentUser?.name || currentUser?.username, approvedAt: new Date().toISOString() }
+      : e)));
+    logAudit('update', 'expense', id, 'Rejected expense (excluded from accounts)', `By ${currentUser?.name || currentUser?.username || 'unknown'}`);
+  };
+
   // Projects CRUD
   const addProject = (projectData: Omit<Project, 'id' | 'createdAt'>): Project => {
+    if (!guard('projects', 'create')) { return { ...projectData, id: 'denied-' + Date.now(), createdAt: new Date().toISOString() }; }
     const newProject: Project = {
       ...projectData,
       id: 'proj-' + Date.now(),
@@ -1594,12 +1704,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateProject = (id: string, updates: Partial<Project>) => {
+    if (!guard('projects', 'edit')) return;
     const oldProj = projects.find(p => p.id === id);
     setProjects(prev => prev.map(p => (p.id === id ? { ...p, ...updates } : p)));
     logAudit('update', 'project', id, updates.name || oldProj?.name || 'Project', `Project details updated`, JSON.stringify(oldProj), JSON.stringify(updates), id);
   };
 
   const deleteProject = (id: string) => {
+    if (!guard('projects', 'del')) return;
     const oldProj = projects.find(p => p.id === id);
     setProjects(prev => prev.filter(p => p.id !== id));
     if (currentProjectId === id) {
@@ -1674,6 +1786,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Partners & Investments Management
   const addProjectPartner = (partnerData: Omit<ProjectPartner, 'id' | 'createdAt'>): ProjectPartner => {
+    if (!guard('projects', 'create')) { return { ...partnerData, id: 'denied-' + Date.now(), createdAt: new Date().toISOString() }; }
     const newPartner: ProjectPartner = {
       ...partnerData,
       id: 'part-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
@@ -1705,6 +1818,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateProjectPartner = (id: string, updates: Partial<ProjectPartner>) => {
+    if (!guard('projects', 'edit')) return;
     const old = projectPartners.find(p => p.id === id);
     setProjectPartners(prev => prev.map(p => (p.id === id ? { ...p, ...updates } : p)));
     if (updates.name && old && updates.name !== old.name) {
@@ -1714,6 +1828,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteProjectPartner = (id: string) => {
+    if (!guard('projects', 'del')) return;
     const old = projectPartners.find(p => p.id === id);
     setProjectPartners(prev => prev.filter(p => p.id !== id));
     setProjectInvestments(prev => prev.filter(inv => inv.partnerId !== id));
@@ -1721,6 +1836,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addProjectInvestment = (invData: Omit<ProjectInvestment, 'id' | 'createdAt'>): ProjectInvestment => {
+    if (!guard('projects', 'create')) { return { ...invData, id: 'denied-' + Date.now(), createdAt: new Date().toISOString() }; }
     const proj = projects.find(p => p.id === invData.projectId);
     const newInv: ProjectInvestment = {
       ...invData,
@@ -1734,12 +1850,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateProjectInvestment = (id: string, updates: Partial<ProjectInvestment>) => {
+    if (!guard('projects', 'edit')) return;
     const old = projectInvestments.find(inv => inv.id === id);
     setProjectInvestments(prev => prev.map(inv => (inv.id === id ? { ...inv, ...updates } : inv)));
     logAudit('update', 'project', id, `Investment: ${old?.partnerName || id}`, `Updated investment transaction`, undefined, undefined, old?.projectId);
   };
 
   const deleteProjectInvestment = (id: string) => {
+    if (!guard('projects', 'del')) return;
     const old = projectInvestments.find(inv => inv.id === id);
     setProjectInvestments(prev => prev.filter(inv => inv.id !== id));
     logAudit('delete', 'project', id, `Investment: ${old?.partnerName || id}`, `Deleted investment record of ${old?.amount} ${old?.currency}`, undefined, undefined, old?.projectId);
@@ -1813,6 +1931,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Expenses CRUD
   const addExpense = (expenseData: Omit<Expense, 'id' | 'createdAt' | 'createdBy'>) => {
+    if (!guard('expenses', 'create')) return;
     const time = expenseData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
     const amount = Number(Number(expenseData.amount || 0).toFixed(2));
     const paidAmount = expenseData.paidAmount !== undefined ? Number(Number(expenseData.paidAmount).toFixed(2)) : 0;
@@ -1906,6 +2025,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateExpense = (id: string, updates: Partial<Expense>) => {
+    if (!guard('expenses', 'edit')) return;
     const old = expenses.find(e => e.id === id);
     if (!old) return;
     const amount = updates.amount !== undefined ? Number(Number(updates.amount).toFixed(2)) : old.amount;
@@ -1942,6 +2062,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteExpense = (id: string) => {
+    if (!guard('expenses', 'del')) return;
     const old = expenses.find(e => e.id === id);
     setExpenses(prev => prev.filter(e => e.id !== id));
     setPayments(prev => prev.filter(p => !(p.relatedType === 'expense' && p.relatedId === id)));
@@ -1954,6 +2075,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Steel CRUD
   const addSteelRecord = (data: Omit<SteelRecord, 'id' | 'tons' | 'totalAmount' | 'remainingBalance' | 'createdAt'>) => {
+    if (!guard('steel', 'create')) return;
     const tons = Number((data.kg / 1000).toFixed(3));
     const totalAmount = Number((tons * data.pricePerTon).toFixed(2));
     const paidAmount = Number(Number(data.paidAmount || 0).toFixed(2));
@@ -2047,6 +2169,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteSteelRecord = (id: string) => {
+    if (!guard('steel', 'del')) return;
     const old = steelRecords.find(s => s.id === id);
     setSteelRecords(prev => prev.filter(s => s.id !== id));
     setPayments(prev => prev.filter(p => !(p.relatedType === 'material_steel' && p.relatedId === id)));
@@ -2055,6 +2178,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Concrete CRUD
   const addConcreteRecord = (data: Omit<ConcreteRecord, 'id' | 'totalAmount' | 'remainingBalance' | 'createdAt'>) => {
+    if (!guard('concrete', 'create')) return;
     const totalAmount = Number(((data.quantityM3 * data.pricePerM3) + (data.pumpCharge || 0)).toFixed(2));
     const paidAmount = Number(Number(data.paidAmount || 0).toFixed(2));
     const remainingBalance = Math.max(0, Number((totalAmount - paidAmount).toFixed(2)));
@@ -2146,6 +2270,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteConcreteRecord = (id: string) => {
+    if (!guard('concrete', 'del')) return;
     const old = concreteRecords.find(c => c.id === id);
     setConcreteRecords(prev => prev.filter(c => c.id !== id));
     setPayments(prev => prev.filter(p => !(p.relatedType === 'material_concrete' && p.relatedId === id)));
@@ -2154,6 +2279,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Contractors CRUD
   const addContractor = (data: Omit<Contractor, 'id' | 'createdAt'>) => {
+    if (!guard('contractors', 'create')) return;
     const newContractor: Contractor = {
       workDescription: '',
       ...data,
@@ -2165,12 +2291,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateContractor = (id: string, updates: Partial<Contractor>) => {
+    if (!guard('contractors', 'edit')) return;
     const old = contractors.find(c => c.id === id);
     setContractors(prev => prev.map(c => (c.id === id ? { ...c, ...updates } : c)));
     logAudit('update', 'contractor', id, updates.name || old?.name || 'Contractor', `Updated contractor terms`, `$${old?.contractAmount}`, `$${updates.contractAmount ?? old?.contractAmount}`, old?.projectId);
   };
 
   const deleteContractor = (id: string) => {
+    if (!guard('contractors', 'del')) return;
     const old = contractors.find(c => c.id === id);
     setContractors(prev => prev.filter(c => c.id !== id));
     logAudit('delete', 'contractor', id, old?.name || 'Contractor', `Deleted contractor`, `$${old?.contractAmount}`, undefined, old?.projectId);
@@ -2178,6 +2306,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Suppliers CRUD
   const addSupplier = (data: Omit<Supplier, 'id' | 'createdAt'>) => {
+    if (!guard('suppliers', 'create')) return;
     const newSupplier: Supplier = {
       contact: '',
       ...data,
@@ -2195,6 +2324,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteSupplier = (id: string) => {
+    if (!guard('suppliers', 'del')) return;
     const old = suppliers.find(s => s.id === id);
     setSuppliers(prev => prev.filter(s => s.id !== id));
     logAudit('delete', 'supplier', id, old?.name || 'Supplier', `Deleted supplier`, undefined, undefined, old?.projectId);
@@ -2202,6 +2332,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Labor & Payroll Records
   const addLaborRecord = (record: Omit<LaborRecord, 'id' | 'createdAt'>) => {
+    if (!guard('labor', 'create')) return;
     const id = 'lab-' + Date.now();
     const newRecord: LaborRecord = {
       ...record,
@@ -2213,6 +2344,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteLaborRecord = (id: string) => {
+    if (!guard('labor', 'del')) return;
     const old = laborRecords.find(l => l.id === id);
     setLaborRecords(prev => prev.filter(l => l.id !== id));
     logAudit('delete', 'expense', id, old?.workerName || 'Labor Record', `حذف رکورد معاش کارگری`, undefined, undefined, old?.projectId);
@@ -2220,6 +2352,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Fixed Assets & Heavy Machinery CRUD
   const addAsset = (asset: Omit<FixedAsset, 'id' | 'createdAt'>) => {
+    if (!guard('assets', 'create')) return;
     const id = 'ast-' + Date.now();
     const newAsset: FixedAsset = {
       ...asset,
@@ -2231,12 +2364,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateAsset = (id: string, updates: Partial<FixedAsset>) => {
+    if (!guard('assets', 'edit')) return;
     const old = assets.find(a => a.id === id);
     setAssets(prev => prev.map(a => (a.id === id ? { ...a, ...updates } : a)));
     logAudit('update', 'expense', id, updates.name || old?.name || 'Asset', `ویرایش مشخصات ماشین‌آلات/دارایی`, undefined, undefined, old?.assignedProjectId);
   };
 
   const deleteAsset = (id: string) => {
+    if (!guard('assets', 'del')) return;
     const old = assets.find(a => a.id === id);
     setAssets(prev => prev.filter(a => a.id !== id));
     logAudit('delete', 'expense', id, old?.name || 'Asset', `حذف دارایی ثابت/ماشین‌آلات`, undefined, undefined, old?.assignedProjectId);
@@ -2244,6 +2379,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Apartments & Sales CRUD
   const addApartment = (data: Omit<ApartmentUnit, 'id' | 'salePrice' | 'remainingBalance' | 'createdAt'> & { salePrice?: number }) => {
+    if (!guard('apartments', 'create')) return;
     const pricePerM2 = data.pricePerM2 || (data.salePrice && data.areaM2 ? Math.round(data.salePrice / data.areaM2) : 0);
     const salePrice = data.salePrice || Math.round(data.areaM2 * pricePerM2);
     const amountReceived = data.amountReceived || 0;
@@ -2262,6 +2398,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateApartment = (id: string, updates: Partial<ApartmentUnit>) => {
+    if (!guard('apartments', 'edit')) return;
     const old = apartments.find(a => a.id === id);
     if (!old) return;
     const areaM2 = updates.areaM2 !== undefined ? updates.areaM2 : old.areaM2;
@@ -2282,6 +2419,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteApartment = (id: string) => {
+    if (!guard('apartments', 'del')) return;
     const old = apartments.find(a => a.id === id);
     setApartments(prev => prev.filter(a => a.id !== id));
     logAudit('delete', 'apartment', id, `Unit #${old?.unitNumber}`, `Deleted apartment unit`, `$${old?.salePrice}`, undefined, old?.projectId);
@@ -2289,6 +2427,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Apartment installments CRUD
   const addInstallmentToApartment = (apartmentId: string, installmentData: Omit<InstallmentRecord, 'id' | 'remainingAmount' | 'status' | 'paymentHistory'>) => {
+    if (!guard('apartments', 'create')) return;
     const apt = apartments.find(a => a.id === apartmentId);
     if (!apt) return;
     const paidAmount = installmentData.paidAmount || 0;
@@ -2305,6 +2444,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addInstallmentPayment = (apartmentId: string, installmentId: string, amount: number, paymentMethod?: string, receiptNumber?: string, notes?: string) => {
+    if (!guard('apartments', 'create')) return;
     if (!amount || amount <= 0) return;
     const apt = apartments.find(a => a.id === apartmentId);
     const inst = apt?.installments?.find(i => i.id === installmentId);
@@ -2345,6 +2485,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateInstallment = (apartmentId: string, installmentId: string, updates: Partial<InstallmentRecord>) => {
+    if (!guard('apartments', 'edit')) return;
     const apt = apartments.find(a => a.id === apartmentId);
     const inst = apt?.installments?.find(i => i.id === installmentId);
     if (!apt || !inst) return;
@@ -2368,6 +2509,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteInstallment = (apartmentId: string, installmentId: string) => {
+    if (!guard('apartments', 'del')) return;
     const apt = apartments.find(a => a.id === apartmentId);
     const inst = apt?.installments?.find(i => i.id === installmentId);
     if (!apt || !inst) return;
@@ -2387,6 +2529,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Payments CRUD
   const addPayment = (paymentData: Omit<Payment, 'id' | 'createdAt' | 'createdBy'>) => {
+    if (!guard('payments', 'create')) return;
     const time = paymentData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
     const newPayment: Payment = {
       ...paymentData,
@@ -2497,6 +2640,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deletePayment = (id: string) => {
+    if (!guard('payments', 'del')) return;
     const old = payments.find(p => p.id === id);
     if (!old) return;
     setPayments(prev => prev.filter(p => p.id !== id));
@@ -2601,6 +2745,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updatePayment = (id: string, updates: Partial<Payment>) => {
+    if (!guard('payments', 'edit')) return;
     setPayments(prev => prev.map(p => (p.id === id ? { ...p, ...updates } : p)));
     logAudit('update', 'payment', id, updates.partyName || 'Payment', 'Updated payment details', undefined, undefined, currentProjectId);
   };
@@ -2684,6 +2829,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Documents CRUD & Camera Capture
   const addDocument = (docData: Omit<DocumentRecord, 'id' | 'createdAt'>) => {
+    if (!guard('documents', 'create')) return;
     const newDoc: DocumentRecord = {
       ...docData,
       id: 'doc-' + Date.now(),
@@ -2694,6 +2840,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteDocument = (id: string) => {
+    if (!guard('documents', 'del')) return;
     const old = documents.find(d => d.id === id);
     setDocuments(prev => prev.filter(d => d.id !== id));
     logAudit('delete', 'expense', id, `Document: ${old?.title}`, `Removed attached document`, undefined, undefined, old?.projectId);
@@ -3009,6 +3156,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addProjectBudget = (data: Omit<ProjectBudget, 'id' | 'createdAt' | 'createdBy'>) => {
+    if (!guard('budget', 'create')) return;
     // Standard: single budget line per (project, account). If one exists,
     // update it instead of creating a duplicate row. Custom lines always
     // create independent rows (Wave 16).
@@ -3030,6 +3178,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateProjectBudget = (id: string, updates: Partial<ProjectBudget>) => {
+    if (!guard('budget', 'edit')) return;
     const old = projectBudgets.find(b => b.id === id);
     if (!old) return;
     const merged = { ...old, ...updates };
@@ -3039,6 +3188,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteProjectBudget = (id: string) => {
+    if (!guard('budget', 'del')) return;
     const old = projectBudgets.find(b => b.id === id);
     if (!old) return;
     setProjectBudgets(prev => prev.filter(b => b.id !== id));
@@ -3194,6 +3344,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const clearAuditLogs = () => {
+    if (!guard('audit_logs', 'del')) return;
     setAuditLogs([]);
     saveToStorage('auditLogs', []);
   };
@@ -3497,6 +3648,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setThemeSchedule,
       cycleThemeSchedule,
       isTabAllowed,
+      can,
+      denyAccess,
+      printIfAllowed,
+      grantedProjects,
+      accessNotice,
+      clearAccessNotice,
+      approveExpense,
+      rejectExpense,
       updateReportCustomization,
       uploadCustomReportTemplate,
       isSectionProtected,

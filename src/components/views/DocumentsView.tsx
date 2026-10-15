@@ -35,6 +35,9 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     t,
     language,
     tp
+  ,
+    can,
+    denyAccess,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,6 +78,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   };
 
   const handleDelete = (id: string, title: string) => {
+    if (!can('documents', 'del')) { denyAccess('documents', 'del'); return; }
     if (confirm(t('confirmDeleteDocument') || `Are you sure you want to delete document "${title}"?`)) {
       deleteDocument(id);
     }

@@ -74,7 +74,11 @@ function MainApp() {
     authNotice,
     clearAuthNotice,
     notifySessionExpired,
-    logout
+    logout,
+    can,
+    denyAccess,
+    accessNotice,
+    clearAccessNotice
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -163,8 +167,15 @@ function MainApp() {
   }
 
   const handleOpenPaymentForPayee = (id: string, name: string) => {
+    if (!can('payments', 'create')) { denyAccess('payments', 'create'); return; }
     setPaymentRecipient({ id, name });
     setIsAddPaymentOpen(true);
+  };
+
+  // Wave 19: single choke-point for every "new / add" modal opener.
+  const openGuarded = (section: string, fn: () => void) => {
+    if (can(section, 'create')) fn();
+    else denyAccess(section, 'create');
   };
 
   const isRtl = language === 'fa' || language === 'ps';
@@ -208,6 +219,18 @@ function MainApp() {
           </button>
         </div>
       )}
+      {accessNotice && (
+        <div className="bg-rose-600 text-white text-xs font-bold px-4 py-2.5 flex items-center justify-between gap-3" role="alert">
+          <span>
+            {accessNotice.action === 'expired'
+              ? tp('Your session ended: account deactivated or access period finished. Please contact the company owner.', 'نشست شما پایان یافت: حساب غیرفعال شده یا مهلت دسترسی تمام شده است. با مالک شرکت تماس بگیرید.', 'ستاسو ناسته پای ته ورسېده: حساب غیر فعال شوی یا د لاسرسي موده پای ته رسېدلې. د شرکت له مالک سره اړیکه ونیسئ.')
+              : tp(`Access denied: you don't have the "${accessNotice.action}" right for "${accessNotice.section}". This attempt was logged.`, `دسترسی رد شد: شما مجوز «${accessNotice.action}» برای بخش «${accessNotice.section}» را ندارید. این تلاش ثبت شد.`, `لاسرسی رد شو: تاسې د «${accessNotice.section}» برخې لپاره د «${accessNotice.action}» اجازه نه لرئ. دا هڅه ثبت شوه.`)}
+          </span>
+          <button type="button" onClick={clearAccessNotice} className="shrink-0 underline hover:no-underline">
+            {tp('Dismiss', 'بستن', 'بندول')}
+          </button>
+        </div>
+      )}
       <div className="flex flex-1 h-dscreen overflow-hidden">
         {/* Desktop / Tablet Sidebar */}
         <div className="hidden md:flex shrink-0">
@@ -222,22 +245,22 @@ function MainApp() {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Top Navbar */}
           <Navbar 
-            onOpenNewProject={() => setIsNewProjectOpen(true)}
+            onOpenNewProject={() => openGuarded('projects', () => setIsNewProjectOpen(true))}
             setActiveTab={setActiveTab}
             onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
             onOpenSystemGuide={() => setIsSystemGuideOpen(true)}
-            onOpenAddExpense={() => setIsAddExpenseOpen(true)}
-            onOpenAddPayment={() => setIsAddPaymentOpen(true)}
-            onOpenAddSteel={() => setIsAddSteelOpen(true)}
-            onOpenAddConcrete={() => setIsAddConcreteOpen(true)}
-            onOpenAddApartment={() => setIsAddApartmentOpen(true)}
-            onOpenAddContractor={() => setIsAddContractorOpen(true)}
-            onOpenAddIncome={() => setIsAddIncomeOpen(true)}
-            onOpenAddMaterial={() => setIsAddMaterialOpen(true)}
-            onOpenAddLabor={() => setIsAddLaborOpen(true)}
-            onOpenAddTransfer={() => setIsAddInterProjectTransferOpen(true)}
-            onOpenAddPettyCash={() => setIsAddPettyCashOpen(true)}
-            onOpenAddAsset={() => setIsAddAssetOpen(true)}
+            onOpenAddExpense={() => openGuarded('expenses', () => setIsAddExpenseOpen(true))}
+            onOpenAddPayment={() => openGuarded('payments', () => setIsAddPaymentOpen(true))}
+            onOpenAddSteel={() => openGuarded('steel', () => setIsAddSteelOpen(true))}
+            onOpenAddConcrete={() => openGuarded('concrete', () => setIsAddConcreteOpen(true))}
+            onOpenAddApartment={() => openGuarded('apartments', () => setIsAddApartmentOpen(true))}
+            onOpenAddContractor={() => openGuarded('contractors', () => setIsAddContractorOpen(true))}
+            onOpenAddIncome={() => openGuarded('payments', () => setIsAddIncomeOpen(true))}
+            onOpenAddMaterial={() => openGuarded('suppliers', () => setIsAddMaterialOpen(true))}
+            onOpenAddLabor={() => openGuarded('labor', () => setIsAddLaborOpen(true))}
+            onOpenAddTransfer={() => openGuarded('projects', () => setIsAddInterProjectTransferOpen(true))}
+            onOpenAddPettyCash={() => openGuarded('expenses', () => setIsAddPettyCashOpen(true))}
+            onOpenAddAsset={() => openGuarded('assets', () => setIsAddAssetOpen(true))}
             onOpenDrive={() => setIsGoogleDriveOpen(true)}
             onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
@@ -247,12 +270,12 @@ function MainApp() {
             <div className="max-w-7xl mx-auto">
               {activeTab === 'dashboard' && (
                 <DashboardView 
-                  onOpenNewProject={() => setIsNewProjectOpen(true)}
-                  onOpenAddExpense={() => setIsAddExpenseOpen(true)}
-                  onOpenAddPayment={() => setIsAddPaymentOpen(true)}
-                  onOpenAddSteel={() => setIsAddSteelOpen(true)}
-                  onOpenAddConcrete={() => setIsAddConcreteOpen(true)}
-                  onOpenAddApartment={() => setIsAddApartmentOpen(true)}
+                  onOpenNewProject={() => openGuarded('projects', () => setIsNewProjectOpen(true))}
+                  onOpenAddExpense={() => openGuarded('expenses', () => setIsAddExpenseOpen(true))}
+                  onOpenAddPayment={() => openGuarded('payments', () => setIsAddPaymentOpen(true))}
+                  onOpenAddSteel={() => openGuarded('steel', () => setIsAddSteelOpen(true))}
+                  onOpenAddConcrete={() => openGuarded('concrete', () => setIsAddConcreteOpen(true))}
+                  onOpenAddApartment={() => openGuarded('apartments', () => setIsAddApartmentOpen(true))}
                   onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
                   setActiveTab={setActiveTab}
                 />
@@ -260,7 +283,7 @@ function MainApp() {
 
               {activeTab === 'projects' && (
                 <ProjectsView 
-                  onOpenNewProject={() => setIsNewProjectOpen(true)}
+                  onOpenNewProject={() => openGuarded('projects', () => setIsNewProjectOpen(true))}
                   onOpenEditProject={(p) => setEditingProject(p)}
                   onOpenPartners={(p) => setPartnersProject(p)}
                   onOpenTransfer={(p) => setTransferProjectData(p)}
@@ -269,60 +292,60 @@ function MainApp() {
 
               {activeTab === 'expenses' && (
                 <ExpensesView 
-                  onOpenAddExpense={() => setIsAddExpenseOpen(true)}
+                  onOpenAddExpense={() => openGuarded('expenses', () => setIsAddExpenseOpen(true))}
                 />
               )}
 
               {activeTab === 'steel' && (
                 <SteelView 
-                  onOpenAddSteel={() => setIsAddSteelOpen(true)}
+                  onOpenAddSteel={() => openGuarded('steel', () => setIsAddSteelOpen(true))}
                 />
               )}
 
               {activeTab === 'concrete' && (
                 <ConcreteView 
-                  onOpenAddConcrete={() => setIsAddConcreteOpen(true)}
+                  onOpenAddConcrete={() => openGuarded('concrete', () => setIsAddConcreteOpen(true))}
                 />
               )}
 
               {activeTab === 'contractors' && (
                 <ContractorsView 
-                  onOpenAddContractor={() => setIsAddContractorOpen(true)}
+                  onOpenAddContractor={() => openGuarded('contractors', () => setIsAddContractorOpen(true))}
                   onOpenAddPayment={handleOpenPaymentForPayee}
                 />
               )}
 
               {activeTab === 'labor' && (
                 <LaborView 
-                  onOpenAddLabor={() => setIsAddLaborOpen(true)}
+                  onOpenAddLabor={() => openGuarded('labor', () => setIsAddLaborOpen(true))}
                 />
               )}
 
               {activeTab === 'suppliers' && (
                 <SuppliersView 
-                  onOpenAddSupplier={() => setIsAddSupplierOpen(true)}
+                  onOpenAddSupplier={() => openGuarded('suppliers', () => setIsAddSupplierOpen(true))}
                   onOpenAddPayment={handleOpenPaymentForPayee}
                 />
               )}
 
               {activeTab === 'assets' && (
                 <AssetsView 
-                  onOpenAddAsset={() => setIsAddAssetOpen(true)}
+                  onOpenAddAsset={() => openGuarded('assets', () => setIsAddAssetOpen(true))}
                 />
               )}
 
               {activeTab === 'apartments' && (
                 <ApartmentsView 
-                  onOpenAddApartment={() => setIsAddApartmentOpen(true)}
+                  onOpenAddApartment={() => openGuarded('apartments', () => setIsAddApartmentOpen(true))}
                 />
               )}
 
               {activeTab === 'payments' && (
                 <PaymentsView 
-                  onOpenAddPayment={() => {
+                  onOpenAddPayment={() => openGuarded('payments', () => {
                     setPaymentRecipient(null);
                     setIsAddPaymentOpen(true);
-                  }}
+                  })}
                 />
               )}
 
@@ -336,7 +359,7 @@ function MainApp() {
 
               {activeTab === 'documents' && (
                 <DocumentsView 
-                  onOpenAddDocument={() => setIsAddDocumentOpen(true)}
+                  onOpenAddDocument={() => openGuarded('documents', () => setIsAddDocumentOpen(true))}
                   onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
                 />
               )}

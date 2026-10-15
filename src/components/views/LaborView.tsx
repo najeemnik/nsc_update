@@ -28,6 +28,10 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
     formatNumber, 
     t, 
     language 
+  ,
+    printIfAllowed,
+    can,
+    denyAccess,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,6 +62,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
   const roles = Array.from(new Set(projectLabor.map(l => l.role).filter(Boolean)));
 
   const handleDelete = (id: string, name: string) => {
+    if (!can('labor', 'del')) { denyAccess('labor', 'del'); return; }
     if (confirm(`آیا از حذف رکورد کارکرد کارگر "${name}" اطمینان دارید؟`)) {
       deleteLaborRecord(id);
     }
@@ -90,7 +95,7 @@ export const LaborView: React.FC<LaborViewProps> = ({ onOpenAddLabor }) => {
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => printIfAllowed('labor')}
             className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-semibold transition"
           >
             <Printer className="w-4 h-4" />

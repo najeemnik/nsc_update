@@ -20,9 +20,11 @@ import {
   Coins,
   AlertTriangle,
   Coffee,
-  Building2
+  Building2,
+  XCircle
 } from 'lucide-react';
 import { Expense } from '../../types';
+import { downloadCsv } from '../../utils/csvExport';
 
 interface ExpensesViewProps {
   onOpenAddExpense: () => void;
@@ -35,10 +37,16 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
     deleteExpense, 
     formatCurrency, 
     formatNumber, 
-    t, 
+    t,
+    tp,
     language,
     contractors,
-    suppliers
+    suppliers,
+    can,
+    denyAccess,
+    printIfAllowed,
+    approveExpense,
+    rejectExpense
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,7 +74,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
 
   // Imprest Fund Calculations (سقف تنخواه ۱۰۰ هزار افغانی کارگاه)
   const imprestCapAFN = 100000;
-  const pettyCashSpentAFN = pettyCashExpenses.reduce((sum, e) => sum + (e.totalAmountAFN || ((e.totalAmountUSD || 0) * 70)), 0);
+  const pettyCashSpentAFN = pettyCashExpenses.filter(e => e.approvalStatus !== 'rejected').reduce((sum, e) => sum + (e.totalAmountAFN || ((e.totalAmountUSD || 0) * 70)), 0);
   const pettyCashBalanceAFN = Math.max(0, imprestCapAFN - (pettyCashSpentAFN % imprestCapAFN));
   const isReplenishNeeded = pettyCashBalanceAFN < (imprestCapAFN * 0.25);
 
@@ -84,19 +92,34 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
     });
   }, [projectExpenses, searchTerm, categoryFilter]);
 
-  const totalExpenseUSD = filteredExpenses.reduce((sum, e) => sum + (e.totalAmountUSD || 0), 0);
-  const totalExpenseAFN = filteredExpenses.reduce((sum, e) => sum + (e.totalAmountAFN || 0), 0);
+  const bookedExpenses = filteredExpenses.filter(e => e.approvalStatus !== 'rejected');
+  const totalExpenseUSD = bookedExpenses.reduce((sum, e) => sum + (e.totalAmountUSD || 0), 0);
+  const totalExpenseAFN = bookedExpenses.reduce((sum, e) => sum + (e.totalAmountAFN || 0), 0);
 
   const categories = Array.from(new Set(projectExpenses.map(e => e.category).filter(Boolean)));
 
   const handleDelete = (id: string, title: string) => {
+    if (!can('expenses', 'del')) { denyAccess('expenses', 'del'); return; }
     if (confirm(t('confirmDeleteExpense') || `Are you sure you want to delete "${title}"?`)) {
       deleteExpense(id);
     }
   };
 
   const handlePrint = () => {
-    window.print();
+    printIfAllowed('expenses');
+  };
+
+  const canApprove = can('expenses', 'approve');
+
+  const handleExportCsv = () => {
+    if (!can('expenses', 'export')) { denyAccess('expenses', 'export'); return; }
+    downloadCsv(`expenses-${currentProject?.code || 'project'}-${new Date().toISOString().split('T')[0]}`, 
+      ['Date', 'Title', 'Category', 'Vendor', 'Qty', 'Unit', 'Amount', 'Currency', 'USD', 'Invoice', 'Status'],
+      filteredExpenses.map(e => [
+        e.date, e.title, e.category, e.recipientName || '',
+        e.quantity ?? '', e.unit || '', e.amount ?? '', e.currency || '',
+        e.totalAmountUSD ?? '', e.invoiceNumber || '', e.approvalStatus || 'booked',
+      ]));
   };
 
   return (
@@ -113,7 +136,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={handlePrint}
             className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-semibold transition"
@@ -123,7 +146,15 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
           </button>
 
           <button
-            onClick={onOpenAddExpense}
+            onClick={handleExportCsv}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold shadow-lg shadow-emerald-500/25 transition active:scale-95"
+          >
+            <Download className="w-4 h-4" />
+            <span>{t('exportCsv') || 'CSV'}</span>
+          </button>
+
+          <button
+            onClick={() => { if (can('expenses', 'create')) onOpenAddExpense(); else denyAccess('expenses', 'create'); }}
             className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-rose-500/25 transition active:scale-95"
           >
             <Plus className="w-4 h-4" />
@@ -313,7 +344,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredExpenses.map(exp => (
-                <tr key={exp.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                <tr key={exp.id} className={`transition ${exp.approvalStatus === 'rejected' ? 'bg-rose-500/5 hover:bg-rose-500/10' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'}`}>
                   <td className="py-3.5 px-4 text-ink-muted whitespace-nowrap">
                     {exp.date}
                   </td>
@@ -321,6 +352,12 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                     <div>{exp.title}</div>
                     {exp.invoiceNumber && (
                       <span className="text-[10px] text-slate-400 font-mono">#{exp.invoiceNumber}</span>
+                    )}
+                    {exp.approvalStatus === 'approved' && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="w-3 h-3" />{tp('Approved', 'تأییدشده', 'تایید شوی')}</span>
+                    )}
+                    {exp.approvalStatus === 'rejected' && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400"><XCircle className="w-3 h-3" />{tp('Rejected — excluded', 'ردشده — خارج از حساب', 'رد شوی — له حساب وتلی')}</span>
                     )}
                   </td>
                   <td className="py-3.5 px-4">
@@ -355,7 +392,25 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                       <span className="text-slate-300 dark:text-slate-600">—</span>
                     )}
                   </td>
-                  <td className="py-3.5 px-4 text-center">
+                  <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                    {canApprove && exp.approvalStatus !== 'approved' && (
+                      <button
+                        onClick={() => approveExpense(exp.id)}
+                        className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Approve', 'تأیید', 'تایید')}
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canApprove && exp.approvalStatus !== 'rejected' && (
+                      <button
+                        onClick={() => rejectExpense(exp.id)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Reject (exclude from accounts)', 'رد (خارج از حساب)', 'ردول (له حساب وتل)')}
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(exp.id, exp.title || exp.description || 'Expense')}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"

@@ -67,7 +67,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [backupError, setBackupError] = useState<string | null>(null);
 
   // Financial calculations for current project
-  const projectExpenses = expenses.filter(e => e.projectId === currentProject?.id);
+  const projectExpenses = expenses.filter(e => e.projectId === currentProject?.id && e.approvalStatus !== 'rejected');
   const projectPayments = payments.filter(p => p.projectId === currentProject?.id);
   const projectApartments = apartments.filter(a => a.projectId === currentProject?.id);
   const projectSteel = steelRecords.filter(s => s.projectId === currentProject?.id);

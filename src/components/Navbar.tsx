@@ -85,7 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     currentUser, 
     logout, 
     switchUserRole,
-    projects, 
+    grantedProjects, 
     currentProject, 
     setCurrentProjectId,
     openCameraForCapture,
@@ -203,7 +203,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="px-3 py-1.5 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                     {t.myBuildings}
                   </div>
-                  {projects.map((proj) => (
+                  {grantedProjects.map((proj) => (
                     <button
                       key={proj.id}
                       onClick={() => {

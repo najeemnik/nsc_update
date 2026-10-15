@@ -41,6 +41,9 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
     formatCurrency, 
     t, 
     language, tp 
+  ,
+    can,
+    denyAccess,
   } = useApp();
 
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'on_hold'>('all');
@@ -52,6 +55,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   });
 
   const handleDelete = (project: Project, e: React.MouseEvent) => {
+    if (!can('projects', 'del')) { denyAccess('projects', 'del'); return; }
     e.stopPropagation();
     if (projects.length <= 1) {
       setNotice(tp('You cannot delete the only project in the system.', 'نمی‌توانید تنها پروژه سیستم را حذف کنید.', 'تاسې د سیسټم یوازینۍ پروژه نشئ ړنګولی.'));

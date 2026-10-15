@@ -36,6 +36,10 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
     formatCurrency, 
     t,
     language 
+  ,
+    printIfAllowed,
+    can,
+    denyAccess,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -98,6 +102,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   };
 
   const handleDelete = (id: string, name: string) => {
+    if (!can('suppliers', 'del')) { denyAccess('suppliers', 'del'); return; }
     if (confirm(t('confirmDeleteSupplier') || `Are you sure you want to delete supplier "${name}"?`)) {
       deleteSupplier(id);
     }
@@ -256,7 +261,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => window.print()}
+                    onClick={() => printIfAllowed('suppliers')}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 transition"
                   >
                     <Printer className="w-4 h-4 text-slate-500" />

@@ -304,6 +304,9 @@ export const BudgetView: React.FC = () => {
     formatCurrency,
     t,
     language,
+    printIfAllowed,
+    can,
+    denyAccess,
   } = useApp();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -337,6 +340,7 @@ export const BudgetView: React.FC = () => {
   };
 
   const handleDelete = (row: BudgetLineReport) => {
+    if (!can('budget', 'del')) { denyAccess('budget', 'del'); return; }
     const lines = projectBudgets.filter(
       b => b.projectId === currentProject?.id && toBudgetMain(b.accountCode) === row.accountCode,
     );
@@ -363,6 +367,7 @@ export const BudgetView: React.FC = () => {
     setIsModalOpen(true);
   };
   const handleDeleteLine = (b: ProjectBudget) => {
+    if (!can('budget', 'del')) { denyAccess('budget', 'del'); return; }
     const msg = language === 'en'
       ? `Remove custom budget "${b.customLabel}"?`
       : language === 'ps'
@@ -399,7 +404,7 @@ export const BudgetView: React.FC = () => {
         </div>
         <div className="flex items-center gap-2.5">
           <button
-            onClick={() => window.print()}
+            onClick={() => printIfAllowed('budget')}
             className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-semibold transition"
           >
             <Printer className="w-4 h-4" />

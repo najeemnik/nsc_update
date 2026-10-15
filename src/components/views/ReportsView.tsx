@@ -27,6 +27,7 @@ import {
   Activity,
   FileSpreadsheet
 } from 'lucide-react';
+import { downloadCsv } from '../../utils/csvExport';
 
 export const ReportsView: React.FC = () => {
   const { 
@@ -44,6 +45,10 @@ export const ReportsView: React.FC = () => {
     t, 
     language, tp,
     appSettings
+  ,
+    printIfAllowed,
+    can,
+    denyAccess,
   } = useApp();
 
   const [reportType, setReportType] = useState<'financial' | 'materials' | 'contractors' | 'sales' | 'monthly_pnl'>('financial');
@@ -52,7 +57,7 @@ export const ReportsView: React.FC = () => {
   const [pnlViewMode, setPnlViewMode] = useState<'all' | 'cash' | 'accrual'>('all');
 
   // Metrics for current project
-  const projectExpenses = expenses.filter(e => e.projectId === currentProject?.id);
+  const projectExpenses = expenses.filter(e => e.projectId === currentProject?.id && e.approvalStatus !== 'rejected');
   const projectPayments = payments.filter(p => p.projectId === currentProject?.id);
   const projectSteel = steelRecords.filter(s => s.projectId === currentProject?.id);
   const projectConcrete = concreteRecords.filter(c => c.projectId === currentProject?.id);
@@ -171,7 +176,19 @@ export const ReportsView: React.FC = () => {
   const totalVarianceProfitVsCash = yearTotalAccrualProfit - yearNetCashMovement;
 
   const handlePrint = () => {
-    window.print();
+    printIfAllowed('reports');
+  };
+
+  const handleExportCsv = () => {
+    if (!can('reports', 'export')) { denyAccess('reports', 'export'); return; }
+    downloadCsv(`monthly-pnl-${currentProject?.code || 'project'}-${selectedYear}-${pnlCurrency}`,
+      ['Month', 'Revenue', 'Expenses', 'Net Profit', 'Cash In', 'Cash Out', 'Net Cash', 'Cumulative Cash', 'Variance', 'Currency'],
+      monthlyTimeline.map(m => [
+        m.en, Math.round(m.revenue * 100) / 100, Math.round(m.expenseAmount * 100) / 100,
+        Math.round(m.netProfit * 100) / 100, Math.round(m.cashInflow * 100) / 100,
+        Math.round(m.cashOutflow * 100) / 100, Math.round(m.netCash * 100) / 100,
+        Math.round(m.cumulativeCash * 100) / 100, Math.round(m.variance * 100) / 100, pnlCurrency,
+      ]));
   };
 
   return (
@@ -188,13 +205,22 @@ export const ReportsView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={handlePrint}
-          className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-purple-500/25 transition active:scale-95"
-        >
-          <Printer className="w-4 h-4" />
-          <span>{t('printExecutiveReport') || 'Print / Export Official Statement'}</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={handleExportCsv}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold shadow-lg shadow-emerald-500/25 transition active:scale-95"
+          >
+            <Download className="w-4 h-4" />
+            <span>{t('exportCsv') || 'CSV'}</span>
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-purple-500/25 transition active:scale-95"
+          >
+            <Printer className="w-4 h-4" />
+            <span>{t('printExecutiveReport') || 'Print / Export Official Statement'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Printable Report Header */}

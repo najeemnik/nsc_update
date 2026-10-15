@@ -1,7 +1,8 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { backendApi } from '../services/backendApi';
-import { User, UserActivityEvent, CustomActionButton, CustomBillDesign, DEFAULT_ACTION_BUTTONS } from '../types';
+import { User, UserActivityEvent, CustomActionButton, CustomBillDesign, DEFAULT_ACTION_BUTTONS, ProjectGrant } from '../types';
+import { AccessMatrix } from './AccessMatrix';
 import { 
   ShieldCheck, 
   Lock, 
@@ -222,6 +223,9 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
   const [editAiEnabled, setEditAiEnabled] = useState(true);
   const [editExpiresAt, setEditExpiresAt] = useState('');
   const [editAllowedTabs, setEditAllowedTabs] = useState<string[]>([]);
+  const [editGrants, setEditGrants] = useState<ProjectGrant[]>([]);
+  const [editAccessExpiresAt, setEditAccessExpiresAt] = useState('');
+  const [saveErrorNotice, setSaveErrorNotice] = useState<string | null>(null);
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string | null>(null);
 
   // دفتر هفت — create-owner flow & owner↔employee grouping
@@ -229,7 +233,7 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
   const [expandedOwnerIds, setExpandedOwnerIds] = useState<string[]>([]);
   const emptyNewOwner = {
     name: '', username: '', email: '', password: '', phone: '',
-    companyName: '', companyAddress: '',
+    companyName: '', companyAddress: '', companyPhone: '', companyEmail: '', taxNumber: '', bankDetails: '',
     subscriptionPlan: 'trial' as User['subscriptionPlan'],
     expiresAt: '',
   };
@@ -383,6 +387,8 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     setEditAiEnabled(user.permissions?.aiEnabled !== false);
     setEditExpiresAt(user.subscriptionExpiresAt ? user.subscriptionExpiresAt.split('T')[0] : '');
     setEditAllowedTabs(user.permissions?.allowedTabs || TAB_OPTIONS.map(o => o.id));
+    setEditGrants(user.projectGrants || []);
+    setEditAccessExpiresAt(user.accessExpiresAt ? user.accessExpiresAt.split('T')[0] : '');
     setSaveSuccessNotice(null);
   };
 
@@ -416,6 +422,8 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
       customEnabledModules: editModules,
       aiEnabled: editAiEnabled,
       subscriptionExpiresAt: editExpiresAt ? new Date(editExpiresAt).toISOString() : undefined,
+      projectGrants: editGrants,
+      accessExpiresAt: editAccessExpiresAt ? new Date(editAccessExpiresAt).toISOString() : undefined,
       permissions: {
         ...(selectedTenant.permissions || {}),
         aiEnabled: editAiEnabled,
@@ -449,7 +457,8 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
 
   const handleCreateOwner = (e: React.FormEvent) => {
     e.preventDefault();
-    addUser({
+    setSaveErrorNotice(null);
+    const res = addUser({
       username: newOwner.username.trim(),
       email: newOwner.email.trim(),
       password: newOwner.password,
@@ -463,7 +472,20 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
       subscriptionPlan: newOwner.subscriptionPlan || 'trial',
       subscriptionExpiresAt: newOwner.expiresAt ? new Date(newOwner.expiresAt).toISOString() : undefined,
       permissions: { aiEnabled: true },
+      customBillDesign: {
+        companyAddress: newOwner.companyAddress.trim(),
+        companyPhone: newOwner.companyPhone.trim(),
+        companyEmail: newOwner.companyEmail.trim(),
+        taxNumber: newOwner.taxNumber.trim(),
+        bankDetails: newOwner.bankDetails.trim(),
+        receiptContact: [newOwner.companyPhone.trim(), newOwner.companyEmail.trim()].filter(Boolean).join(' / '),
+      },
     });
+    if (!res.success) {
+      setSaveErrorNotice(res.error || 'خطا در ساخت حساب مالک');
+      setTimeout(() => setSaveErrorNotice(null), 6000);
+      return;
+    }
     setSaveSuccessNotice(`مالک جدید «${newOwner.companyName || newOwner.name}» ساخته شد — حالا خودش برای کارمندانش یوزر می‌سازد.`);
     setTimeout(() => setSaveSuccessNotice(null), 4000);
     setNewOwner(emptyNewOwner);
@@ -1022,6 +1044,36 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                       );
                     })}
                   </div>
+                  {(selectedTenant.role !== 'admin' || selectedTenant.ownerAdminId) ? (
+                    <div className="pt-3 space-y-3 border-t border-slate-200 mt-2">
+                      <div>
+                        <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
+                          <KeyRound className="w-4 h-4 text-amber-500" />
+                          <span>ماتریس دسترسی دقیق (پروژه × بخش × عمل)</span>
+                        </h4>
+                        <p className="text-[11px] text-slate-500 leading-relaxed mt-1">
+                          اگر حداقل یک سطر دسترسی تعریف شود، همین ماتریس جای «تب‌های منتخب» بالا را می‌گیرد (پیش‌فرض: ممنوع).
+                          برای برگشت به حالت قدیمی، همه سطرها را حذف کنید. تغییرات با دکمه «ذخیره» ثبت می‌شود.
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                        <AccessMatrix grants={editGrants} onChange={setEditGrants} />
+                      </div>
+                      <div className="max-w-xs">
+                        <label className="block text-slate-500 font-bold mb-1 text-[11px]">پایان دسترسی کارمند (اختیاری)</label>
+                        <input
+                          type="date"
+                          value={editAccessExpiresAt}
+                          onChange={e => setEditAccessExpiresAt(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-xl text-slate-900 text-xs"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 leading-relaxed border-t border-slate-200 pt-3">
+                      مالک کمپنی دسترسی کامل دارد؛ ماتریس دسترسی دقیق مخصوص کارمندان است.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -2130,6 +2182,10 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                         { key: 'phone', label: 'تیلیفون', ph: '+93...' },
                         { key: 'companyName', label: 'نام کمپنی', ph: 'Ahmad Shah Construction Co.' },
                         { key: 'companyAddress', label: 'آدرس کمپنی', ph: 'کابل، افغانستان' },
+                        { key: 'companyPhone', label: 'تیلیفون کمپنی (بل/رسید)', ph: '+93...' },
+                        { key: 'companyEmail', label: 'ایمیل کمپنی (بل/رسید)', ph: 'info@company.com', type: 'email' },
+                        { key: 'taxNumber', label: 'نمبر مالیاتی (TIN)', ph: 'TIN-...' },
+                        { key: 'bankDetails', label: 'حساب بانکی (چاپ در بل)', ph: 'Bank / IBAN / Account...' },
                       ] as Array<{ key: keyof typeof newOwner; label: string; ph: string; type?: string }>).map(f => (
                         <div key={f.key as string} className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
@@ -2182,6 +2238,12 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                   <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-xs flex items-center gap-2 shadow-2xs">
                     <CheckCircle2 className="w-4 h-4" />
                     <span>{saveSuccessNotice}</span>
+                  </div>
+                )}
+                {saveErrorNotice && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2 shadow-2xs">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>{saveErrorNotice}</span>
                   </div>
                 )}
 
