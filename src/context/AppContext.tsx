@@ -370,7 +370,7 @@ interface AppContextType {
   authNotice: 'session-expired' | 'server-lockout' | 'server-locked' | null;
   serverSync: { status: 'unknown' | 'checking' | 'ok' | 'no-token' | 'outdated' | 'offline'; lastSyncAt: string | null; lastError: string | null; pendingCount: number };
   refreshServerSyncStatus: () => Promise<void>;
-  syncAllUsersToServer: () => Promise<{ pushed: number; queued: number; failed: number }>;
+  syncAllUsersToServer: () => Promise<{ pushed: number; queued: number; failed: number; firstError?: string }>;
   clearAuthNotice: () => void;
   notifySessionExpired: () => void;
   importBackupJSON: (json: any) => void;
@@ -1417,6 +1417,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           pendingCount: pending,
           lastError: backendApi.getToken() ? prev.lastError : null,
         }));
+      } else if (ping.status >= 500) {
+        // Reachable but crashing — almost always config.php / DB / PHP version.
+        setServerSync(prev => ({ ...prev, status: 'outdated', pendingCount: pending, lastError: 'server-500' }));
+      } else if (ping.status === 0) {
+        setServerSync(prev => ({ ...prev, status: 'outdated', pendingCount: pending, lastError: 'no-response' }));
       } else {
         setServerSync(prev => ({ ...prev, status: 'outdated', pendingCount: pending }));
       }
@@ -1427,8 +1432,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Wave 41: heal accounts created before the server knew them (pre-patch
   // users, token-less sessions). Idempotent — the server upserts by username.
-  const syncAllUsersToServer = async (): Promise<{ pushed: number; queued: number; failed: number }> => {
-    const summary = { pushed: 0, queued: 0, failed: 0 };
+  const syncAllUsersToServer = async (): Promise<{ pushed: number; queued: number; failed: number; firstError?: string }> => {
+    const summary: { pushed: number; queued: number; failed: number; firstError?: string } = { pushed: 0, queued: 0, failed: 0 };
     if (TEST_MODE) return summary;
     const online = typeof navigator === 'undefined' || navigator.onLine !== false;
     const hasToken = !!backendApi.getToken();
@@ -1448,13 +1453,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const res = await backendApi.syncUser(serializeUserForSync(u));
         if (res.success && !res.queued) summary.pushed += 1;
         else if (res.queued || res.offline) summary.queued += 1;
-        else summary.failed += 1;
-      } catch { summary.failed += 1; }
+        else {
+          summary.failed += 1;
+          if (!summary.firstError) summary.firstError = res.error || `server-${res.status ?? '?'}`;
+        }
+      } catch { summary.failed += 1; if (!summary.firstError) summary.firstError = 'network'; }
     }
     setServerSync({
       status: !online ? 'offline' : (hasToken ? 'ok' : 'no-token'),
       lastSyncAt: new Date().toISOString(),
-      lastError: summary.failed > 0 ? `${summary.failed} failed` : null,
+      lastError: summary.firstError || null,
       pendingCount: summary.queued,
     });
     return summary;
@@ -1480,10 +1488,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       !!found && !!candidate && !!found.password && verifyPassword(candidate, found.password, saltOf(found));
     const localOk = verifyLocal(pw) || (rawPw !== pw && verifyLocal(rawPw));
     let justFetched = false;
+    let serverStatus = -1; // Wave 43: remember WHY the server leg failed
     if (!localOk) {
       // Unknown on this device, or changed on another one — ask the server.
       try {
         const res = await backendApi.login(trimmedInput, pw);
+        serverStatus = res.status ?? -1;
         const su = (res.data as any)?.user;
         if (res.success && su && su.username) {
           const cached = serverUserToLocal(su, hashPassword(pw, (su.username || trimmedInput).toLowerCase()), found?.id);
@@ -1500,9 +1510,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setAuthNotice('server-lockout');
           return { success: false, error: tp('Too many attempts. Please try again in 15 minutes.', 'تلاش‌ها بیش از حد شد. لطفاً ۱۵ دقیقه بعد تلاش کنید.', 'هڅې ډېرې شوې. مهرباني وکړئ ۱۵ دقیقې وروسته بیا هڅه وکړئ.') };
         }
-      } catch { /* offline — fall through to the local error below */ }
+      } catch { serverStatus = 0; /* offline — fall through to the local error below */ }
     }
     if (!found) {
+      // Wave 43: never blame "not found" for connection/server failures.
+      if (serverStatus === 0) {
+        return { success: false, error: tp('Cannot reach the server. Check your internet connection.', 'به سرور وصل نشد. اینترنت را بررسی کنید.', 'سرور ته ونه رسېد. انټرنېټ وګورئ.') };
+      }
+      if (serverStatus >= 500) {
+        return { success: false, error: tp(`Server error (${serverStatus}). Contact your administrator.`, `خطای سرور (${serverStatus}). با مدیر تماس بگیرید.`, `د سرور تېروتنه (${serverStatus}). له مدیر سره اړیکه ونیسئ.`) };
+      }
       return { success: false, error: 'حساب کاربری یافت نشد / Account not found' };
     }
     if (!justFetched && !localOk) {

@@ -51,7 +51,7 @@ function main() {
   check('guide-safe-active', guide.includes('safeActive') && !guide.includes('activeTopic ==='));
 
   // --- 3. server: account truth ---
-  check('auth-sha', auth.includes("str_starts_with($storedHash, 'sha256$')") && auth.includes('hash_equals($storedHash, $calc)'));
+  check('auth-sha', auth.includes("substr($storedHash, 0, 7) === 'sha256$'") && auth.includes('hash_equals($storedHash, $calc)')); // PHP7-safe since wave43
   check('auth-sync', auth.includes("$action === 'sync_user'") && auth.includes('app_profile_json'));
   check('auth-sync-guarded', auth.includes("Master accounts are created only via installer bootstrap."));
   check('auth-delete', auth.includes("$action === 'delete_user'"));
@@ -77,8 +77,8 @@ function main() {
   check('seal-master', office7.includes('master: me ? {') && office7.includes('masterSynced'));
 
   // --- 5. version ---
-  check('v-pkg', pkg.includes('"version": "1.0.7"')); // rolled forward by wave42
-  check('v-login', loginView.includes('v1.0.7')); // rolled forward by wave42
+  check('v-pkg', pkg.includes('"version": "1.0.8"')); // rolled forward by wave42
+  check('v-login', loginView.includes('v1.0.8')); // rolled forward by wave42
 
   console.log(results.join('\n'));
   console.log(`\nwave40: ${passed} passed, ${failed} failed`);

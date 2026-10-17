@@ -59,7 +59,7 @@ if ($method === 'POST') {
         $storedHash = (string)($user['password_hash'] ?? '');
         $passwordMatches = false;
         if ($storedHash !== '') {
-            if (str_starts_with($storedHash, 'sha256$')) {
+            if (substr($storedHash, 0, 7) === 'sha256$') {
                 $saltRaw = ($user['hash_salt'] ?? '') !== '' ? $user['hash_salt'] : $user['username'];
                 $salt = mb_strtolower(trim((string)$saltRaw), 'UTF-8');
                 $calc = 'sha256$' . hash('sha256', $salt . '::nsc::' . $password);
@@ -142,7 +142,7 @@ if ($method === 'POST') {
         if ($username === '' || !preg_match('/^[a-z0-9._-]{3,80}$/i', $username)) {
             jsonResponse(false, null, 'نام کاربری نامعتبر است.', 400);
         }
-        if ($hash === '' || !str_starts_with($hash, 'sha256$') || strlen($hash) > 255) {
+        if ($hash === '' || substr($hash, 0, 7) !== 'sha256$' || strlen($hash) > 255) {
             jsonResponse(false, null, 'Invalid password hash.', 400);
         }
         if ($email === '') $email = strtolower($username) . '@sync.local';

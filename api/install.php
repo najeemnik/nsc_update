@@ -74,7 +74,7 @@ if ($action === 'complete') {
         $mEmail = trim((string)($m['email'] ?? ''));
         $mName = trim((string)($m['name'] ?? '')) ?: $mUser;
         $mValid = !($mUser === '' || !preg_match('/^[a-z0-9._-]{3,80}$/i', $mUser)
-            || $mHash === '' || !str_starts_with($mHash, 'sha256$') || strlen($mHash) > 255);
+            || $mHash === '' || substr($mHash, 0, 7) !== 'sha256$' || strlen($mHash) > 255);
         if ($mEmail === '') $mEmail = strtolower($mUser) . '@sync.local';
         if (!$mValid) {
             error_log('Master bootstrap skipped: invalid payload.');

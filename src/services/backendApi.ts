@@ -243,13 +243,13 @@ class BackendApiService {
 
   // --- Wave 40/41: multi-device user sync (users work on every device) ---
   /** Wave 41: capability probe — tells outdated server files apart from offline. */
-  public async pingServer(): Promise<{ ok: boolean; wave: number }> {
+  public async pingServer(): Promise<{ ok: boolean; wave: number; status: number }> {
     try {
       const res = await this.request<{ wave: number }>('auth.php?action=ping', { method: 'GET' });
       const wave = (res.data as any)?.wave ?? 0;
-      return { ok: res.success === true && wave >= 40, wave };
+      return { ok: res.success === true && wave >= 40, wave, status: res.status ?? 0 };
     } catch {
-      return { ok: false, wave: 0 };
+      return { ok: false, wave: 0, status: 0 };
     }
   }
 

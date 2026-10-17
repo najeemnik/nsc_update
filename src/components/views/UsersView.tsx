@@ -241,7 +241,11 @@ export const UsersView: React.FC = () => {
               <p className="text-[11px] text-ink-muted truncate">
                 {serverSync.pendingCount > 0 && tp(`${serverSync.pendingCount} queued`, `${serverSync.pendingCount} در صف`, `${serverSync.pendingCount} په کتار کې`) }
                 {serverSync.pendingCount > 0 && (serverSync.lastError || syncMsg) ? ' • ' : ''}
-                {serverSync.lastError || syncMsg || ''}
+                {serverSync.lastError === 'server-500'
+                  ? tp('Server error 500 — check config.php and the database on the host', 'خطای ۵۰۰ سرور — config.php و دیتابیس هاست را بررسی کنید', 'د سرور ۵۰۰ تېروتنه — په هوسټ کې config.php او ډیټابېس وګورئ')
+                  : serverSync.lastError === 'no-response'
+                    ? tp('Server not responding', 'سرور جواب نمی‌دهد', 'سرور ځواب نه ورکوي')
+                    : (serverSync.lastError || syncMsg || '')}
               </p>
             </div>
           </div>
@@ -263,7 +267,7 @@ export const UsersView: React.FC = () => {
                     `Sent ${r.pushed}, queued ${r.queued}, failed ${r.failed}`,
                     `ارسال شد ${r.pushed}، در صف ${r.queued}، ناموفق ${r.failed}`,
                     `ولېږل شول ${r.pushed}، په کتار کې ${r.queued}، ناکام ${r.failed}`,
-                  ));
+                  ) + (r.failed > 0 && r.firstError ? ` — ${r.firstError}` : ''));
                 } catch { setSyncMsg(tp('Sync failed', 'سینک ناموفق بود', 'همغږي ناکامه شوه')); }
                 setSyncBusy(false);
               }}
