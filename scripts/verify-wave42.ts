@@ -1,6 +1,6 @@
 /**
  * Wave 42 verification: dead Admin role-switcher removed, interface-size
- * setting (compact default), slimmer navbar, version 1.0.8.
+ * setting (compact default), slimmer navbar, version 1.0.9.
  * Run: npm run test:wave42
  */
 import * as fs from 'fs';
@@ -42,8 +42,8 @@ function main() {
   check('nav-logo-sm', nav.includes('h-6 sm:h-8 w-auto'));
 
   // --- 4. version ---
-  check('v-pkg', pkg.includes('"version": "1.0.8"'));
-  check('v-login', loginView.includes('v1.0.8'));
+  check('v-pkg', pkg.includes('"version": "1.0.9"'));
+  check('v-login', loginView.includes('v1.0.9'));
 
   console.log(results.join('\n'));
   console.log(`\nwave42: ${passed} passed, ${failed} failed`);

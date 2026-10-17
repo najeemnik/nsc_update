@@ -48,8 +48,8 @@ function main() {
   check('ui-first-error', usersView.includes('r.firstError'));
 
   // --- 5. version ---
-  check('v-pkg', pkg.includes('"version": "1.0.8"'));
-  check('v-login', loginView.includes('v1.0.8'));
+  check('v-pkg', pkg.includes('"version": "1.0.9"'));
+  check('v-login', loginView.includes('v1.0.9'));
 
   console.log(results.join('\n'));
   console.log(`\nwave43: ${passed} passed, ${failed} failed`);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
+import { backendApi } from '../services/backendApi';
 import { 
   Building2,
   Lock, 
@@ -66,6 +67,15 @@ export const LoginView: React.FC = () => {
     window.matchMedia?.('(display-mode: standalone)').matches === true ||
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true);
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
+  // Wave 44: visible server link — the same indicator on laptop AND mobile.
+  const [serverPing, setServerPing] = useState<'checking' | 'ok' | 'outdated' | 'down'>('checking');
+  const checkServer = () => {
+    setServerPing('checking');
+    backendApi.pingServer().then((p) => {
+      setServerPing(p.ok ? 'ok' : (p.status === 0 || p.status >= 500 ? 'down' : 'outdated'));
+    }).catch(() => setServerPing('down'));
+  };
+  useEffect(() => { checkServer(); }, []);
 
   const handleRestoreBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -856,7 +866,21 @@ export const LoginView: React.FC = () => {
       <footer className="relative z-20 border-t border-slate-200 dark:border-white/10 py-6 bg-white/80 dark:bg-slate-950/90 backdrop-blur-xl text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>{t.copyrightNotice}</span>
-          <span className="font-mono text-[11px] text-amber-600">nik-smartcount.com · v1.0.8</span>
+          <button type="button" onClick={checkServer} title={tp('Tap to re-check', 'برای بررسی دوباره بزنید', 'د بیا کتلو لپاره ووهئ')}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-2 border border-line text-[11px] font-bold">
+            <span className={`w-2 h-2 rounded-full ${
+              serverPing === 'ok' ? 'bg-emerald-500' :
+              serverPing === 'checking' ? 'bg-slate-400 animate-pulse' :
+              serverPing === 'outdated' ? 'bg-amber-500' : 'bg-rose-500'
+            }`} />
+            <span className="text-ink">
+              {serverPing === 'ok' && tp('Server connected', 'سرور وصل است', 'سرور وصل دی')}
+              {serverPing === 'checking' && tp('Checking…', 'در حال بررسی…', 'کتل کېږي…')}
+              {serverPing === 'outdated' && tp('Server outdated', 'سرور قدیمی است', 'سرور زوړ دی')}
+              {serverPing === 'down' && tp('Server unreachable', 'سرور قطع است', 'سرور قطع دی')}
+            </span>
+          </button>
+          <span className="font-mono text-[11px] text-amber-600">nik-smartcount.com · v1.0.9</span>
         </div>
       </footer>
     </div>
