@@ -87,19 +87,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onOpe
           activeGradient: 'from-sky-500 to-blue-600',
           activeShadow: 'shadow-sky-500/35'
         },
-        {
-          id: 'builder',
-          label: t.navBuilder,
-          icon: Sliders,
-          colorName: 'violet',
-          iconColor: 'text-violet-600 dark:text-violet-300',
-          iconBgLight: 'bg-violet-500/15',
-          iconBgDark: 'dark:bg-violet-500/25',
-          borderColorLight: 'border-violet-200',
-          borderColorDark: 'dark:border-violet-500/30',
-          activeGradient: 'from-violet-500 to-purple-600',
-          activeShadow: 'shadow-violet-500/35'
-        },
         { 
           id: 'projects', 
           label: t.navProjects, 

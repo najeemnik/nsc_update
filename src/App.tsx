@@ -203,6 +203,29 @@ function MainApp() {
         </div>
       );
     }
+    if (installStatus.initialized === null) {
+      // Wave 39: offline with an empty browser — setup needs the server (key
+      // verification + seal), so offer retry instead of a phantom office.
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-surface p-4">
+          <div className="max-w-sm w-full p-6 rounded-3xl bg-white dark:bg-slate-900 border border-line shadow-xl text-center space-y-3">
+            <p className="text-sm font-black text-ink">{tp('First setup needs internet', 'راه‌اندازی اول به اینترنت نیاز دارد', 'لومړی جوړونه انټرنېټ ته اړتیا لري')}</p>
+            <p className="text-xs text-ink-muted leading-relaxed">
+              {tp('This device has no account data yet and the server cannot be reached. Connect to the internet, then retry.',
+                'در این دستگاه هنوز هیچ حسابی نیست و سرور در دسترس نیست. به اینترنت وصل شوید و دوباره تلاش کنید.',
+                'په دې دستګا کې تر اوسه هېڅ حساب نشته او سرور ته لاسرسی نشته. له انټرنېټ سره ونښلئ او بیا هڅه وکړئ.')}
+            </p>
+            <button
+              type="button"
+              onClick={installStatus.refresh}
+              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl transition"
+            >
+              {tp('Retry', 'تلاش دوباره', 'بیا هڅه')}
+            </button>
+          </div>
+        </div>
+      );
+    }
     if (installStatus.initialized !== true) {
       return <FirstRunSetupView />;
     }
@@ -234,6 +257,7 @@ function MainApp() {
           onClose={() => setIsMasterAdminOpen(false)}
           directAccess={masterDirectAccess}
           fullPage
+          onOpenBuilder={() => { setIsMasterAdminOpen(false); setActiveTab('builder'); }}
         />
       </div>
     );
@@ -554,10 +578,11 @@ function MainApp() {
         onClose={() => setIsSystemGuideOpen(false)} 
       />
 
-      <MasterAdminModal 
-        isOpen={isMasterAdminOpen} 
+      <MasterAdminModal
+        isOpen={isMasterAdminOpen}
         onClose={() => setIsMasterAdminOpen(false)}
         directAccess={masterDirectAccess}
+        onOpenBuilder={() => { setIsMasterAdminOpen(false); setActiveTab('builder'); }}
       />
 
       <AiAssistantModal 

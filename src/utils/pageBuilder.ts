@@ -409,9 +409,9 @@ export const downloadTextFile = (filename: string, text: string, mime: string): 
 };
 
 /** Builder is for company owners (+ master); employees need an explicit grant. */
+// Wave 39: the Visual Builder lives ONLY inside Office7 — tenant owners and
+// staff can neither see nor be granted it, even with an explicit grant.
 export const canUseBuilder = (user: User | null): boolean => {
   if (!user) return false;
-  if (user.isMasterSuperAdmin) return true;
-  if (user.role === 'admin') return true;
-  return user.permissions?.allowedTabs?.includes('builder') === true;
+  return user.isMasterSuperAdmin === true;
 };

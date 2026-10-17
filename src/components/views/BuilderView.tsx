@@ -36,7 +36,7 @@ import {
   Type, Heading1, Image as ImageIcon, MousePointerClick, Minus, MoveVertical,
   BarChart3, LayoutDashboard, Undo2, Redo2, Save, Rocket, Download, Upload,
   Trash2, Copy, Eye, EyeOff, ChevronUp, ChevronDown, RotateCcw, Monitor,
-  Tablet, Smartphone, Layers, ShieldAlert,
+  Tablet, Smartphone, Layers, ShieldAlert, ArrowLeft,
 } from 'lucide-react';
 
 interface BuilderViewProps {
@@ -161,9 +161,9 @@ export const BuilderView: React.FC<BuilderViewProps> = ({ setActiveTab }) => {
         <ShieldAlert className="w-10 h-10 mx-auto text-amber-500" />
         <h2 className="font-black text-ink">{tp('No access', 'عدم دسترسی', 'لاسرسی نشته')}</h2>
         <p className="text-xs text-ink-muted leading-relaxed">
-          {tp('The visual builder is available to company owners. Ask your administrator to grant the Builder tab.',
-            'بیلدر تصویری مخصوص مالک شرکت است. از مدیر بخواهید تب «بیلدر» را برایتان فعال کند.',
-            'بصري جوړونکی د شرکت د خاوند لپاره دی. له مدیر څخه وغواړئ چې «جوړونکی» ټب درته فعال کړي.')}
+          {tp('The visual builder lives inside Office7 and is available only to the master administrator.',
+            'بیلدر تصویری فقط داخل دفتر هفت است و مخصوص مدیر ارشد می‌باشد.',
+            'بصري جوړونکی یوازې د دفتر اووه دننه دی او یوازې لوی مدیر ته ځانګړی دی.')}
         </p>
       </div>
     );
@@ -243,6 +243,13 @@ export const BuilderView: React.FC<BuilderViewProps> = ({ setActiveTab }) => {
     <div className="space-y-4 animate-fade-in">
       {/* Toolbar */}
       <div className="p-3 rounded-2xl bg-surface border border-line shadow-sm flex flex-wrap items-center gap-2">
+        {setActiveTab && (
+          <button type="button" onClick={() => setActiveTab('dashboard')}
+            title={tp('Back to dashboard', 'بازگشت به داشبورد', 'ډشبورډ ته بېرته')}
+            className="p-2 rounded-xl border border-line text-ink-muted hover:text-ink transition-colors">
+            <ArrowLeft className="w-4 h-4 rtl:rotate-180" />
+          </button>
+        )}
         <div className="flex items-center gap-2 font-black text-ink text-sm">
           <LayoutDashboard className="w-5 h-5 text-indigo-500" />
           <span>{tp('Visual builder — Dashboard page', 'بیلدر تصویری — صفحهٔ داشبورد', 'بصري جوړونکی — د ډشبورډ پاڼه')}</span>

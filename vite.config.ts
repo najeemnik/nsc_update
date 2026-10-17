@@ -14,7 +14,7 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'auto',
-        includeAssets: ['assets/logo.png', 'assets/icon-192.png', 'assets/icon-512.png', 'assets/icon-maskable-512.png'],
+        includeAssets: ['assets/logo.png', 'assets/creator-logo.png', 'assets/icon-192.png', 'assets/icon-512.png', 'assets/icon-maskable-512.png'],
         manifest: {
           name: 'NIK SMART COUNT - Database & Accounting',
           short_name: 'NIK COUNT',

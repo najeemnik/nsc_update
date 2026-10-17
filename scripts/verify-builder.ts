@@ -131,9 +131,9 @@ function main() {
   // --- access ---
   check('access-null', canUseBuilder(null) === false);
   check('access-master', canUseBuilder(asUser({ isMasterSuperAdmin: true, role: 'admin' })) === true);
-  check('access-owner', canUseBuilder(asUser({ role: 'admin' })) === true);
+  check('access-owner', canUseBuilder(asUser({ role: 'admin' })) === false);
   check('access-employee-denied', canUseBuilder(asUser({ role: 'employee', permissions: {} })) === false);
-  check('access-employee-grant', canUseBuilder(asUser({ role: 'employee', permissions: { allowedTabs: ['builder'] } })) === true);
+  check('access-employee-grant', canUseBuilder(asUser({ role: 'employee', permissions: { allowedTabs: ['builder'] } })) === false);
 
   console.log(results.join('\n'));
   console.log(`\n${passed} passed, ${failed} failed`);

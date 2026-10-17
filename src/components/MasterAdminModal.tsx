@@ -96,6 +96,8 @@ interface MasterAdminModalProps {
   directAccess?: boolean;
   /** دفتر هفت as a standalone full page — main app fully hidden behind */
   fullPage?: boolean;
+  /** Wave 39: the ONLY entry point to the Visual Builder */
+  onOpenBuilder?: () => void;
 }
 
 /** Every clickable app section an owner/employee can be granted access to */
@@ -121,13 +123,12 @@ const TAB_OPTIONS: Array<{ id: string; label: string }> = [
   { id: 'journal',     label: 'اسناد روزنامچه' },
   { id: 'documents',   label: 'اسناد و بِل‌ها' },
   { id: 'reports',     label: 'راپورها' },
-  { id: 'builder',     label: 'بیلدر تصویری' },
   { id: 'settings',    label: 'تنظیمات' },
   { id: 'users',       label: 'مدیریت کارمندان' },
   { id: 'audit_logs',  label: 'ثبت رویدادها' },
 ];
 
-export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onClose, directAccess, fullPage }) => {
+export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onClose, directAccess, fullPage, onOpenBuilder }) => {
   const { 
     users, 
     projects, 
@@ -2688,6 +2689,25 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                     );
                   })}
                 </div>
+
+                {/* Visual Builder — reachable ONLY from here (Wave 39) */}
+                {onOpenBuilder && (
+                  <button
+                    type="button"
+                    onClick={onOpenBuilder}
+                    className="w-full p-4 rounded-2xl bg-gradient-to-l from-violet-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/30 flex items-center gap-3 text-start hover:brightness-110 transition"
+                  >
+                    <span className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+                      <Sliders className="w-5 h-5" />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-black">{t.navBuilder || 'بیلدر تصویری'}</span>
+                      <span className="block text-[11px] opacity-80 font-bold">
+                        {tp('Design the dashboard page — Office7 only', 'طراحی صفحه داشبورد — فقط دفتر هفت', 'د ډشبورډ پاڼې ډیزاین — یوازې دفتر اووه')}
+                      </span>
+                    </span>
+                  </button>
+                )}
 
                 {/* Charts row */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
