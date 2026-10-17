@@ -56,7 +56,7 @@ if ($method === 'POST') {
 
         // Wave 40: app users carry frontend-style sha256$ hashes (salted with the
         // username); legacy seeds keep bcrypt. Plaintext is never accepted.
-        $storedHash = (string)($user['password_hash'] ?? '');
+        $storedHash = trim((string)($user['password_hash'] ?? '')); // Wave 45: ignore pasted whitespace
         $passwordMatches = false;
         if ($storedHash !== '') {
             if (substr($storedHash, 0, 7) === 'sha256$') {
@@ -137,7 +137,7 @@ if ($method === 'POST') {
 
         $username = strtolower(trim((string)($p['username'] ?? '')));
         $email = strtolower(trim((string)($p['email'] ?? '')));
-        $hash = (string)($p['passwordHash'] ?? '');
+        $hash = trim((string)($p['passwordHash'] ?? ''));
         $fid = trim((string)($p['id'] ?? ''));
         if ($username === '' || !preg_match('/^[a-z0-9._-]{3,80}$/i', $username)) {
             jsonResponse(false, null, 'نام کاربری نامعتبر است.', 400);

@@ -70,7 +70,7 @@ if ($action === 'complete') {
     $m = $input['master'] ?? null;
     if (is_array($m)) {
         $mUser = trim((string)($m['username'] ?? ''));
-        $mHash = (string)($m['passwordHash'] ?? '');
+        $mHash = trim((string)($m['passwordHash'] ?? ''));
         $mEmail = trim((string)($m['email'] ?? ''));
         $mName = trim((string)($m['name'] ?? '')) ?: $mUser;
         $mValid = !($mUser === '' || !preg_match('/^[a-z0-9._-]{3,80}$/i', $mUser)
