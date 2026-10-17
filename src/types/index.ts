@@ -52,6 +52,7 @@ export interface AppSettings {
   theme: AppTheme;
   darkMode?: boolean;
   themeSchedule?: 'auto' | 'light' | 'dark';
+  uiScale?: 's' | 'm' | 'l'; // Wave 42: interface size (s=compact default)
   reduceMotion?: boolean;
   backgroundImageUrl?: string;
   backgroundOpacity?: number;

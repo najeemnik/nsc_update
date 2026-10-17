@@ -63,7 +63,7 @@ function main() {
 
   // --- 5. register backup + hashing ---
   check('register-backup', ctx.includes('exportJsonBackup();') && ctx.indexOf('exportJsonBackup();') < ctx.indexOf('setSteelRecords([])'));
-  check('register-hash', ctx.includes("hashPassword(data.password.trim(), data.email.split('@')[0])"));
+  check('register-hash', ctx.includes("hashPassword(data.password.trim(), regUsername)")); // normalized in wave41
   check('tenant-create-hash', ctx.includes('hashPassword(data.password.trim(), cleanUsername)'));
 
   // --- 6. section PIN: backdoor gone, UI wired ---

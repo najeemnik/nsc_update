@@ -99,7 +99,6 @@ interface AppContextType {
   currentUser: User | null;
   login: (usernameOrEmail: string, password?: string, loginType?: 'admin' | 'employee', remember?: boolean) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  switchUserRole: (role: 'admin' | 'accountant' | 'viewer') => void;
   users: User[];
   addUser: (user: Omit<User, 'id' | 'createdAt'>) => { success: boolean; error?: string };
   /** دفتر هفت: per-user usage telemetry (features visited, login/logout moments) */
@@ -182,6 +181,7 @@ interface AppContextType {
   setTheme: (theme: AppTheme) => void;
   themeSchedule: 'auto' | 'light' | 'dark';
   setThemeSchedule: (mode: 'auto' | 'light' | 'dark') => void;
+  setUiScale: (s: 's' | 'm' | 'l') => void;
   cycleThemeSchedule: () => void;
   isTabAllowed: (tabId: string) => boolean;
   /** Wave 19: can current user do `action` on `section` (default project = current)? */
@@ -368,6 +368,9 @@ interface AppContextType {
   clearStorageError: () => void;
   /** اطلاع امنیتی نشست: منقضی‌شده (خروج اجباری) یا قفل موقت سرور (429) */
   authNotice: 'session-expired' | 'server-lockout' | 'server-locked' | null;
+  serverSync: { status: 'unknown' | 'checking' | 'ok' | 'no-token' | 'outdated' | 'offline'; lastSyncAt: string | null; lastError: string | null; pendingCount: number };
+  refreshServerSyncStatus: () => Promise<void>;
+  syncAllUsersToServer: () => Promise<{ pushed: number; queued: number; failed: number }>;
   clearAuthNotice: () => void;
   notifySessionExpired: () => void;
   importBackupJSON: (json: any) => void;
@@ -767,6 +770,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [storageError, setStorageError] = useState<string | null>(null);
   const clearStorageError = () => setStorageError(null);
   const [authNotice, setAuthNotice] = useState<'session-expired' | 'server-lockout' | 'server-locked' | null>(null);
+  const [serverSync, setServerSync] = useState<{ status: 'unknown' | 'checking' | 'ok' | 'no-token' | 'outdated' | 'offline'; lastSyncAt: string | null; lastError: string | null; pendingCount: number }>({
+    status: 'unknown', lastSyncAt: null, lastError: null, pendingCount: 0,
+  });
   const clearAuthNotice = () => setAuthNotice(null);
 
   // Sync to local storage
@@ -902,6 +908,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       document.documentElement.classList.remove('dark');
     }
   }, [appSettings.darkMode]);
+
+  // Wave 42: apply interface size to the root (rem-based layout scales with it).
+  useEffect(() => {
+    const px = appSettings.uiScale === 'l' ? '17px' : appSettings.uiScale === 'm' ? '16px' : '14px';
+    document.documentElement.style.fontSize = px;
+  }, [appSettings.uiScale]);
 
   useEffect(() => {
     const morphismClasses = [
@@ -1350,18 +1362,102 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
+  // Wave 41: pushes are never silent anymore. Without a server session the
+  // payload is parked in the outbox (replays after next login); failures are
+  // recorded in serverSync so the Users page can show them.
   const pushUserToServer = (u: User): void => {
     if (TEST_MODE) return; // the test version never touches the production server
+    const payload = serializeUserForSync(u);
+    if (!backendApi.getToken()) {
+      backendApi.queueUserSync('sync_user', { user: payload }).catch(() => {});
+      setServerSync(prev => ({ ...prev, status: 'no-token', pendingCount: prev.pendingCount + 1 }));
+      return;
+    }
     try {
-      backendApi.syncUser(serializeUserForSync(u)).catch(() => {});
+      backendApi.syncUser(payload).then((res) => {
+        if (res.success && !res.queued) {
+          setServerSync(prev => ({ ...prev, status: 'ok', lastSyncAt: new Date().toISOString(), lastError: null }));
+        } else if (res.queued || res.offline) {
+          setServerSync(prev => ({ ...prev, pendingCount: prev.pendingCount + 1 }));
+        } else {
+          setServerSync(prev => ({ ...prev, lastError: res.error || 'sync-failed' }));
+        }
+      }).catch(() => {});
     } catch { /* offline queue / network — replays automatically */ }
   };
 
   const deleteUserOnServer = (id: string, username: string): void => {
     if (TEST_MODE) return;
+    const payload = { id, username };
+    if (!backendApi.getToken()) {
+      backendApi.queueUserSync('delete_user', payload).catch(() => {});
+      return;
+    }
     try {
-      backendApi.deleteServerUser({ id, username }).catch(() => {});
+      backendApi.deleteServerUser(payload).catch(() => {});
     } catch { /* ignore */ }
+  };
+
+  // Wave 41: capability probe — outdated server files vs offline vs no session.
+  const refreshServerSyncStatus = async (): Promise<void> => {
+    if (TEST_MODE) return;
+    setServerSync(prev => ({ ...prev, status: 'checking' }));
+    try {
+      const pending = await backendApi.getOfflinePendingCount().catch(() => 0);
+      const online = typeof navigator === 'undefined' || navigator.onLine !== false;
+      if (!online) {
+        setServerSync(prev => ({ ...prev, status: 'offline', pendingCount: pending }));
+        return;
+      }
+      const ping = await backendApi.pingServer();
+      if (ping.ok) {
+        setServerSync(prev => ({
+          ...prev,
+          status: backendApi.getToken() ? 'ok' : 'no-token',
+          pendingCount: pending,
+          lastError: backendApi.getToken() ? prev.lastError : null,
+        }));
+      } else {
+        setServerSync(prev => ({ ...prev, status: 'outdated', pendingCount: pending }));
+      }
+    } catch {
+      setServerSync(prev => ({ ...prev, status: 'offline' }));
+    }
+  };
+
+  // Wave 41: heal accounts created before the server knew them (pre-patch
+  // users, token-less sessions). Idempotent — the server upserts by username.
+  const syncAllUsersToServer = async (): Promise<{ pushed: number; queued: number; failed: number }> => {
+    const summary = { pushed: 0, queued: 0, failed: 0 };
+    if (TEST_MODE) return summary;
+    const online = typeof navigator === 'undefined' || navigator.onLine !== false;
+    const hasToken = !!backendApi.getToken();
+    if (online && hasToken) {
+      await backendApi.syncOfflineQueue().catch(() => {});
+    }
+    for (const u of users) {
+      if (!u.password || !isPasswordHash(u.password)) continue; // legacy plaintext upgrades on next login
+      if (!online || !hasToken) {
+        try {
+          await backendApi.queueUserSync('sync_user', { user: serializeUserForSync(u) });
+          summary.queued += 1;
+        } catch { summary.failed += 1; }
+        continue;
+      }
+      try {
+        const res = await backendApi.syncUser(serializeUserForSync(u));
+        if (res.success && !res.queued) summary.pushed += 1;
+        else if (res.queued || res.offline) summary.queued += 1;
+        else summary.failed += 1;
+      } catch { summary.failed += 1; }
+    }
+    setServerSync({
+      status: !online ? 'offline' : (hasToken ? 'ok' : 'no-token'),
+      lastSyncAt: new Date().toISOString(),
+      lastError: summary.failed > 0 ? `${summary.failed} failed` : null,
+      pendingCount: summary.queued,
+    });
+    return summary;
   };
 
   const login = async (
@@ -1515,6 +1611,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const merged = serverUserToLocal(su, u.password || '', u.id);
             return { ...merged, password: u.password, hashSalt: u.hashSalt || merged.hashSalt, createdAt: u.createdAt };
           }));
+          // Wave 41: server session is fresh — mark sync healthy and heal any
+          // accounts that were created while there was no token (once).
+          setServerSync(prev => ({ ...prev, status: 'ok', lastSyncAt: new Date().toISOString(), lastError: null }));
+          try {
+            if (!localStorage.getItem('nsc_bulkpush_v41')) {
+              localStorage.setItem('nsc_bulkpush_v41', '1');
+              setTimeout(() => { syncAllUsersToServer().catch(() => {}); }, 1500);
+            }
+          } catch { /* ignore */ }
         }
       }).catch(() => {});
     }
@@ -1539,6 +1644,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser?.isMasterSuperAdmin) { denyAccess('tenant_create', 'create'); return { success: false, error: 'forbidden' }; }
     const cleanUsername = data.username.trim().toLowerCase();
     const cleanEmail = data.email.trim().toLowerCase();
+    if (cleanUsername.length < 3) {
+      return { success: false, error: 'نام کاربری حداقل ۳ حرف باشد / Username must be at least 3 characters' };
+    }
     const duplicate = users.find(u => 
       u.username.toLowerCase() === cleanUsername || 
       u.email.toLowerCase() === cleanEmail
@@ -1631,12 +1739,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const sixMonthsLater = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
+    const regUsername = data.email.split('@')[0].trim().toLowerCase();
+    if (regUsername.length < 3) {
+      return { success: false, otpCode: '', error: 'بخش اول ایمیل حداقل ۳ حرف باشد / Email prefix must be at least 3 characters' };
+    }
     const newUser: User = {
       id: 'usr-' + Date.now(),
-      username: data.email.split('@')[0],
-      email: data.email.trim(),
-      password: hashPassword(data.password.trim(), data.email.split('@')[0]),
-      hashSalt: data.email.split('@')[0],
+      username: regUsername,
+      email: data.email.trim().toLowerCase(),
+      password: hashPassword(data.password.trim(), regUsername),
+      hashSalt: regUsername,
       name: data.name.trim(),
       phone: data.phone.trim(),
       companyName: data.companyName.trim(),
@@ -1651,8 +1763,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setUsers(prev => [...prev, newUser]);
-    // Local-only: self-registered tenant roots stay on this device (no server
-    // account yet, so there is nothing authenticated to push with).
+    // Wave 41: push when a server session exists (queued otherwise and healed
+    // at the next login by syncAllUsersToServer).
+    pushUserToServer(newUser);
 
     setAppSettings(prev => ({
       ...prev,
@@ -2107,6 +2220,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
+  // Wave 42: interface size — compact by default (owner found everything oversized).
+  const setUiScale = (s: 's' | 'm' | 'l') => {
+    setAppSettings(prev => ({ ...prev, uiScale: s }));
+  };
+
   // Wave 19: auto-logout when the account is deactivated / locked / expired.
   useEffect(() => {
     if (!currentUser || currentUser.isMasterSuperAdmin) return;
@@ -2168,24 +2286,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     backendApi.setToken(null);
   };
 
-  const switchUserRole = (role: 'admin' | 'accountant' | 'viewer') => {
-    if (currentUser && (currentUser.role !== 'admin' || currentUser.ownerAdminId) && !currentUser.isMasterSuperAdmin) {
-      console.warn('Unauthorized role switch attempt blocked for non-admin user');
-      return;
-    }
-    const target = users.find(u => u.role === role) || {
-      id: 'user-' + role,
-      username: role,
-      email: `${role}@niksmartcount.com`,
-      name: role.toUpperCase() + ' User',
-      role,
-      active: true,
-      createdAt: new Date().toISOString(),
-    };
-    setCurrentUser(target);
-    saveCurrentUser( target);
-  };
-
   const addUser = (userData: Omit<User, 'id' | 'createdAt'>): { success: boolean; error?: string } => {
     if (!guard('users', 'create')) return { success: false, error: 'access-denied' };
     const rawPw = (userData.password || '').trim();
@@ -2194,6 +2294,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const cleanUsername = userData.username.trim().toLowerCase();
     const cleanEmail = userData.email.trim().toLowerCase();
+    if (cleanUsername.length < 3) {
+      return { success: false, error: 'نام کاربری حداقل ۳ حرف باشد / Username must be at least 3 characters' };
+    }
     const duplicate = users.find(u =>
       u.username.toLowerCase() === cleanUsername ||
       u.email.toLowerCase() === cleanEmail
@@ -2208,8 +2311,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const newUser: User = {
       ...userData,
-      username: userData.username.trim(),
-      email: userData.email.trim(),
+      username: cleanUsername,
+      email: cleanEmail,
       password: isPasswordHash(rawPw) ? rawPw : hashPassword(rawPw, cleanUsername),
       hashSalt: cleanUsername,
       id: 'user-' + Date.now(),
@@ -4345,7 +4448,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentUser,
       login,
       logout,
-      switchUserRole,
       users,
       addUser,
       activityEvents,
@@ -4485,6 +4587,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       lockApartments,
       themeSchedule: appSettings.themeSchedule || 'auto',
       setThemeSchedule,
+      setUiScale,
       cycleThemeSchedule,
       isTabAllowed,
       can,
@@ -4520,6 +4623,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       storageError,
       clearStorageError,
       authNotice,
+      serverSync,
+      refreshServerSyncStatus,
+      syncAllUsersToServer,
       clearAuthNotice,
       notifySessionExpired: () => setAuthNotice('session-expired'),
       clearAuditLogs,

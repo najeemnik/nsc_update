@@ -856,7 +856,7 @@ export const LoginView: React.FC = () => {
       <footer className="relative z-20 border-t border-slate-200 dark:border-white/10 py-6 bg-white/80 dark:bg-slate-950/90 backdrop-blur-xl text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>{t.copyrightNotice}</span>
-          <span className="font-mono text-[11px] text-amber-600">nik-smartcount.com · v1.0.6</span>
+          <span className="font-mono text-[11px] text-amber-600">nik-smartcount.com · v1.0.7</span>
         </div>
       </footer>
     </div>

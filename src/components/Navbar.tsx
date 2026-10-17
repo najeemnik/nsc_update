@@ -83,7 +83,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     setLanguage, 
     currentUser, 
     logout, 
-    switchUserRole,
     grantedProjects, 
     currentProject, 
     setCurrentProjectId,
@@ -169,7 +168,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       )}
       <div className="max-w-7xl mx-auto">
         <div className="bg-[#e9e9ed] dark:bg-slate-800/95 border border-black/5 dark:border-white/10 shadow-sm rounded-2xl px-2.5 sm:px-4">
-        <div className="flex items-center justify-between h-12 gap-2 min-w-0">
+        <div className="flex items-center justify-between h-11 gap-2 min-w-0">
           
           {/* Logo & Project Switcher */}
           <div className="flex items-center space-x-3 rtl:space-x-reverse min-w-0">
@@ -182,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   src={appSettings.logoUrl || '/assets/logo.png'}
                   alt={appSettings.companyName || 'NIK SMART COUNT'}
                   onError={() => setLogoOk(false)}
-                  className="h-7 sm:h-9 w-auto max-w-[90px] sm:max-w-[120px] shrink-0 object-contain"
+                  className="h-6 sm:h-8 w-auto max-w-[90px] sm:max-w-[120px] shrink-0 object-contain"
                 />
               ) : (
                 <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-white font-black text-sm shadow-xs">
@@ -548,7 +547,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 onClick={() => setLangDropdownOpen(!langDropdownOpen)}
                 title={tp('Language', 'زبان', 'ژبه')}
-                className="flex items-center justify-center gap-1 h-8 w-8 sm:w-auto sm:px-3 rounded-full text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-700/70 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors shrink-0"
+                className="flex items-center justify-center gap-1 h-7 w-7 sm:w-auto sm:px-3 rounded-full text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-700/70 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors shrink-0"
               >
                 <Globe className="w-3.5 h-3.5 text-slate-500" />
                 <span className="hidden sm:inline">
@@ -603,7 +602,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="hidden lg:flex items-center gap-1.5 ps-1 pe-2 py-1 rounded-full bg-white/80 dark:bg-slate-700/70 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors"
               >
                 <span className="hidden xl:inline max-w-[100px] truncate text-xs font-extrabold tracking-wide text-slate-700 dark:text-slate-100 uppercase">{currentUser?.name}</span>
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${
                   currentUser?.role === 'admin' ? 'bg-rose-600' : currentUser?.role === 'accountant' ? 'bg-amber-600' : 'bg-slate-600'
                 }`}>
                   {currentUser?.name ? currentUser.name.charAt(0) : 'U'}
@@ -619,35 +618,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   {(currentUser?.role === 'admin' || currentUser?.isMasterSuperAdmin) && !currentUser?.ownerAdminId && (
-                    <div className="px-4 py-2.5 border-b border-line">
-                      <div className="text-[10px] uppercase font-bold text-slate-400 mb-1.5 flex items-center space-x-1 rtl:space-x-reverse">
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        <span>{t.role}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        <button
-                          onClick={() => { switchUserRole('admin'); setUserDropdownOpen(false); }}
-                          className={`px-1.5 py-1 text-[11px] rounded-lg font-bold transition-colors ${currentUser?.role === 'admin' ? 'bg-rose-600 text-white' : 'bg-surface-2 text-slate-700 dark:text-slate-300'}`}
-                        >
-                          {tp('Admin', 'ادمین', 'اډمېن')}
-                        </button>
-                        <button
-                          onClick={() => { switchUserRole('accountant'); setUserDropdownOpen(false); }}
-                          className={`px-1.5 py-1 text-[11px] rounded-lg font-bold transition-colors ${currentUser?.role === 'accountant' ? 'bg-amber-600 text-white' : 'bg-surface-2 text-slate-700 dark:text-slate-300'}`}
-                        >
-                          {tp('Accountant', 'حسابدار', 'محاسب')}
-                        </button>
-                        <button
-                          onClick={() => { switchUserRole('viewer'); setUserDropdownOpen(false); }}
-                          className={`px-1.5 py-1 text-[11px] rounded-lg font-bold transition-colors ${currentUser?.role === 'viewer' ? 'bg-slate-700 text-white' : 'bg-surface-2 text-slate-700 dark:text-slate-300'}`}
-                        >
-                          {tp('Viewer', 'بیننده', 'کتونکی')}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {(currentUser?.role === 'admin' || currentUser?.isMasterSuperAdmin) && !currentUser?.ownerAdminId && (
                     <>
                       {currentUser?.isMasterSuperAdmin && (
                         <button
@@ -655,7 +625,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             setUserDropdownOpen(false);
                             setIsMasterAdminOpen(true);
                           }}
-                          className="w-full text-start px-4 py-2.5 text-xs text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40 flex items-center space-x-2 rtl:space-x-reverse font-black transition-colors border-y border-line bg-gradient-to-l from-violet-500/5 to-indigo-500/5"
+                          className="w-full text-start px-4 py-2 text-xs text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40 flex items-center space-x-2 rtl:space-x-reverse font-black transition-colors border-y border-line bg-gradient-to-l from-violet-500/5 to-indigo-500/5"
                         >
                           <ShieldCheck className="w-4 h-4 text-violet-600 shrink-0" />
                           <span>{tp('Office 7 (office_7)', 'دفتر هفت (office_7)', 'دفتر اووه (office_7)')}</span>
@@ -666,7 +636,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           setActiveTab('users');
                         }}
-                        className="w-full text-start px-4 py-2.5 text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 flex items-center space-x-2 rtl:space-x-reverse font-bold transition-colors border-b border-line"
+                        className="w-full text-start px-4 py-2 text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 flex items-center space-x-2 rtl:space-x-reverse font-bold transition-colors border-b border-line"
                       >
                         <Users className="w-4 h-4 text-blue-600 shrink-0" />
                         <span>{tp('Staff Management', 'مدیریت کارمندان', 'د کارکوونکو مدیریت')}</span>
@@ -676,7 +646,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setUserDropdownOpen(false);
                           setActiveTab('settings');
                         }}
-                        className="w-full text-start px-4 py-2.5 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center space-x-2 rtl:space-x-reverse font-bold transition-colors border-b border-line"
+                        className="w-full text-start px-4 py-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center space-x-2 rtl:space-x-reverse font-bold transition-colors border-b border-line"
                       >
                         <Sliders className="w-4 h-4 text-amber-600 shrink-0" />
                         <span>{t.companySettings}</span>
@@ -723,7 +693,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onFocus={() => setSearchFocused(true)}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t.searchPlaceholder}
-              className="w-full ps-11 pe-9 py-2.5 text-sm bg-transparent border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/30 text-ink transition-all placeholder:text-slate-400"
+              className="w-full ps-10 pe-8 py-2 text-[13px] bg-transparent border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/30 text-ink transition-all placeholder:text-slate-400"
             />
             {searchQuery && (
               <button 

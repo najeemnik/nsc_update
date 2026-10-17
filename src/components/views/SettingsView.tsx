@@ -21,7 +21,8 @@ import {
   LogOut,
   FileText,
   FlaskConical,
-  Trash2
+  Trash2,
+  Type
 } from 'lucide-react';
 import { AppTheme, CustomBillDesign } from '../../types';
 import { DocDesignEditor } from '../docs/DocDesignEditor';
@@ -62,6 +63,7 @@ export const SettingsView: React.FC = () => {
     setTheme,
     themeSchedule,
     setThemeSchedule,
+    setUiScale,
     logout,
     setSectionPassword,
     unlockApartments,
@@ -405,6 +407,35 @@ export const SettingsView: React.FC = () => {
                 >
                   {mode.icon}
                   <span>{mode.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Wave 42: interface size */}
+        <div>
+          <p className="text-xs font-black text-ink mb-2">{tp('Interface size', 'اندازه رابط', 'د بڼې کچه')}</p>
+          <div className="flex flex-wrap gap-2">
+            {([
+              { id: 's' as const, label: tp('Compact', 'فشرده', 'لنډ') },
+              { id: 'm' as const, label: tp('Normal', 'معمولی', 'عادي') },
+              { id: 'l' as const, label: tp('Large', 'بزرگ', 'لوی') },
+            ]).map(opt => {
+              const isActive = (appSettings.uiScale || 's') === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setUiScale(opt.id)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
+                    isActive
+                      ? 'bg-amber-500 text-white border-amber-500 shadow-md'
+                      : 'bg-surface-2 text-ink-muted border-line hover:text-ink hover:border-amber-500/40'
+                  }`}
+                >
+                  <Type className="w-3.5 h-3.5" />
+                  <span>{opt.label}</span>
                 </button>
               );
             })}

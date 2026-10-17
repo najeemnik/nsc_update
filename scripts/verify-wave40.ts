@@ -77,8 +77,8 @@ function main() {
   check('seal-master', office7.includes('master: me ? {') && office7.includes('masterSynced'));
 
   // --- 5. version ---
-  check('v-pkg', pkg.includes('"version": "1.0.6"'));
-  check('v-login', loginView.includes('v1.0.6'));
+  check('v-pkg', pkg.includes('"version": "1.0.7"')); // rolled forward by wave42
+  check('v-login', loginView.includes('v1.0.7')); // rolled forward by wave42
 
   console.log(results.join('\n'));
   console.log(`\nwave40: ${passed} passed, ${failed} failed`);

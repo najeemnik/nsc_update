@@ -135,8 +135,8 @@ if ($method === 'POST') {
         $p = $input['user'] ?? [];
         if (!is_array($p)) $p = [];
 
-        $username = trim((string)($p['username'] ?? ''));
-        $email = trim((string)($p['email'] ?? ''));
+        $username = strtolower(trim((string)($p['username'] ?? '')));
+        $email = strtolower(trim((string)($p['email'] ?? '')));
         $hash = (string)($p['passwordHash'] ?? '');
         $fid = trim((string)($p['id'] ?? ''));
         if ($username === '' || !preg_match('/^[a-z0-9._-]{3,80}$/i', $username)) {
@@ -320,6 +320,11 @@ if ($method === 'POST') {
 }
 
 if ($method === 'GET') {
+    // Wave 41: capability probe (no auth) — lets the app tell outdated
+    // server files apart from a dead connection.
+    if (($_GET['action'] ?? '') === 'ping') {
+        jsonResponse(true, ['wave' => 40, 'time' => date('c')]);
+    }
     // دریافت اطلاعات کاربر لاگین شده فعلی
     $user = authenticateUser(false);
     unset($user['password_hash']);

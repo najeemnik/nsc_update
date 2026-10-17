@@ -59,8 +59,8 @@ function main() {
   check('o-icons', vite.includes('icon-192.png') && vite.includes('icon-maskable-512.png'));
 
   // --- 4. version 1.0.5 ---
-  check('v-pkg', pkg.includes('"version": "1.0.6"')); // rolled forward by wave40
-  check('v-login', login.includes('v1.0.6')); // rolled forward by wave40
+  check('v-pkg', pkg.includes('"version": "1.0.7"')); // rolled forward by wave40
+  check('v-login', login.includes('v1.0.7')); // rolled forward by wave40
 
   console.log(results.join('\n'));
   console.log(`\nwave39: ${passed} passed, ${failed} failed`);

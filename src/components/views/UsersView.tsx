@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Users,
@@ -13,6 +13,8 @@ import {
   Pencil,
   CalendarClock,
   Star,
+  RefreshCw,
+  CloudUpload,
 } from 'lucide-react';
 import { User } from '../../types';
 import type { ProjectGrant } from '../../types';
@@ -27,7 +29,11 @@ export const UsersView: React.FC = () => {
   const {
     users, currentUser, addUser, updateUser, deleteUser, toggleUserActive,
     projects, can, t, tp, language,
+    serverSync, refreshServerSyncStatus, syncAllUsersToServer,
   } = useApp();
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  useEffect(() => { refreshServerSyncStatus().catch(() => {}); }, []);
 
   const [isAdding, setIsAdding] = useState(false);
   const [name, setName] = useState('');
@@ -213,6 +219,62 @@ export const UsersView: React.FC = () => {
           </button>
         )}
       </div>
+
+      {/* Wave 41: server sync status — users must log in on every device */}
+      {canEdit && (
+        <div className="p-4 rounded-2xl bg-surface border border-line shadow-sm flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+              serverSync.status === 'ok' ? 'bg-emerald-500' :
+              serverSync.status === 'checking' ? 'bg-slate-400 animate-pulse' :
+              serverSync.status === 'offline' ? 'bg-amber-500' : 'bg-rose-500'
+            }`} />
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-ink">
+                {serverSync.status === 'ok' && tp('Server sync is ON — staff can log in on every device', 'سینک سرور فعال است — کارمندان در همه دستگاه‌ها وارد می‌شوند', 'د سرور همغږي فعاله ده — کارمندان په ټولو دستګاوو کې ننوځي')}
+                {serverSync.status === 'checking' && tp('Checking server…', 'بررسی سرور…', 'سرور کتل…')}
+                {serverSync.status === 'unknown' && tp('Sync status unknown — press check', 'وضعیت سینک نامشخص — بررسی را بزنید', 'د همغږۍ حالت نامعلوم — کتل کېکاږئ')}
+                {serverSync.status === 'no-token' && tp('No server session — log out and log in once', 'نشست سرور نیست — یک‌بار خارج و دوباره وارد شوید', 'د سرور ناسته نشته — یو ځل ووځئ او بیا ننوځئ')}
+                {serverSync.status === 'outdated' && tp('Server files are outdated — upload api/auth.php from the patch', 'فایل‌های سرور قدیمی است — api/auth.php را از پچ آپلود کنید', 'د سرور فایلونه زاړه دي — api/auth.php له پچ څخه پورته کړئ')}
+                {serverSync.status === 'offline' && tp('Offline — changes stay queued', 'آفلاین — تغییرات در صف می‌ماند', 'آفلاین — بدلونونه په کتار کې پاتې کېږي')}
+              </p>
+              <p className="text-[11px] text-ink-muted truncate">
+                {serverSync.pendingCount > 0 && tp(`${serverSync.pendingCount} queued`, `${serverSync.pendingCount} در صف`, `${serverSync.pendingCount} په کتار کې`) }
+                {serverSync.pendingCount > 0 && (serverSync.lastError || syncMsg) ? ' • ' : ''}
+                {serverSync.lastError || syncMsg || ''}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => { setSyncMsg(null); refreshServerSyncStatus().catch(() => {}); }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-2 hover:bg-slate-200 dark:hover:bg-slate-700 text-ink text-[11px] font-bold transition"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>{tp('Check', 'بررسی', 'کتل')}</span>
+            </button>
+            <button
+              disabled={syncBusy}
+              onClick={async () => {
+                setSyncBusy(true); setSyncMsg(null);
+                try {
+                  const r = await syncAllUsersToServer();
+                  setSyncMsg(tp(
+                    `Sent ${r.pushed}, queued ${r.queued}, failed ${r.failed}`,
+                    `ارسال شد ${r.pushed}، در صف ${r.queued}، ناموفق ${r.failed}`,
+                    `ولېږل شول ${r.pushed}، په کتار کې ${r.queued}، ناکام ${r.failed}`,
+                  ));
+                } catch { setSyncMsg(tp('Sync failed', 'سینک ناموفق بود', 'همغږي ناکامه شوه')); }
+                setSyncBusy(false);
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-[11px] font-bold transition"
+            >
+              <CloudUpload className="w-3.5 h-3.5" />
+              <span>{syncBusy ? tp('Syncing…', 'در حال سینک…', 'همغږي کېږي…') : tp('Sync all users', 'سینک همه کاربران', 'ټول کاروونکي همغږي کړئ')}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add User Form */}
       {isAdding && canCreate && (

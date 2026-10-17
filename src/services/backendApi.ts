@@ -61,6 +61,10 @@ class BackendApiService {
     }
   }
 
+  public getToken(): string | null {
+    return this.token;
+  }
+
   public setOffice7GateKey(key: string | null) {
     this.office7GateKey = key;
     if (key) {
@@ -108,9 +112,14 @@ class BackendApiService {
 
       // نشست مرده (توکن منقضی/باطل‌شده یا حساب قفل): توکن را دور بینداز و همه را خبر کن.
       // (ورود ناموفق مستثنی است — آن خطای اعتبارنامه است نه مرگ نشست)
-      if ((response.status === 401 || response.status === 403) && this.token && !endpoint.startsWith('auth.php?action=login')) {
+      // Wave 41: a failed USER-SYNC must never log the owner out — drop the
+      // dead token silently so the next login restores it.
+      const isUserSync = endpoint.includes('action=sync_user') || endpoint.includes('action=delete_user');
+      if ((response.status === 401 || response.status === 403) && this.token && !endpoint.startsWith('auth.php?action=login') && !isUserSync) {
         this.setToken(null);
         window.dispatchEvent(new CustomEvent('nsc:session-expired'));
+      } else if ((response.status === 401 || response.status === 403) && this.token && isUserSync) {
+        this.setToken(null);
       }
 
       return json;
@@ -178,9 +187,16 @@ class BackendApiService {
         headers,
         body: m.body,
       });
-      if ((res.status === 401 || res.status === 403) && this.token) {
+      // Wave 41: queued user-syncs replaying without a token must not nuke
+      // the local session either — keep them queued for after next login.
+      const replayIsUserSync = m.endpoint.includes('action=sync_user') || m.endpoint.includes('action=delete_user');
+      if ((res.status === 401 || res.status === 403) && this.token && !replayIsUserSync) {
         this.setToken(null);
         window.dispatchEvent(new CustomEvent('nsc:session-expired'));
+        return false; // keep queued — will replay after next login
+      }
+      if ((res.status === 401 || res.status === 403) && replayIsUserSync) {
+        if (this.token) this.setToken(null);
         return false; // keep queued — will replay after next login
       }
       return res.ok;
@@ -225,7 +241,27 @@ class BackendApiService {
     return this.request('auth.php?action=logout_all', { method: 'POST' });
   }
 
-  // --- Wave 40: multi-device user sync (users work on every device) ---
+  // --- Wave 40/41: multi-device user sync (users work on every device) ---
+  /** Wave 41: capability probe — tells outdated server files apart from offline. */
+  public async pingServer(): Promise<{ ok: boolean; wave: number }> {
+    try {
+      const res = await this.request<{ wave: number }>('auth.php?action=ping', { method: 'GET' });
+      const wave = (res.data as any)?.wave ?? 0;
+      return { ok: res.success === true && wave >= 40, wave };
+    } catch {
+      return { ok: false, wave: 0 };
+    }
+  }
+
+  /** Wave 41: park a user-sync in the outbox until a server token exists. */
+  public async queueUserSync(action: 'sync_user' | 'delete_user', payload: any): Promise<void> {
+    await outbox().enqueue({
+      endpoint: `auth.php?action=${action}`,
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   /** Push a created/updated user to the server (hash-only, queueable offline). */
   public async syncUser(user: any) {
     return this.request('auth.php?action=sync_user', {
