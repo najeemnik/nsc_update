@@ -33,7 +33,7 @@ function main() {
   const html = read('index.html');
   const mainTsx = read('src/main.tsx');
   const driveAuth = read('src/services/googleDriveAuth.ts');
-  const loginSection = ctx.slice(ctx.indexOf('const login ='), ctx.indexOf('const login =') + 2600);
+  const loginSection = ctx.slice(ctx.indexOf('const login ='), ctx.indexOf('const createTenantCompanyOwnerBySuperAdmin'));
 
   // --- 1. hash utils: real SHA-256 ---
   check('hash-digest-abc', sha256Hex('abc') === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
@@ -42,17 +42,17 @@ function main() {
   check('hash-legacy-accepted', verifyPassword('plain', 'plain', 'u') && !isPasswordHash('plain'));
 
   // --- 2. strict login + throttle + upgrade ---
-  check('login-verify', loginSection.includes('verifyPassword(password, found.password, found.username)'));
+  check('login-verify', loginSection.includes('verifyPassword(candidate, found.password, saltOf(found))'));
   check('login-no-direct-compare', !ctx.includes('found.password !== password'));
   check('login-require-pw', loginSection.includes('Password is required'));
   check('login-throttle', loginSection.includes('readLoginFails') && ctx.includes('nsc_login_fails_') && loginSection.includes('Too many failed attempts'));
-  check('login-upgrade-legacy', loginSection.includes('isPasswordHash(found.password)') && loginSection.includes('hashPassword(password, found.username)'));
+  check('login-upgrade-legacy', loginSection.includes('isPasswordHash(found.password)') && loginSection.includes('hashPassword(pw, found.username)'));
 
   // --- 3. addUser / updateUser / resets ---
   check('adduser-require-hash', ctx.includes("رمز عبور الزامی است / Password is required") && ctx.includes('hashPassword(rawPw, cleanUsername)'));
   check('updateuser-redact', ctx.includes("logged.password = '[redacted]'"));
   check('updateuser-hash', ctx.includes('hashPassword(safe.password.trim(), target.username)'));
-  check('changeownpw-verify-hash', ctx.includes("verifyPassword(currentPassword || '', fresh.password, fresh.username)") && ctx.includes('hashPassword(next, fresh.username)'));
+  check('changeownpw-verify-hash', ctx.includes("verifyPassword(currentPassword || '', fresh.password, saltOf(fresh))") && ctx.includes('hashPassword(next, fresh.username)'));
   check('complete-reset-hash', ctx.includes('hashPassword(nextPw, user.username)') && ctx.includes('otpIssuedAt: undefined'));
 
   // --- 4. OTP expiry ---
@@ -63,8 +63,8 @@ function main() {
 
   // --- 5. register backup + hashing ---
   check('register-backup', ctx.includes('exportJsonBackup();') && ctx.indexOf('exportJsonBackup();') < ctx.indexOf('setSteelRecords([])'));
-  check('register-hash', ctx.includes("hashPassword(data.password, data.email.split('@')[0])"));
-  check('tenant-create-hash', ctx.includes('hashPassword(data.password, cleanUsername)'));
+  check('register-hash', ctx.includes("hashPassword(data.password.trim(), data.email.split('@')[0])"));
+  check('tenant-create-hash', ctx.includes('hashPassword(data.password.trim(), cleanUsername)'));
 
   // --- 6. section PIN: backdoor gone, UI wired ---
   check('pin-no-backdoor', !ctx.includes("cleanAttempt === '22277512'"));
@@ -113,7 +113,7 @@ function main() {
   check('nav-role-pill-button', navbar.includes('rolePillRef') && navbar.includes('<button') && navbar.includes('Account menu'));
   check('nav-pill-toggles-menu', navbar.includes('setUserDropdownOpen(v => !v)'));
   check('nav-pill-outside-guard', navbar.includes('rolePillRef.current.contains(target)'));
-  check('nav-panel-below-lg', navbar.includes('ref={userRef} className="relative"') && navbar.includes('hidden lg:flex items-center gap-1.5 ps-1 pe-2 py-1'));
+  check('nav-panel-below-lg', navbar.includes('ref={userRef} className="relative shrink-0"') && navbar.includes('hidden lg:flex items-center gap-1.5 ps-1 pe-2 py-1'));
 
   for (const r of results) console.log(r);
   console.log(`\nwave36: ${passed} passed, ${failed} failed`);

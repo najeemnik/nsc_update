@@ -687,15 +687,32 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     setSealMsg(null);
     setSealOk(false);
     try {
+      const me = currentUser;
       const r = await fetch(`${API_BASE_URL}/install.php?action=complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: sealKey.trim() }),
+        // Wave 40: re-sealing also (re)creates the server copy of the master
+        // (hash-only) so users work on every device afterwards.
+        body: JSON.stringify({
+          key: sealKey.trim(),
+          master: me ? {
+            id: me.id,
+            name: me.name,
+            username: (me.username || '').trim(),
+            email: (me.email || '').trim(),
+            passwordHash: (me.password || '').trim(),
+            hashSalt: (me.hashSalt || me.username || '').trim(),
+            companyName: me.companyName || '',
+          } : undefined,
+        }),
       });
       const j = await r.json().catch(() => ({}));
       if (r.ok && j.success) {
         setSealOk(true);
-        setSealMsg(tp('Installation sealed. New visitors will only see the login page.', 'نصب مهر شد. بازدیدکنندگان جدید فقط صفحه لاگین را می‌بینند.', 'نصب مهر شو. نوي لیدونکي به یوازې د ننوتلو پاڼه ویني.'));
+        const synced = (j.data as { masterSynced?: boolean } | undefined)?.masterSynced === true;
+        setSealMsg(synced
+          ? tp('Installation sealed + master synced. Users now work on every device.', 'نصب مهر شد + مالک همگام شد. یوزرها حالا در همه دستگاه‌ها کار می‌کنند.', 'نصب مهر شو + خاوند همغږی شو. کاروونکي اوس په ټولو دستګاوو کې کار کوي.')
+          : tp('Installation sealed. New visitors will only see the login page.', 'نصب مهر شد. بازدیدکنندگان جدید فقط صفحه لاگین را می‌بینند.', 'نصب مهر شو. نوي لیدونکي به یوازې د ننوتلو پاڼه ویني.'));
         setSealKey('');
       } else {
         setSealMsg(tp('Invalid installer key.', 'کلید نصب اشتباه است.', 'د نصب کیلي سمه نه ده.'));

@@ -221,6 +221,8 @@ export interface User {
   username: string;
   email: string;
   password?: string;
+  /** Wave 40: original salt of the password hash (survives username changes). */
+  hashSalt?: string;
   name: string;
   phone?: string;
   companyName?: string;

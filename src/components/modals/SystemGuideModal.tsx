@@ -15,7 +15,9 @@ import {
   ShieldCheck,
   PhoneCall,
   Search,
-  ExternalLink
+  ExternalLink,
+  Users,
+  Smartphone
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -24,21 +26,33 @@ interface SystemGuideModalProps {
   onClose: () => void;
 }
 
-export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onClose }) => {
-  const { language, tp } = useApp();
-  const [activeTopic, setActiveTopic] = useState<'project' | 'expense' | 'payment' | 'contractor' | 'report' | 'bills' | 'gdrive'>('project');
+interface GuideTopic {
+  id: string;
+  icon: any;
+  color: string;
+  title: string;
+  badge: string;
+  /** app tabs this topic belongs to — a user sees it only with access to one */
+  tabs?: string[];
+  /** shown to everybody (login / PWA / offline help) */
+  always?: boolean;
+  /** Office7 master only */
+  masterOnly?: boolean;
+}
 
-  if (!isOpen) return null;
+export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onClose }) => {
+  const { language, tp, currentUser, isTabAllowed } = useApp();
 
   const isRtl = language === 'fa' || language === 'ps';
 
-  const topics = [
+  const topics: GuideTopic[] = [
     {
       id: 'project' as const,
       icon: Building2,
       color: 'text-amber-700 bg-amber-100 dark:bg-amber-950/60 dark:text-amber-400',
       title: language === 'ps' ? '۱. پیل او پروژه' : tp('1. Project Setup', '۱. تعریف و تنظیم پروژه', '۱. د پروژې تعریف او برابرول'),
       badge: language === 'ps' ? 'بنسټ' : tp('Foundation', 'اساسی', 'بنسټیز'),
+      tabs: ['projects', 'dashboard'],
     },
     {
       id: 'expense' as const,
@@ -46,6 +60,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
       color: 'text-blue-700 bg-blue-100 dark:bg-blue-950/60 dark:text-blue-400',
       title: language === 'ps' ? '۲. لګښتونه او توکي' : tp('2. Recording Expenses', '۲. ثبت مصارف و مواد', '۲. د مصارفو او موادو ثبت'),
       badge: language === 'ps' ? 'لګښتونه' : tp('Daily Costs', 'مصارف', 'مصارف'),
+      tabs: ['expenses', 'steel', 'concrete'],
     },
     {
       id: 'payment' as const,
@@ -53,6 +68,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
       color: 'text-emerald-700 bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-400',
       title: language === 'ps' ? '۳. رسیدونه او پیسې' : tp('3. Payments & Receipts', '۳. پرداخت‌ها و اسناد رسمی', '۳. تادیې او رسمي سندونه'),
       badge: language === 'ps' ? 'سندونه' : tp('Vouchers', 'رسید A4', 'A4 رسېد'),
+      tabs: ['payments', 'apartments'],
     },
     {
       id: 'contractor' as const,
@@ -60,6 +76,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
       color: 'text-purple-700 bg-purple-100 dark:bg-purple-950/60 dark:text-purple-400',
       title: language === 'ps' ? '۴. قراردادیان' : tp('4. Contractors & Staff', '۴. قراردادی‌ها و شرکا', '۴. قراردادیان او شریکان'),
       badge: language === 'ps' ? 'حساب' : tp('Ledger', 'حسابداری', 'محاسبه'),
+      tabs: ['contractors', 'labor', 'suppliers'],
     },
     {
       id: 'report' as const,
@@ -67,6 +84,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
       color: 'text-rose-700 bg-rose-100 dark:bg-rose-950/60 dark:text-rose-400',
       title: language === 'ps' ? '۵. مالي راپورونه' : tp('5. Financial Reports', '۵. راپورهای مالی A4', '۵. A4 مالي راپورونه'),
       badge: language === 'ps' ? 'راپور' : tp('Auditing', 'حسابرسی', 'پلټنه'),
+      tabs: ['reports', 'accounting', 'budget'],
     },
     {
       id: 'bills' as const,
@@ -74,6 +92,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
       color: 'text-amber-800 bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300',
       title: language === 'ps' ? '۶. د بلونو آرشیف' : tp('6. Bills & Camera Archive', '۶. کمره و آرشیف بل‌ها', '۶. کمره او د بلونو ارشیف'),
       badge: language === 'ps' ? 'کمره' : tp('Paperless', 'بدون کاغذ', 'بې کاغذه'),
+      tabs: ['documents', 'expenses'],
     },
     {
       id: 'gdrive' as const,
@@ -81,8 +100,48 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
       color: 'text-sky-700 bg-sky-100 dark:bg-sky-950/60 dark:text-sky-400',
       title: language === 'ps' ? '۷. ګوګل ډرایو' : tp('7. Google Drive Integration', '۷. همگام‌سازی Google Drive', '۷. له Google Drive سره همغږي'),
       badge: language === 'ps' ? 'ډرایو' : tp('Cloud', 'ابری', 'ورېځ'),
+      tabs: ['documents', 'settings'],
+    },
+    {
+      id: 'users' as const,
+      icon: Users,
+      color: 'text-indigo-700 bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-400',
+      title: tp('8. Staff & Multi-Device Login', '۸. کارمندان و ورود چنددستگاهی', '۸. کارکوونکي او څو-دستګا ننوتل'),
+      badge: tp('Team', 'تیم', 'ټیم'),
+      tabs: ['users'],
+    },
+    {
+      id: 'app' as const,
+      icon: Smartphone,
+      color: 'text-cyan-700 bg-cyan-100 dark:bg-cyan-950/60 dark:text-cyan-400',
+      title: tp('9. Account, PWA & Offline', '۹. حساب، نصب و کار آفلاین', '۹. حساب، نصب او آفلاین کار'),
+      badge: tp('Mobile', 'موبایل', 'موبایل'),
+      always: true,
+    },
+    {
+      id: 'master' as const,
+      icon: ShieldCheck,
+      color: 'text-slate-700 bg-slate-200 dark:bg-slate-800 dark:text-slate-300',
+      title: tp('10. Office7 & Security', '۱۰. دفتر هفت و امنیت', '۱۰. دفتر اووه او امنیت'),
+      badge: tp('Master', 'ارشد', 'مشر'),
+      masterOnly: true,
     },
   ];
+
+  // Wave 40: owners see every topic; each user sees only the topics that
+  // match their own permissions (plus the general account/offline help).
+  const isOwner = currentUser?.role === 'admin' || !!currentUser?.isMasterSuperAdmin;
+  const visibleTopics = topics.filter(t =>
+    t.masterOnly
+      ? !!currentUser?.isMasterSuperAdmin
+      : t.always || isOwner
+        ? true
+        : (t.tabs || []).some(tab => { try { return isTabAllowed(tab); } catch { return false; } })
+  );
+  const [activeTopic, setActiveTopic] = useState<string>(visibleTopics[0]?.id || 'app');
+  const safeActive = visibleTopics.some(t => t.id === activeTopic) ? activeTopic : (visibleTopics[0]?.id || 'app');
+
+  if (!isOpen) return null;
 
   return (
     <div 
@@ -133,9 +192,9 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
             <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2 mb-2">
               {language === 'ps' ? 'د سیستم موضوعات' : tp('System Topics', 'سرفصل‌های آموزشی', 'ښوونیز سرټکي')}
             </div>
-            {topics.map((t) => {
+            {visibleTopics.map((t) => {
               const Icon = t.icon;
-              const isActive = activeTopic === t.id;
+              const isActive = safeActive === t.id;
               return (
                 <button
                   key={t.id}
@@ -175,7 +234,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
 
           {/* Topic Detail View */}
           <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-5 text-slate-800 dark:text-slate-200 leading-relaxed text-sm">
-            {activeTopic === 'project' && (
+            {safeActive === 'project' && (
               <div className="space-y-4">
                 <div className="border-b border-line pb-3">
                   <h3 className="text-base font-black text-ink flex items-center gap-2">
@@ -203,7 +262,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
               </div>
             )}
 
-            {activeTopic === 'expense' && (
+            {safeActive === 'expense' && (
               <div className="space-y-4">
                 <div className="border-b border-line pb-3">
                   <h3 className="text-base font-black text-ink flex items-center gap-2">
@@ -231,7 +290,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
               </div>
             )}
 
-            {activeTopic === 'payment' && (
+            {safeActive === 'payment' && (
               <div className="space-y-4">
                 <div className="border-b border-line pb-3">
                   <h3 className="text-base font-black text-ink flex items-center gap-2">
@@ -259,7 +318,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
               </div>
             )}
 
-            {activeTopic === 'contractor' && (
+            {safeActive === 'contractor' && (
               <div className="space-y-4">
                 <div className="border-b border-line pb-3">
                   <h3 className="text-base font-black text-ink flex items-center gap-2">
@@ -281,7 +340,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
               </div>
             )}
 
-            {activeTopic === 'report' && (
+            {safeActive === 'report' && (
               <div className="space-y-4">
                 <div className="border-b border-line pb-3">
                   <h3 className="text-base font-black text-ink flex items-center gap-2">
@@ -309,7 +368,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
               </div>
             )}
 
-            {activeTopic === 'bills' && (
+            {safeActive === 'bills' && (
               <div className="space-y-4">
                 <div className="border-b border-line pb-3">
                   <h3 className="text-base font-black text-ink flex items-center gap-2">
@@ -327,7 +386,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
               </div>
             )}
 
-            {activeTopic === 'gdrive' && (
+            {safeActive === 'gdrive' && (
               <div className="space-y-4">
                 <div className="border-b border-line pb-3">
                   <h3 className="text-base font-black text-ink flex items-center gap-2">
@@ -344,6 +403,90 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ isOpen, onCl
                   <div className="p-3.5 bg-surface-2/60 border border-line rounded-2xl">
                     <strong className="text-ink block font-bold mb-1">دسترسی از همه جا:</strong>
                     با اتصال گوگل درایو، تمام بل‌ها و تصاویر در هر دستگاه با لینک مستقیم قابل مشاهده خواهند بود.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {safeActive === 'users' && (
+              <div className="space-y-4">
+                <div className="border-b border-line pb-3">
+                  <h3 className="text-base font-black text-ink flex items-center gap-2">
+                    <Users className="w-5 h-5 text-indigo-600" />
+                    <span>ساخت کارمند و ورود با یک حساب در همه دستگاه‌ها</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">مالک از بخش کارمندان حساب می‌سازد؛ همان نام کاربری و رمز در کمپیوتر و موبایل کار می‌کند</p>
+                </div>
+                <div className="space-y-3 text-xs">
+                  <div className="flex items-start gap-3 p-3 rounded-2xl bg-surface-2/60 border border-line">
+                    <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black flex items-center justify-center shrink-0">۱</span>
+                    <div>
+                      <strong className="block font-bold text-ink mb-0.5">ساخت حساب توسط مالک:</strong>
+                      <span className="text-slate-600 dark:text-slate-400">از «مدیریت کارمندان» حساب بسازید، نقش (ادمین/حسابدار/بیننده) و دسترسی تب‌ها را تعیین کنید. حساب فوراً در سرور ذخیره می‌شود — اگر آفلاین بودید، با وصل شدن اینترنت خودکار ارسال می‌شود.</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-2xl bg-surface-2/60 border border-line">
+                    <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black flex items-center justify-center shrink-0">۲</span>
+                    <div>
+                      <strong className="block font-bold text-ink mb-0.5">ورود در دستگاه دیگر:</strong>
+                      <span className="text-slate-600 dark:text-slate-400">کارمند در موبایل یا کمپیوتر دیگر با همان نام کاربری و رمز وارد می‌شود (اولین ورود به اینترنت نیاز دارد؛ بعدش آفلاین هم کار می‌کند).</span>
+                    </div>
+                  </div>
+                  <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl">
+                    <strong className="text-rose-900 dark:text-rose-200 block font-bold mb-1">غیرفعال به‌جای حذف:</strong>
+                    برای قطع دسترسی، حساب را «غیرفعال» کنید تا در همه دستگاه‌ها فوراً قفل شود. حذف کامل فقط وقتی لازم است که حساب دیگر هیچ‌وقت برنگردد.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {safeActive === 'app' && (
+              <div className="space-y-4">
+                <div className="border-b border-line pb-3">
+                  <h3 className="text-base font-black text-ink flex items-center gap-2">
+                    <Smartphone className="w-5 h-5 text-cyan-600" />
+                    <span>نصب برنامه، ورود و کار بدون اینترنت</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">یک‌بار نصب کنید؛ بعد با کلیک روی آیکون حتی آفلاین وارد شوید</p>
+                </div>
+                <div className="space-y-3 text-xs">
+                  <div className="p-3.5 bg-surface-2/60 border border-line rounded-2xl">
+                    <strong className="text-ink block font-bold mb-1">«مرا به خاطر بسپار»:</strong>
+                    بدون تیک، ورود فقط تا بسته شدن تب زنده است. با تیک، در همان دستگاه وارد می‌مانید. در نسخه نصب‌شده این گزینه پیش‌فرض روشن است.
+                  </div>
+                  <div className="p-3.5 bg-surface-2/60 border border-line rounded-2xl">
+                    <strong className="text-ink block font-bold mb-1">نصب (PWA):</strong>
+                    از منوی براوزر گزینه Install / «افزودن به صفحه اصلی» را بزنید تا آیکون NIK SMART COUNT ساخته شود. با آن آیکون، برنامه بدون اینترنت هم باز می‌شود و با دیتای همان دستگاه کار می‌کند.
+                  </div>
+                  <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl">
+                    <strong className="text-amber-900 dark:text-amber-200 block font-bold mb-1">دستگاه جدید:</strong>
+                    اگر در دستگاه جدید حسابی پیدا نشد، صفحه ورود دکمه «بازیابی بکاپ مالک» نشان می‌دهد — فایل بکاپ (JSON) را بدهید تا همه‌چیز برگردد.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {safeActive === 'master' && (
+              <div className="space-y-4">
+                <div className="border-b border-line pb-3">
+                  <h3 className="text-base font-black text-ink flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-slate-600" />
+                    <span>دفتر هفت: مهر نصب، بیلدر و امنیت</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">این بخش فقط برای مدیر ارشد نمایش داده می‌شود</p>
+                </div>
+                <div className="space-y-3 text-xs">
+                  <div className="p-3.5 bg-surface-2/60 border border-line rounded-2xl">
+                    <strong className="text-ink block font-bold mb-1">مهر نصب (یک دفتر در هر دامنه):</strong>
+                    از دفتر هفت ← امنیت، با «کلید نصب» نصب را مهر کنید تا هیچ‌وقت دفتر دوم ساخته نشود. مهر زدنِ دوباره، حساب مالک را هم در سرور تازه می‌کند تا ورود چنددستگاهی فعال بماند.
+                  </div>
+                  <div className="p-3.5 bg-surface-2/60 border border-line rounded-2xl">
+                    <strong className="text-ink block font-bold mb-1">بیلدر تصویری:</strong>
+                    فقط داخل دفتر هفت (تب داشبورد ← دکمه «بیلدر تصویری») است؛ هیچ مالک و کارمندی آن را نمی‌بیند و قابل اعطا هم نیست.
+                  </div>
+                  <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl">
+                    <strong className="text-rose-900 dark:text-rose-200 block font-bold mb-1">ریست کارخانه:</strong>
+                    اول بکاپ JSON دانلود می‌کند، بعد همه‌چیز را پاک می‌کند. نسخه تست دست‌نخورده می‌ماند.
                   </div>
                 </div>
               </div>

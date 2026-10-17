@@ -132,7 +132,11 @@ class BackendApiService {
   /** Reads are never queued; auth must always be live (never queue credentials). */
   private isQueueable(endpoint: string, method: string): boolean {
     if (method === 'GET' || method === 'HEAD') return false;
-    if (endpoint.startsWith('auth.php')) return false;
+    if (endpoint.startsWith('auth.php')) {
+      // Wave 40: user-sync payloads carry only sha256$ hashes (never plaintext
+      // passwords), so they are safe to queue and replay when back online.
+      return endpoint.includes('action=sync_user') || endpoint.includes('action=delete_user');
+    }
     return true;
   }
 
@@ -219,6 +223,23 @@ class BackendApiService {
   /** ابطال تمام نشست‌های فعال کاربر در همه دستگاه‌ها (§2.2) */
   public async logoutAll() {
     return this.request('auth.php?action=logout_all', { method: 'POST' });
+  }
+
+  // --- Wave 40: multi-device user sync (users work on every device) ---
+  /** Push a created/updated user to the server (hash-only, queueable offline). */
+  public async syncUser(user: any) {
+    return this.request('auth.php?action=sync_user', {
+      method: 'POST',
+      body: JSON.stringify({ user }),
+    });
+  }
+
+  /** Delete a user on the server (queueable offline). */
+  public async deleteServerUser(payload: { id?: string; username?: string }) {
+    return this.request('auth.php?action=delete_user', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   // --- دفتر هفت (Office 7 Master Control) ---

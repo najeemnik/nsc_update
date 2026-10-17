@@ -172,10 +172,14 @@ export const LoginView: React.FC = () => {
     setErrorMessage(null);
     clearAuthNotice();
     setLoading(true);
-    setTimeout(() => {
-      const result = login(loginEmail, loginPassword, undefined, rememberMe);
-      if (!result.success) {
-        setErrorMessage(result.error || (language === 'en' ? 'Sign in failed. Please verify credentials.' : language === 'ps' ? 'ننوتل ناکام شول.' : 'نام کاربری یا رمز عبور اشتباه است.'));
+    setTimeout(async () => {
+      try {
+        const result = await login(loginEmail, loginPassword, undefined, rememberMe);
+        if (!result.success) {
+          setErrorMessage(result.error || (language === 'en' ? 'Sign in failed. Please verify credentials.' : language === 'ps' ? 'ننوتل ناکام شول.' : 'نام کاربری یا رمز عبور اشتباه است.'));
+        }
+      } catch {
+        setErrorMessage(language === 'en' ? 'Sign in failed. Please verify credentials.' : language === 'ps' ? 'ننوتل ناکام شول.' : 'نام کاربری یا رمز عبور اشتباه است.');
       }
       setLoading(false);
     }, 300);
@@ -366,9 +370,11 @@ export const LoginView: React.FC = () => {
 
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-br from-amber-500 to-amber-700 text-white flex items-center justify-center font-black text-2xl shadow-xl shadow-amber-500/20 shrink-0">
-                  NIK
-                </div>
+                <img
+                  src="/assets/logo.png"
+                  alt="NIK SMART COUNT"
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl object-cover shadow-xl shadow-amber-500/20 shrink-0"
+                />
                 <div>
                   <span className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-amber-600 dark:text-amber-400 block">
                     {tp('OFFICIAL CIVIL ENGINEERING SUITE', 'سیستم تخصصی محاسبات و مدیریت مالی ساختمان', 'د ودانۍ د محاسبې او مالي مدیریت مسلکي سیسټم')}
@@ -601,6 +607,18 @@ export const LoginView: React.FC = () => {
                 <div className="p-3.5 bg-amber-950/80 border border-amber-600/80 rounded-2xl text-amber-200 text-xs flex items-center gap-2.5 animate-in fade-in">
                   <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
                   <span>{tp('Your server session expired or was revoked on another device. Please sign in again.', 'نشست سرور شما منقضی شد یا در دستگاه دیگری باطل گردید. لطفاً دوباره وارد شوید.', 'ستاسې د سرور ناسته پای ته ورسېده یا په بلې دستګا کې باطله شوه. مهرباني وکړئ بیا ننوځئ.')}</span>
+                </div>
+              )}
+              {authNotice === 'server-locked' && (
+                <div className="p-3.5 bg-rose-950/80 border border-rose-600/80 rounded-2xl text-rose-200 text-xs flex items-center gap-2.5 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{tp('This account was locked by the administrator on another device. Contact your administrator.', 'این حساب در دستگاه دیگری توسط مدیر قفل شد. با مدیر خود تماس بگیرید.', 'دا حساب په بلې دستګا کې د مدیر له خوا بند شو. له خپل مدیر سره اړیکه ونیسئ.')}</span>
+                </div>
+              )}
+              {authNotice === 'server-lockout' && (
+                <div className="p-3.5 bg-amber-950/80 border border-amber-600/80 rounded-2xl text-amber-200 text-xs flex items-center gap-2.5 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>{tp('Too many sign-in attempts. Please try again in 15 minutes.', 'تلاش‌های ورود بیش از حد شد. لطفاً ۱۵ دقیقه بعد تلاش کنید.', 'د ننوتلو هڅې ډېرې شوې. مهرباني وکړئ ۱۵ دقیقې وروسته بیا هڅه وکړئ.')}</span>
                 </div>
               )}
 
@@ -838,7 +856,7 @@ export const LoginView: React.FC = () => {
       <footer className="relative z-20 border-t border-slate-200 dark:border-white/10 py-6 bg-white/80 dark:bg-slate-950/90 backdrop-blur-xl text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>{t.copyrightNotice}</span>
-          <span className="font-mono text-[11px] text-amber-600">nik-smartcount.com · v1.0.5</span>
+          <span className="font-mono text-[11px] text-amber-600">nik-smartcount.com · v1.0.6</span>
         </div>
       </footer>
     </div>

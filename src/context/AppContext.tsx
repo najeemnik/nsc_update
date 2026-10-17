@@ -97,7 +97,7 @@ interface AppContextType {
   t: ((key: string) => string) & typeof translations['en'];
   tp: (en: string, fa: string, ps: string) => string;
   currentUser: User | null;
-  login: (usernameOrEmail: string, password?: string, loginType?: 'admin' | 'employee', remember?: boolean) => { success: boolean; error?: string };
+  login: (usernameOrEmail: string, password?: string, loginType?: 'admin' | 'employee', remember?: boolean) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   switchUserRole: (role: 'admin' | 'accountant' | 'viewer') => void;
   users: User[];
@@ -367,7 +367,7 @@ interface AppContextType {
   storageError: string | null;
   clearStorageError: () => void;
   /** اطلاع امنیتی نشست: منقضی‌شده (خروج اجباری) یا قفل موقت سرور (429) */
-  authNotice: 'session-expired' | 'server-lockout' | null;
+  authNotice: 'session-expired' | 'server-lockout' | 'server-locked' | null;
   clearAuthNotice: () => void;
   notifySessionExpired: () => void;
   importBackupJSON: (json: any) => void;
@@ -766,7 +766,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // خطای ذخیره‌سازی محلی (QuotaExceeded / حالت خصوصی مرورگر) — باید مرئی باشد (§2.7)
   const [storageError, setStorageError] = useState<string | null>(null);
   const clearStorageError = () => setStorageError(null);
-  const [authNotice, setAuthNotice] = useState<'session-expired' | 'server-lockout' | null>(null);
+  const [authNotice, setAuthNotice] = useState<'session-expired' | 'server-lockout' | 'server-locked' | null>(null);
   const clearAuthNotice = () => setAuthNotice(null);
 
   // Sync to local storage
@@ -1271,19 +1271,152 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recordActivity(currentUser, 'feature', feature, label);
   };
 
-  const login = (
+  // ============ Wave 40: multi-device user sync ============
+  // The server is the shared source of truth for ACCOUNTS (business data
+  // stays per-device). Local login always works offline; unknown or stale
+  // accounts fall back to the server and are cached locally afterwards.
+  const saltOf = (u: Pick<User, 'username' | 'hashSalt'>): string =>
+    (u.hashSalt || u.username || '').trim().toLowerCase();
+
+  const serializeUserForSync = (u: User): Record<string, unknown> => {
+    const pw = (u.password || '').trim();
+    return {
+      id: u.id,
+      name: u.name,
+      username: (u.username || '').trim(),
+      email: (u.email || '').trim(),
+      passwordHash: isPasswordHash(pw) ? pw : hashPassword(pw, saltOf(u)),
+      hashSalt: saltOf(u),
+      role: u.role,
+      isMaster: u.isMasterSuperAdmin === true,
+      active: u.active !== false,
+      isLockedBySuperAdmin: u.isLockedBySuperAdmin === true,
+      ownerAdminId: u.ownerAdminId || '',
+      phone: u.phone || '',
+      companyName: u.companyName || '',
+      companyAddress: u.companyAddress || '',
+      subscriptionPlan: u.subscriptionPlan || 'pro',
+      subscriptionExpiresAt: u.subscriptionExpiresAt || '',
+      permissions: u.permissions || {},
+      allowedTabs: u.permissions?.allowedTabs || [],
+      customEnabledModules: u.customEnabledModules || {},
+      appProfile: {
+        projectGrants: u.projectGrants || [],
+        accessExpiresAt: u.accessExpiresAt || '',
+        customTheme: u.customTheme || '',
+        customBackgroundUrl: u.customBackgroundUrl || '',
+        customLogoUrl: u.customLogoUrl || '',
+        customBillDesign: u.customBillDesign || null,
+        customButtonConfig: u.customButtonConfig || [],
+        verified: u.verified === true,
+        subscriptionPlan: u.subscriptionPlan || '',
+      },
+    };
+  };
+
+  const serverUserToLocal = (su: any, passwordHash: string, keepId?: string): User => {
+    const prof = (su.appProfile && typeof su.appProfile === 'object') ? su.appProfile : {};
+    const role = su.role === 'admin' || su.role === 'accountant' ? su.role : 'viewer';
+    const perms = (su.permissions && typeof su.permissions === 'object') ? su.permissions : {};
+    return {
+      id: keepId || su.id,
+      name: su.name || su.username,
+      username: su.username,
+      email: su.email || '',
+      password: passwordHash,
+      hashSalt: (su.username || '').trim().toLowerCase(),
+      phone: su.phone || '',
+      companyName: su.companyName || '',
+      companyAddress: su.companyAddress || prof.companyAddress || '',
+      role,
+      isMasterSuperAdmin: su.isMasterSuperAdmin === true,
+      ownerAdminId: su.ownerAdminId || undefined,
+      active: true,
+      verified: prof.verified === true,
+      subscriptionPlan: (prof.subscriptionPlan as User['subscriptionPlan'])
+        || (su.subscriptionPlan === 'trial' || su.subscriptionPlan === 'lifetime' ? su.subscriptionPlan : '1_year'),
+      subscriptionExpiresAt: su.subscriptionExpiresAt || undefined,
+      isLockedBySuperAdmin: false,
+      permissions: { ...perms, allowedTabs: Array.isArray(su.allowedTabs) ? su.allowedTabs : (perms.allowedTabs || []) },
+      projectGrants: Array.isArray(prof.projectGrants) ? prof.projectGrants : [],
+      accessExpiresAt: prof.accessExpiresAt || undefined,
+      customTheme: prof.customTheme || undefined,
+      customBackgroundUrl: prof.customBackgroundUrl || undefined,
+      customLogoUrl: prof.customLogoUrl || undefined,
+      customBillDesign: prof.customBillDesign || undefined,
+      customButtonConfig: Array.isArray(prof.customButtonConfig) ? prof.customButtonConfig : undefined,
+      customEnabledModules: (su.customEnabledModules && typeof su.customEnabledModules === 'object') ? su.customEnabledModules : undefined,
+      createdAt: new Date().toISOString(),
+    };
+  };
+
+  const pushUserToServer = (u: User): void => {
+    if (TEST_MODE) return; // the test version never touches the production server
+    try {
+      backendApi.syncUser(serializeUserForSync(u)).catch(() => {});
+    } catch { /* offline queue / network — replays automatically */ }
+  };
+
+  const deleteUserOnServer = (id: string, username: string): void => {
+    if (TEST_MODE) return;
+    try {
+      backendApi.deleteServerUser({ id, username }).catch(() => {});
+    } catch { /* ignore */ }
+  };
+
+  const login = async (
     usernameOrEmail: string,
     password?: string,
     loginType?: 'admin' | 'employee',
     remember: boolean = true
-  ): { success: boolean; error?: string } => {
+  ): Promise<{ success: boolean; error?: string }> => {
     const trimmedInput = usernameOrEmail.trim().toLowerCase();
-    const found = users.find(u => 
-      u.email.toLowerCase() === trimmedInput || 
+    // Wave 40: every creation path trims the password, so login must too —
+    // otherwise cross-device hashes would never match. The untrimmed variant
+    // is still accepted for legacy space-padded passwords.
+    const rawPw = password || '';
+    const pw = rawPw.trim();
+    let found = users.find(u =>
+      u.email.toLowerCase() === trimmedInput ||
       u.username.toLowerCase() === trimmedInput
     );
+    const verifyLocal = (candidate: string) =>
+      !!found && !!candidate && !!found.password && verifyPassword(candidate, found.password, saltOf(found));
+    const localOk = verifyLocal(pw) || (rawPw !== pw && verifyLocal(rawPw));
+    let justFetched = false;
+    if (!localOk) {
+      // Unknown on this device, or changed on another one — ask the server.
+      try {
+        const res = await backendApi.login(trimmedInput, pw);
+        const su = (res.data as any)?.user;
+        if (res.success && su && su.username) {
+          const cached = serverUserToLocal(su, hashPassword(pw, (su.username || trimmedInput).toLowerCase()), found?.id);
+          setUsers(prev => {
+            const ix = prev.findIndex(u => u.id === cached.id || u.username.toLowerCase() === cached.username.toLowerCase());
+            if (ix >= 0) { const next = [...prev]; next[ix] = { ...cached, createdAt: prev[ix].createdAt }; return next; }
+            return [...prev, cached];
+          });
+          found = cached;
+          justFetched = true;
+        } else if (res.status === 403) {
+          return { success: false, error: res.error || 'حساب کاربری توسط مدیریت مسدود شده است' };
+        } else if (res.status === 429) {
+          setAuthNotice('server-lockout');
+          return { success: false, error: tp('Too many attempts. Please try again in 15 minutes.', 'تلاش‌ها بیش از حد شد. لطفاً ۱۵ دقیقه بعد تلاش کنید.', 'هڅې ډېرې شوې. مهرباني وکړئ ۱۵ دقیقې وروسته بیا هڅه وکړئ.') };
+        }
+      } catch { /* offline — fall through to the local error below */ }
+    }
     if (!found) {
       return { success: false, error: 'حساب کاربری یافت نشد / Account not found' };
+    }
+    if (!justFetched && !localOk) {
+      const fails0 = readLoginFails(trimmedInput);
+      const n = fails0.n + 1;
+      writeLoginFails(trimmedInput, n, n >= 5 ? Date.now() + 60000 : 0);
+      if (!pw || !found.password) {
+        return { success: false, error: tp('Password is required.', 'رمز عبور الزامی است.', 'پټ نوم اړین دی.') };
+      }
+      return { success: false, error: 'رمز عبور اشتباه است / Incorrect password' };
     }
     if (!found.active) {
       return { success: false, error: 'حساب مسدود است / Account is disabled' };
@@ -1296,20 +1429,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (found.isLockedBySuperAdmin) {
       return { success: false, error: 'حساب کاربری توسط مدیریت مسدود شده است' };
     }
-    if (!password || !found.password || !verifyPassword(password, found.password, found.username)) {
-      const n = fails.n + 1;
-      writeLoginFails(trimmedInput, n, n >= 5 ? Date.now() + 60000 : 0);
-      if (!password || !found.password) {
-        return { success: false, error: tp('Password is required.', 'رمز عبور الزامی است.', 'پټ نوم اړین دی.') };
-      }
-      return { success: false, error: 'رمز عبور اشتباه است / Incorrect password' };
-    }
     writeLoginFails(trimmedInput, 0, 0);
     // Upgrade legacy plaintext passwords to salted hashes on successful login.
     if (!isPasswordHash(found.password)) {
-      const upgraded = hashPassword(password, found.username);
-      setUsers(prev => prev.map(u => u.id === found.id ? { ...u, password: upgraded } : u));
-      found.password = upgraded;
+      const upgraded = hashPassword(pw, found.username);
+      const reanchored = { ...found, password: upgraded, hashSalt: found.username.toLowerCase() };
+      const foundId = found.id;
+      setUsers(prev => prev.map(u => u.id === foundId ? reanchored : u));
+      found = reanchored;
     }
     if (!found.isMasterSuperAdmin && found.subscriptionExpiresAt) {
       const now = new Date().getTime();
@@ -1372,12 +1499,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch { /* noop */ }
     logAudit('login', 'user', found.id, `User ${found.name} logged in (${found.role})`, 'Authenticated successfully');
-    // همگام‌سازی توکن سرور در پس‌زمینه؛ فقط قفل موقت (429) را به کاربر نشان بده
-    backendApi.login(trimmedInput, password || '').then((res) => {
-      if (!res.success && res.status === 429) {
-        setAuthNotice('server-lockout');
-      }
-    }).catch(() => {});
+    if (!justFetched) {
+      // Wave 40: refresh this device's copy from the server (grants, locks,
+      // profile). A remote lock signs the user out immediately.
+      backendApi.login(trimmedInput, pw).then((res) => {
+        if (!res.success && res.status === 429) {
+          setAuthNotice('server-lockout');
+        } else if (!res.success && res.status === 403) {
+          setAuthNotice('server-locked');
+          logout();
+        } else if (res.success && (res.data as any)?.user) {
+          const su = (res.data as any).user;
+          setUsers(prev => prev.map(u => {
+            if (u.username.toLowerCase() !== (su.username || '').toLowerCase()) return u;
+            const merged = serverUserToLocal(su, u.password || '', u.id);
+            return { ...merged, password: u.password, hashSalt: u.hashSalt || merged.hashSalt, createdAt: u.createdAt };
+          }));
+        }
+      }).catch(() => {});
+    }
     return { success: true };
   };
 
@@ -1418,7 +1558,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: data.name.trim(),
       username: cleanUsername,
       email: cleanEmail,
-      password: hashPassword(data.password, cleanUsername),
+      password: hashPassword(data.password.trim(), cleanUsername),
+      hashSalt: cleanUsername,
       phone: data.phone.trim(),
       companyName: data.companyName.trim(),
       companyAddress: data.companyAddress?.trim() || '',
@@ -1448,6 +1589,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
     setUsers(prev => [...prev, newOwner]);
+    pushUserToServer(newOwner);
     const projectName = data.initialProjectName?.trim() || `پروژه ساختمانی - ${data.companyName.trim()}`;
     const initialProj: Project = {
       id: 'proj-' + Date.now(),
@@ -1493,7 +1635,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: 'usr-' + Date.now(),
       username: data.email.split('@')[0],
       email: data.email.trim(),
-      password: hashPassword(data.password, data.email.split('@')[0]),
+      password: hashPassword(data.password.trim(), data.email.split('@')[0]),
+      hashSalt: data.email.split('@')[0],
       name: data.name.trim(),
       phone: data.phone.trim(),
       companyName: data.companyName.trim(),
@@ -1508,6 +1651,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setUsers(prev => [...prev, newUser]);
+    // Local-only: self-registered tenant roots stay on this device (no server
+    // account yet, so there is nothing authenticated to push with).
 
     setAppSettings(prev => ({
       ...prev,
@@ -1584,7 +1729,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (nextPw.length < 6) {
       return { success: false, error: 'رمز جدید باید حداقل ۶ کاراکتر باشد / New password must be at least 6 characters' };
     }
-    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, password: hashPassword(nextPw, user.username), otpCode: undefined, otpIssuedAt: undefined } : u));
+    const resetUser: User = { ...user, password: hashPassword(nextPw, user.username), hashSalt: user.username.toLowerCase(), otpCode: undefined, otpIssuedAt: undefined };
+    setUsers(prev => prev.map(u => u.id === user.id ? resetUser : u));
+    pushUserToServer(resetUser);
     logAudit('update', 'user', user.id, `Password updated for ${user.email}`, 'Password changed successfully');
     return { success: true };
   };
@@ -1599,7 +1746,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!fresh) {
       return { success: false, error: 'User not found / کاربر یافت نشد' };
     }
-    if (!verifyPassword(currentPassword || '', fresh.password, fresh.username)) {
+    if (!verifyPassword(currentPassword || '', fresh.password, saltOf(fresh))) {
       logAudit('update', 'user', fresh.id, `Failed self password change for ${fresh.email}`, 'Current password mismatch');
       return { success: false, error: 'Current password is incorrect / رمز فعلی اشتباه است' };
     }
@@ -1607,8 +1754,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (next.length < 6) {
       return { success: false, error: 'New password must be at least 6 characters / رمز جدید باید حداقل ۶ کاراکتر باشد' };
     }
-    const updated = { ...fresh, password: hashPassword(next, fresh.username) };
+    const updated = { ...fresh, password: hashPassword(next, fresh.username), hashSalt: fresh.username.toLowerCase() };
     setUsers(prev => prev.map(u => u.id === fresh.id ? updated : u));
+    pushUserToServer(updated);
     setCurrentUser(updated);
     saveCurrentUser( updated);
     logAudit('update', 'user', fresh.id, `Self password change for ${fresh.email}`, 'Password changed successfully');
@@ -1632,8 +1780,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'This username is already taken / این نام کاربری قبلاً استفاده شده است' };
     }
     const old = currentUser.username;
-    const updated = { ...currentUser, username: clean };
+    const updated = { ...currentUser, username: clean, hashSalt: currentUser.hashSalt || old };
     setUsers(prev => prev.map(u => u.id === currentUser.id ? updated : u));
+    pushUserToServer(updated);
     setCurrentUser(updated);
     saveCurrentUser( updated);
     logAudit('update', 'user', currentUser.id, `Username changed ${old} -> ${clean}`, 'Self username change from Office7');
@@ -1672,6 +1821,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       username: cleanUsername,
       email: cleanEmail,
       password: hashPassword(pw, cleanUsername),
+      hashSalt: cleanUsername,
       phone: '',
       companyName: cleanCompany,
       role: 'admin',
@@ -1801,25 +1951,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     permissions?: User['permissions'];
     active?: boolean;
   }): { success: boolean; error?: string } => {
-    let found = false;
-    setUsers(prev => prev.map(u => {
-      if (u.id === employeeId) {
-        found = true;
+    const target0 = users.find(u => u.id === employeeId);
+    if (!target0) return { success: false };
+    {
+      const u = target0;
+      {
         const updatedUser: User = {
           ...u,
           name: updates.name !== undefined ? updates.name.trim() : u.name,
           email: updates.email !== undefined ? updates.email.trim() : u.email,
           phone: updates.phone !== undefined ? updates.phone.trim() : u.phone,
           password: updates.password && updates.password.trim() ? (isPasswordHash(updates.password.trim()) ? updates.password.trim() : hashPassword(updates.password.trim(), u.username)) : u.password,
+          hashSalt: updates.password && updates.password.trim() && !isPasswordHash(updates.password.trim()) ? u.username.toLowerCase() : u.hashSalt,
           permissions: updates.permissions !== undefined ? updates.permissions : u.permissions,
           active: updates.active !== undefined ? updates.active : u.active,
         };
         logAudit('update', 'user', u.id, `Updated Staff Member ${updatedUser.name}`, 'Permissions / credentials updated');
-        return updatedUser;
+        setUsers(prev => prev.map(x => (x.id === employeeId ? updatedUser : x)));
+        pushUserToServer(updatedUser);
       }
-      return u;
-    }));
-    return { success: found };
+    }
+    return { success: true };
   };
 
   const deleteEmployeeAccount = (employeeId: string) => {
@@ -1827,21 +1979,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const ownStaff = !!currentUser && currentUser.role === 'admin' && !!target?.ownerAdminId && target.ownerAdminId === currentUser.id;
     if (!currentUser?.isMasterSuperAdmin && !ownStaff) { denyAccess('staff', 'del'); return; }
     setUsers(prev => prev.filter(u => u.id !== employeeId));
+    if (target) deleteUserOnServer(target.id, target.username);
     logAudit('delete', 'user', employeeId, 'Deleted Staff Member', 'Account removed by company admin');
   };
 
   const toggleAiForUser = (userId: string, enabled: boolean) => {
     if (!currentUser?.isMasterSuperAdmin) { denyAccess('ai_governance', 'edit'); return; }
-    setUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        logAudit('update', 'user', u.id, `Toggled AI status for ${u.name}`, `AI Enabled: ${enabled}`);
-        return { 
-          ...u, 
-          permissions: { ...(u.permissions || {}), aiEnabled: enabled } 
-        };
-      }
-      return u;
-    }));
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    const toggled: User = { ...target, permissions: { ...(target.permissions || {}), aiEnabled: enabled } };
+    setUsers(prev => prev.map(u => (u.id === userId ? toggled : u)));
+    logAudit('update', 'user', userId, `Toggled AI status for ${target.name}`, `AI Enabled: ${enabled}`);
+    pushUserToServer(toggled);
   };
 
   const updateTenantByMasterAdmin = (userId: string, updates: {
@@ -1867,10 +2016,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     accessExpiresAt?: string;
   }): { success: boolean; error?: string } => {
     if (!currentUser?.isMasterSuperAdmin) { denyAccess('tenant_edit', 'edit'); return { success: false, error: 'forbidden' }; }
-    let targetFound = false;
-    setUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        targetFound = true;
+    const target0 = users.find(u => u.id === userId);
+    if (!target0) return { success: false, error: 'User not found' };
+    {
+      const u = target0;
+      {
         const newPermissions = {
           ...(u.permissions || {}),
           ...(updates.permissions || {}),
@@ -1884,6 +2034,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           companyName: updates.companyName !== undefined ? updates.companyName : u.companyName,
           companyAddress: updates.companyAddress !== undefined ? updates.companyAddress : u.companyAddress,
           password: updates.password !== undefined && updates.password.trim() ? (isPasswordHash(updates.password.trim()) ? updates.password.trim() : hashPassword(updates.password.trim(), u.username)) : u.password,
+          hashSalt: updates.password !== undefined && updates.password.trim() && !isPasswordHash(updates.password.trim()) ? u.username.toLowerCase() : u.hashSalt,
           customLogoUrl: updates.customLogoUrl !== undefined ? updates.customLogoUrl : u.customLogoUrl,
           customBillDesign: updates.customBillDesign !== undefined ? updates.customBillDesign : u.customBillDesign,
           customButtonConfig: updates.customButtonConfig !== undefined ? updates.customButtonConfig : u.customButtonConfig,
@@ -1897,14 +2048,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           projectGrants: updates.projectGrants !== undefined ? updates.projectGrants : u.projectGrants,
           accessExpiresAt: updates.accessExpiresAt !== undefined ? updates.accessExpiresAt : u.accessExpiresAt,
         };
-        if (currentUser?.id === userId) {
-          setCurrentUser(uUpdated);
-          saveCurrentUser( uUpdated);
-        }
-        return uUpdated;
+      setUsers(prev => prev.map(x => (x.id === userId ? uUpdated : x)));
+      pushUserToServer(uUpdated);
+      if (currentUser?.id === userId) {
+        setCurrentUser(uUpdated);
+        saveCurrentUser( uUpdated);
       }
-      return u;
-    }));
+      }
+    }
     if (currentUser?.id === userId) {
       setAppSettings(prev => ({
         ...prev,
@@ -1918,15 +2069,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         enabledModules: updates.customEnabledModules ? { ...prev.enabledModules, ...updates.customEnabledModules } : prev.enabledModules,
       }));
     }
-    if (targetFound) {
-      logAudit('update', 'user', userId, `Master Admin updated tenant settings`, 'Tenant full-control configuration updated');
-      backendApi.updateTenantByOffice7({
-        id: userId,
-        ...updates,
-      }).catch(() => {});
-      return { success: true };
-    }
-    return { success: false, error: 'User not found' };
+    logAudit('update', 'user', userId, `Master Admin updated tenant settings`, 'Tenant full-control configuration updated');
+    backendApi.updateTenantByOffice7({
+      id: userId,
+      ...updates,
+    }).catch(() => {});
+    return { success: true };
   };
 
   const impersonateTenant = (user: User) => {
@@ -2063,10 +2211,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       username: userData.username.trim(),
       email: userData.email.trim(),
       password: isPasswordHash(rawPw) ? rawPw : hashPassword(rawPw, cleanUsername),
+      hashSalt: cleanUsername,
       id: 'user-' + Date.now(),
       createdAt: new Date().toISOString(),
     };
     setUsers(prev => [...prev, newUser]);
+    pushUserToServer(newUser);
     logAudit('create', 'user', newUser.id, `Created user ${newUser.name}`, `Role: ${newUser.role}`);
     return { success: true };
   };
@@ -2079,8 +2229,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const safe: Partial<User> = { ...updates };
     if (typeof safe.password === 'string' && safe.password.trim() && target && !isPasswordHash(safe.password.trim())) {
       safe.password = hashPassword(safe.password.trim(), target.username);
+      safe.hashSalt = target.username.toLowerCase();
     }
     setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...safe } : u)));
+    if (target) pushUserToServer({ ...target, ...safe });
     const logged: Record<string, unknown> = { ...safe };
     if ('password' in logged) logged.password = '[redacted]';
     logAudit('update', 'user', id, `Updated user profile`, JSON.stringify(logged));
@@ -2088,6 +2240,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const toggleUserActive = (id: string) => {
     if (!guard('users', 'edit')) return;
+    const target = users.find(u => u.id === id);
     setUsers(prev => prev.map(u => {
       if (u.id === id) {
         const updated = { ...u, active: !u.active };
@@ -2096,11 +2249,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return u;
     }));
+    if (target) pushUserToServer({ ...target, active: !target.active });
   };
 
   const deleteUser = (id: string) => {
     if (!guard('users', 'del')) return;
+    const target = users.find(u => u.id === id);
     setUsers(prev => prev.filter(u => u.id !== id));
+    if (target) deleteUserOnServer(target.id, target.username);
     logAudit('delete', 'user', id, 'Deleted user account', 'User removed from team');
   };
 

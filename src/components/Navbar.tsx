@@ -182,13 +182,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   src={appSettings.logoUrl || '/assets/logo.png'}
                   alt={appSettings.companyName || 'NIK SMART COUNT'}
                   onError={() => setLogoOk(false)}
-                  className="h-9 w-auto max-w-[120px] shrink-0 object-contain"
+                  className="h-7 sm:h-9 w-auto max-w-[90px] sm:max-w-[120px] shrink-0 object-contain"
                 />
               ) : (
                 <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-white font-black text-sm shadow-xs">
                   {currentUser?.companyName ? currentUser.companyName.charAt(0) : 'N'}
                 </div>
               )}
+              <span className="sm:hidden text-sm font-black text-ink shrink-0">NSC</span>
               <div className="hidden sm:block max-w-[110px] md:max-w-[150px] lg:max-w-[190px] xl:max-w-[260px] min-w-0">
                 <div className="flex items-center space-x-1.5 rtl:space-x-reverse">
                   <span className="font-extrabold tracking-tight text-ink text-sm truncate whitespace-nowrap">
@@ -273,19 +274,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Center icon circles (BRYZOS style) */}
           <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
-
-            {/* Home */}
-            <div className="hidden lg:block">
-              <button
-                type="button"
-                onClick={() => setActiveTab('dashboard')}
-                title={tp('Dashboard', 'داشبورد', 'ډشبورډ')}
-                aria-label={tp('Dashboard', 'داشبورد', 'ډشبورډ')}
-                className={circleBtnSolid}
-              >
-                <Home className="w-4 h-4" />
-              </button>
-            </div>
 
             {/* Notifications (Wave 12) */}
             <NotificationBell className={circleBtnSolid} />
@@ -505,51 +493,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* Quick Photo Capture */}
-            <div className="hidden lg:block">
-              <button
-                type="button"
-                onClick={() => openCameraForCapture()}
-                title={t.captureWithCamera}
-                aria-label={t.captureWithCamera}
-                className={circleBtn}
-              >
-                <Camera className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* AI Assistant */}
-            {onOpenAiAssistant && aiAccess().allowed && (
-              <div className="block">
-                <button
-                  type="button"
-                  onClick={() => onOpenAiAssistant()}
-                  title={tp('AI Assistant', 'هوش مصنوعی', 'مصنوعي ځیرکتیا')}
-                  aria-label={tp('AI Assistant', 'هوش مصنوعی', 'مصنوعي ځیرکتیا')}
-                  className={circleBtn}
-                >
-                  <Bot className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            {/* Help Guide */}
-            {onOpenSystemGuide && (
-              <div className="hidden lg:block">
-                <button
-                  type="button"
-                  onClick={() => onOpenSystemGuide()}
-                  title={tp('Guide', 'راهنما', 'لارښود')}
-                  aria-label={tp('Guide', 'راهنما', 'لارښود')}
-                  className={circleBtn}
-                >
-                  <BookOpen className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            {/* More Actions — Google Drive tools */}
-            <div ref={moreRef} className="relative hidden lg:block">
+            {/* More Actions — camera, AI, guide (Wave 40: header decluttered) */}
+            <div ref={moreRef} className="relative block">
               <button
                 type="button"
                 onClick={() => setMoreMenuOpen(!moreMenuOpen)}
@@ -562,6 +507,37 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {moreMenuOpen && (
                 <div className="absolute top-full mt-1.5 end-0 w-60 max-w-[85vw] bg-surface rounded-2xl shadow-2xl border border-line py-1.5 z-50 animate-in fade-in zoom-in-95">
+                  <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    {t.actions}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setMoreMenuOpen(false); openCameraForCapture(); }}
+                    className="w-full text-start px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold text-slate-700 dark:text-slate-200 flex items-center space-x-2 rtl:space-x-reverse transition-colors"
+                  >
+                    <Camera className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="truncate">{t.captureWithCamera}</span>
+                  </button>
+                  {onOpenAiAssistant && aiAccess().allowed && (
+                    <button
+                      type="button"
+                      onClick={() => { setMoreMenuOpen(false); onOpenAiAssistant(); }}
+                      className="w-full text-start px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold text-slate-700 dark:text-slate-200 flex items-center space-x-2 rtl:space-x-reverse transition-colors"
+                    >
+                      <Bot className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span className="truncate">{tp('AI Assistant', 'هوش مصنوعی', 'مصنوعي ځیرکتیا')}</span>
+                    </button>
+                  )}
+                  {onOpenSystemGuide && (
+                    <button
+                      type="button"
+                      onClick={() => { setMoreMenuOpen(false); onOpenSystemGuide(); }}
+                      className="w-full text-start px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold text-slate-700 dark:text-slate-200 flex items-center space-x-2 rtl:space-x-reverse transition-colors"
+                    >
+                      <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">{tp('System Guide', 'راهنمای سیستم', 'د سیسټم لارښود')}</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -572,7 +548,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 onClick={() => setLangDropdownOpen(!langDropdownOpen)}
                 title={tp('Language', 'زبان', 'ژبه')}
-                className="flex items-center justify-center gap-1 h-9 w-9 sm:w-auto sm:px-3 rounded-full text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-700/70 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors shrink-0"
+                className="flex items-center justify-center gap-1 h-8 w-8 sm:w-auto sm:px-3 rounded-full text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-700/70 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors shrink-0"
               >
                 <Globe className="w-3.5 h-3.5 text-slate-500" />
                 <span className="hidden sm:inline">
@@ -620,7 +596,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* User Profile Dropdown */}
             {/* zero-size anchor below lg: panel must still open from the role pill */}
-            <div ref={userRef} className="relative">
+            <div ref={userRef} className="relative shrink-0">
               <button
                 type="button"
                 onClick={() => setUserDropdownOpen(v => !v)}
@@ -720,19 +696,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 </div>
               )}
-            </div>
-
-            {/* Settings shortcut */}
-            <div className="hidden lg:block">
-              <button
-                type="button"
-                onClick={() => setActiveTab('settings')}
-                title={t.companySettings}
-                aria-label={t.companySettings}
-                className={circleBtn}
-              >
-                <Settings className="w-4 h-4" />
-              </button>
             </div>
 
             {onOpenMobileMenu && (

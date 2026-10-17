@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { hashPassword } from '../utils/hash';
+import { backendApi } from '../services/backendApi';
 import { ShieldCheck, User, AtSign, Mail, Building2, KeyRound, Rocket, Lock } from 'lucide-react';
 
 const API_BASE_URL = (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_API_URL || '/api';
@@ -59,13 +61,27 @@ export const FirstRunSetupView: React.FC = () => {
     }
     const res = bootstrapMasterAdmin({ name, username, email, password, companyName });
     if (res.success && !import.meta.env.DEV) {
-      // Wave 38: seal the domain so no second office can be initialized.
+      // Wave 38+40: seal the domain AND bootstrap the server copy of the
+      // master (hash-only) so multi-device login works from day one.
       try {
+        const cu = (username || '').trim().toLowerCase();
         await fetch(`${API_BASE_URL}/install.php?action=complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: installKey.trim() }),
+          body: JSON.stringify({
+            key: installKey.trim(),
+            master: {
+              name: (name || '').trim(),
+              username: cu,
+              email: (email || '').trim().toLowerCase(),
+              passwordHash: hashPassword((password || '').trim(), cu),
+              hashSalt: cu,
+              companyName: (companyName || '').trim(),
+            },
+          }),
         });
+        // Grab a server token right away for future user-sync pushes.
+        backendApi.login(cu, (password || '').trim()).catch(() => {});
       } catch { /* local account already created; Office7 can re-seal */ }
     }
     setBusy(false);
