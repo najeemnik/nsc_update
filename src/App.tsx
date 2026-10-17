@@ -11,6 +11,7 @@ import { MobileNav } from './components/MobileNav';
 import { MobileMenuDrawer } from './components/MobileMenuDrawer';
 import { LoginView } from './components/LoginView';
 import { FirstRunSetupView } from './components/FirstRunSetupView';
+import { useInstallStatus } from './hooks/useInstallStatus';
 
 // Views
 import { DashboardView } from './components/views/DashboardView';
@@ -187,9 +188,24 @@ function MainApp() {
   // Pre-selected payment payee if opened from contractor/supplier card
   const [paymentRecipient, setPaymentRecipient] = useState<{ id: string; name: string } | null>(null);
 
-  // Wave 37 go-live: fresh production (zero users) -> first-run setup, not login.
+  // Wave 38 central lock: the setup screen appears only when THIS browser is
+  // empty AND the server is not sealed yet. Once sealed, every new visitor
+  // (any device) gets the login page — a second office can never be created.
+  const installStatus = useInstallStatus(!isTestMode && users.length === 0);
   if (!isTestMode && users.length === 0) {
-    return <FirstRunSetupView />;
+    if (installStatus.loading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-surface">
+          <div className="flex flex-col items-center gap-3 text-ink-muted">
+            <div className="w-10 h-10 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
+            <span className="text-xs font-bold">{tp('Loading…', 'در حال بارگذاری…', 'په بارېدو کې…')}</span>
+          </div>
+        </div>
+      );
+    }
+    if (installStatus.initialized !== true) {
+      return <FirstRunSetupView />;
+    }
   }
   if (!currentUser) {
     return <LoginView />;

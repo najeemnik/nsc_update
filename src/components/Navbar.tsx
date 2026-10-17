@@ -114,11 +114,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     currentUser?.role === 'accountant' ? tp('Accountant', 'حسابدار', 'محاسب') :
     tp('Viewer', 'بیننده', 'کتونکی');
 
-  const circleBtn = 'w-9 h-9 rounded-full flex items-center justify-center bg-white/80 dark:bg-slate-700/70 text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors shrink-0 tap-target';
+  const circleBtn = 'w-8 h-8 rounded-full flex items-center justify-center bg-white/80 dark:bg-slate-700/70 text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors shrink-0 tap-target tap-compact';
   // Audit fix: solid variants WITHOUT layering circleBtn (its bg/text/hover classes
   // conflict with overrides and can render white-on-white in day mode).
-  const circleBtnSolid = 'w-9 h-9 rounded-full flex items-center justify-center bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow transition-colors shrink-0 tap-target';
-  const circleBtnAmber = 'w-9 h-9 rounded-full flex items-center justify-center bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors shrink-0 tap-target';
+  const circleBtnSolid = 'w-8 h-8 rounded-full flex items-center justify-center bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow transition-colors shrink-0 tap-target tap-compact';
+  const circleBtnAmber = 'w-8 h-8 rounded-full flex items-center justify-center bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors shrink-0 tap-target tap-compact';
 
   const searchRef = useRef<HTMLDivElement | null>(null);
   const quickAddRef = useRef<HTMLDivElement | null>(null);
@@ -169,7 +169,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       )}
       <div className="max-w-7xl mx-auto">
         <div className="bg-[#e9e9ed] dark:bg-slate-800/95 border border-black/5 dark:border-white/10 shadow-sm rounded-2xl px-2.5 sm:px-4">
-        <div className="flex items-center justify-between h-14 gap-2 min-w-0">
+        <div className="flex items-center justify-between h-12 gap-2 min-w-0">
           
           {/* Logo & Project Switcher */}
           <div className="flex items-center space-x-3 rtl:space-x-reverse min-w-0">
@@ -264,7 +264,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               title={tp('Account menu', 'منوی حساب کاربری', 'د کارن حساب مینو')}
               aria-haspopup="menu"
               aria-expanded={userDropdownOpen}
-              className="hidden md:flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/60 dark:bg-slate-700/60 hover:bg-white dark:hover:bg-slate-700 text-[11px] font-extrabold tracking-[0.2em] text-slate-500 dark:text-slate-300 uppercase shrink-0 transition-colors cursor-pointer"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/60 dark:bg-slate-700/60 hover:bg-white dark:hover:bg-slate-700 text-[10px] font-extrabold tracking-[0.15em] text-slate-500 dark:text-slate-300 uppercase shrink-0 transition-colors cursor-pointer"
             >
               {roleLabel}
               <ChevronDown className="w-3 h-3 shrink-0" />
@@ -373,10 +373,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={() => handler?.()}
-                  className={`hidden 2xl:flex items-center space-x-1.5 rtl:space-x-reverse ${colorClass} ${shapeClass} text-white px-3 py-1.5 text-xs font-bold shadow-xs transition-colors`}
+                  className={`hidden 2xl:flex items-center space-x-1.5 rtl:space-x-reverse ${colorClass} ${shapeClass} text-white px-3 py-1.5 text-xs font-bold shadow-xs transition-colors max-w-[170px] overflow-hidden shrink-0`}
                 >
-                  <IconComponent className="w-3.5 h-3.5" />
-                  <span className="whitespace-nowrap">{language === 'ps' ? (topButton.labelPs || topButton.labelFa || topButton.label) : language === 'en' ? (topButton.labelEn || topButton.label) : (topButton.labelFa || topButton.label)}</span>
+                  <IconComponent className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">{language === 'ps' ? (topButton.labelPs || topButton.labelFa || topButton.label) : language === 'en' ? (topButton.labelEn || topButton.label) : (topButton.labelFa || topButton.label)}</span>
                 </button>
               );
             })()}

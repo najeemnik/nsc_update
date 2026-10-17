@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { backendApi } from '../services/backendApi';
+import { backendApi, API_BASE_URL } from '../services/backendApi';
 import { User, UserActivityEvent, CustomActionButton, CustomBillDesign, DEFAULT_ACTION_BUTTONS, ProjectGrant } from '../types';
 import { AccessMatrix } from './AccessMatrix';
 import { contractorPayout } from '../utils/opsMath';
@@ -277,6 +277,9 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
   const [selfUnameMsg, setSelfUnameMsg] = useState<string | null>(null);
   const [selfUnameOk, setSelfUnameOk] = useState(false);
   const [factoryMsg, setFactoryMsg] = useState<string | null>(null);
+  const [sealKey, setSealKey] = useState('');
+  const [sealMsg, setSealMsg] = useState<string | null>(null);
+  const [sealOk, setSealOk] = useState(false);
   const [selfPwdNext, setSelfPwdNext] = useState('');
   const [selfPwdRepeat, setSelfPwdRepeat] = useState('');
   const [selfPwdMsg, setSelfPwdMsg] = useState<string | null>(null);
@@ -673,6 +676,31 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     const res = factoryReset();
     if (!res.success) {
       setFactoryMsg(res.error || 'Failed.');
+    }
+  };
+
+  // Wave 38: one-time migration — seal an office that was initialized before
+  // the central lock existed, so no second office can ever be created.
+  const handleSealInstall = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSealMsg(null);
+    setSealOk(false);
+    try {
+      const r = await fetch(`${API_BASE_URL}/install.php?action=complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: sealKey.trim() }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.success) {
+        setSealOk(true);
+        setSealMsg(tp('Installation sealed. New visitors will only see the login page.', 'نصب مهر شد. بازدیدکنندگان جدید فقط صفحه لاگین را می‌بینند.', 'نصب مهر شو. نوي لیدونکي به یوازې د ننوتلو پاڼه ویني.'));
+        setSealKey('');
+      } else {
+        setSealMsg(tp('Invalid installer key.', 'کلید نصب اشتباه است.', 'د نصب کیلي سمه نه ده.'));
+      }
+    } catch {
+      setSealMsg(tp('Cannot reach the server.', 'ارتباط با سرور برقرار نشد.', 'له سرور سره اړیکه ټینګه نه شوه.'));
     }
   };
 
@@ -3263,6 +3291,44 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
                     <Trash2 className="w-4 h-4" />
                     <span>{tp('Backup & wipe everything', 'بکاپ و حذف همه‌چیز', 'بکاپ او هرڅه ړنګول')}</span>
                   </button>
+                </div>
+
+                {/* Wave 38: seal installation (one office per domain) */}
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-5 h-5 text-slate-700" />
+                    <h4 className="text-sm font-black text-slate-800">{tp('Seal installation (one office per domain)', 'مهر نصب (فقط یک دفتر در هر دامنه)', 'نصب مهرول (په هر ډومېن کې یوازې یو دفتر)')}</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    {tp('One-time action for offices created before this lock: after sealing, anyone opening the site on a new device only sees the login page — a second office can never be created.',
+                      'یک اقدام یک‌باره برای دفترهایی که قبل از این قفل ساخته شده‌اند: بعد از مهر، هر کسی سایت را در دستگاه جدید باز کند فقط صفحه لاگین را می‌بیند — دفتر دوم هرگز ساخته نمی‌شود.',
+                      'یو یوځل عمل د هغو دفترونو لپاره چې له دې قلف څخه مخکې جوړ شوي: تر مهر وروسته، هر څوک چې سایټ په نوې دستګا کې پرانیزي یوازې د ننوتلو پاڼه ویني — دوهم دفتر هېڅکله نه جوړېږي.')}
+                  </p>
+                  <form onSubmit={handleSealInstall} className="space-y-2.5">
+                    <input
+                      type="password"
+                      required
+                      value={sealKey}
+                      onChange={e => setSealKey(e.target.value)}
+                      placeholder={tp('Installer key…', 'کلید نصب…', 'د نصب کیلي…') as string}
+                      dir="ltr"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-500/40"
+                    />
+                    {sealMsg && (
+                      <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                        sealOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
+                      }`}>
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>{sealMsg}</span>
+                      </div>
+                    )}
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs rounded-xl shadow-lg transition-all"
+                    >
+                      {tp('Seal this installation', 'مهر کردن این نصب', 'دې نصب مهرول')}
+                    </button>
+                  </form>
                 </div>
               </div>
             )}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { DocumentViewerModal, ViewerDoc } from '../DocumentViewerModal';
 import { 
   Cloud, 
   X, 
@@ -38,6 +39,7 @@ export const GoogleDriveModal: React.FC<GoogleDriveModalProps> = ({ isOpen, onCl
   const [driveFiles, setDriveFiles] = useState<GoogleDriveFile[]>([]);
   const [fetchingFiles, setFetchingFiles] = useState<boolean>(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [viewDoc, setViewDoc] = useState<ViewerDoc | null>(null);
 
   const fetchFiles = async () => {
     if (!isGoogleDriveConnected) return;
@@ -324,15 +326,14 @@ export const GoogleDriveModal: React.FC<GoogleDriveModalProps> = ({ isOpen, onCl
                           </button>
                         )}
                         {file.webViewLink && (
-                          <a
-                            href={file.webViewLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => setViewDoc({ title: file.name, url: file.webViewLink || '' })}
                             className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition"
-                            title="Open in Google Drive"
+                            title="Preview file"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
+                          </button>
                         )}
                         <button
                           onClick={() => handleDeleteFile(file.id)}
@@ -360,6 +361,7 @@ export const GoogleDriveModal: React.FC<GoogleDriveModalProps> = ({ isOpen, onCl
           </button>
         </div>
       </div>
+      <DocumentViewerModal doc={viewDoc} onClose={() => setViewDoc(null)} />
     </div>
   );
 };

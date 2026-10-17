@@ -35,13 +35,16 @@ import {
   Award,
   Sun,
   Moon,
-  FlaskConical
+  FlaskConical,
+  Upload
 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
-  const { 
-    login, 
-    requestPasswordReset, 
+  const {
+    login,
+    users,
+    importBackupJSON,
+    requestPasswordReset,
     completePasswordReset,
     language, tp, 
     setLanguage, 
@@ -59,6 +62,28 @@ export const LoginView: React.FC = () => {
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState<boolean>(() =>
+    window.matchMedia?.('(display-mode: standalone)').matches === true ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true);
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
+
+  const handleRestoreBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        importBackupJSON(json);
+        setRestoreMsg(tp('Backup restored — now sign in with your account.', 'بکاپ بازیابی شد — حالا با حساب خود وارد شوید.', 'بکاپ بېرته وګرځېد — اوس له خپل حساب سره ننوځئ.'));
+      } catch {
+        setRestoreMsg(tp('Invalid backup file.', 'فایل بکاپ معتبر نیست.', 'د بکاپ فایل سم نه دی.'));
+      }
+      setTimeout(() => setRestoreMsg(null), 6000);
+    };
+    reader.readAsText(file);
+  };
 
   const [pendingEmail, setPendingEmail] = useState('');
   const [otpInput, setOtpInput] = useState('');
@@ -148,7 +173,7 @@ export const LoginView: React.FC = () => {
     clearAuthNotice();
     setLoading(true);
     setTimeout(() => {
-      const result = login(loginEmail, loginPassword);
+      const result = login(loginEmail, loginPassword, undefined, rememberMe);
       if (!result.success) {
         setErrorMessage(result.error || (language === 'en' ? 'Sign in failed. Please verify credentials.' : language === 'ps' ? 'ننوتل ناکام شول.' : 'نام کاربری یا رمز عبور اشتباه است.'));
       }
@@ -231,11 +256,11 @@ export const LoginView: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           
           <div className="flex items-center space-x-3.5 rtl:space-x-reverse">
-            <div className="relative w-10 h-10 flex items-center justify-center shrink-0 select-none">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white font-black flex items-center justify-center text-sm shadow-md">
-                NIK
-              </div>
-            </div>
+            <img
+              src="/assets/logo.png"
+              alt="NIK SMART COUNT"
+              className="w-10 h-10 rounded-2xl object-cover shadow-md shrink-0 select-none"
+            />
             
             <div>
               <div className="flex items-center gap-2">
@@ -646,6 +671,21 @@ export const LoginView: React.FC = () => {
                     </div>
                   </div>
 
+                  <label className={`flex items-center gap-2.5 text-xs font-bold cursor-pointer select-none ${appSettings.darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={e => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 accent-amber-600"
+                    />
+                    <span>{tp('Remember me on this device', 'مرا در این دستگاه به خاطر بسپار', 'په دې دستګا کې مې په یاد وساته')}</span>
+                  </label>
+                  <p className={`text-[11px] leading-relaxed ${appSettings.darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {tp('Unchecked = you stay signed in only until this tab closes; nothing is kept in the browser.',
+                      'بدون تیک = فقط تا بسته شدن این تب وارد می‌مانید؛ چیزی در براوزر ذخیره نمی‌شود.',
+                      'پرته له ټیک = یوازې تر دې ټب تړلو پورې ننوتي پاتې کېږئ؛ په براوزر کې هېڅ نه ساتل کېږي.')}
+                  </p>
+
                   <button
                     type="submit"
                     disabled={loading}
@@ -655,6 +695,20 @@ export const LoginView: React.FC = () => {
                     <ArrowRight className="w-4 h-4 rtl:rotate-180" />
                   </button>
                 </form>
+              )}
+
+              {authMode === 'login' && users.length === 0 && (
+                <div className={`p-4 rounded-2xl border text-xs space-y-2 ${appSettings.darkMode ? 'bg-slate-900/60 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                  <p className={`font-bold ${appSettings.darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                    {tp('New device? Restore the owner backup first, then sign in.', 'دستگاه جدید؟ اول بکاپ مالک را بازیابی کنید، بعد وارد شوید.', 'نوې دستګا؟ لومړی د خاوند بکاپ بېرته وګرځوئ، بیا ننوځئ.')}
+                  </p>
+                  <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold cursor-pointer transition">
+                    <Upload className="w-4 h-4" />
+                    <span>{tp('Choose backup file (.json)', 'انتخاب فایل بکاپ (.json)', 'د بکاپ فایل ټاکل (.json)')}</span>
+                    <input type="file" accept=".json" onChange={handleRestoreBackup} className="hidden" />
+                  </label>
+                  {restoreMsg && <p className="font-bold text-amber-500">{restoreMsg}</p>}
+                </div>
               )}
 
               {authMode === 'forgot_password' && (
@@ -704,9 +758,11 @@ export const LoginView: React.FC = () => {
               ? 'bg-slate-900/90 border-white/15 text-white shadow-2xl' 
               : 'bg-white/95 border-slate-200 text-slate-900 shadow-xl'
           } backdrop-blur-2xl border p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6`}>
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border-2 border-amber-500/40 flex items-center justify-center text-amber-500 font-black text-2xl shrink-0 shadow-lg">
-              AN
-            </div>
+            <img
+              src="/assets/creator-logo.png"
+              alt={t.founderName}
+              className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover border-2 border-amber-500/40 shrink-0 shadow-lg"
+            />
             
             <div className="flex-1 space-y-2 text-center md:text-start">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">

@@ -15,7 +15,7 @@ import {
   type SyncResult,
 } from './offlineQueue';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 /** Default persistent outbox: IndexedDB → localStorage → memory. */
 let defaultOutbox: Outbox | null = null;

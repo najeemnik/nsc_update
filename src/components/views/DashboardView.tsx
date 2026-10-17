@@ -96,7 +96,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     banner: (
 <>
       {/* Top Banner / Project Welcome */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white p-6 sm:p-8 shadow-xl">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 text-white p-5 sm:p-6 shadow-xl">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/15 backdrop-blur-md rounded-full text-xs font-semibold text-blue-100 mb-3">
@@ -104,7 +104,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span>{currentProject?.name || t('allProjects')}</span>
               {currentProject?.code && <span className="opacity-75 font-mono">({currentProject.code})</span>}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
               {currentProject ? currentProject.name : t('appName')}
             </h1>
             <p className="mt-1 text-sm text-blue-100/90 max-w-xl">
@@ -162,7 +162,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Receipt className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-ink">
+          <div className="text-lg sm:text-xl font-black text-ink">
             {formatCurrency(totalExpenseUSD, 'USD')}
           </div>
           <div className="flex items-center gap-1.5 mt-2 text-xs text-rose-500">
@@ -182,7 +182,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <CreditCard className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-ink">
+          <div className="text-lg sm:text-xl font-black text-ink">
             {formatCurrency(totalPaidUSD, 'USD')}
           </div>
           <div className="flex items-center gap-1.5 mt-2 text-xs text-emerald-500">
@@ -202,7 +202,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-ink">
+          <div className="text-lg sm:text-xl font-black text-ink">
             {formatCurrency(totalDebtUSD, 'USD')}
           </div>
           <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-500">
@@ -246,7 +246,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Recent Activity / Recent Bills & Payments Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Expenses / Bills */}
-        <div className="p-6 rounded-3xl bg-surface border border-line shadow-sm">
+        <div className="p-5 rounded-3xl bg-surface border border-line shadow-sm">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-rose-50 dark:bg-rose-950/40 text-rose-600 rounded-xl">
@@ -292,7 +292,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Recent Payments */}
-        <div className="p-6 rounded-3xl bg-surface border border-line shadow-sm">
+        <div className="p-5 rounded-3xl bg-surface border border-line shadow-sm">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 rounded-xl">

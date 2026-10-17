@@ -14,7 +14,7 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'auto',
-        includeAssets: ['assets/logo.png'],
+        includeAssets: ['assets/logo.png', 'assets/icon-192.png', 'assets/icon-512.png', 'assets/icon-maskable-512.png'],
         manifest: {
           name: 'NIK SMART COUNT - Database & Accounting',
           short_name: 'NIK COUNT',
@@ -28,8 +28,9 @@ export default defineConfig(() => {
           lang: 'fa',
           dir: 'rtl',
           icons: [
-            { src: 'assets/logo.png', sizes: 'any', type: 'image/png', purpose: 'any' },
-            { src: 'assets/logo.png', sizes: 'any', type: 'image/png', purpose: 'maskable' },
+            { src: 'assets/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: 'assets/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: 'assets/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
         },
         workbox: {

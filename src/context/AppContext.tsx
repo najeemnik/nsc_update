@@ -97,7 +97,7 @@ interface AppContextType {
   t: ((key: string) => string) & typeof translations['en'];
   tp: (en: string, fa: string, ps: string) => string;
   currentUser: User | null;
-  login: (usernameOrEmail: string, password?: string, loginType?: 'admin' | 'employee') => { success: boolean; error?: string };
+  login: (usernameOrEmail: string, password?: string, loginType?: 'admin' | 'employee', remember?: boolean) => { success: boolean; error?: string };
   logout: () => void;
   switchUserRole: (role: 'admin' | 'accountant' | 'viewer') => void;
   users: User[];
@@ -474,6 +474,41 @@ function saveToStorage<T>(key: string, value: T): boolean {
   }
 }
 
+// Wave 38 remember-me: the session user lives in localStorage when "remember"
+// is checked, otherwise in sessionStorage (dies with the tab — nothing is
+// kept in the browser). All currentUser writes go through these helpers.
+function loadCurrentUser(): User | null {
+  try {
+    const local = localStorage.getItem(STORAGE_PREFIX + 'currentUser');
+    if (local) return JSON.parse(local);
+  } catch { /* fall through to session */ }
+  try {
+    const sess = sessionStorage.getItem(STORAGE_PREFIX + 'currentUser');
+    if (sess) return JSON.parse(sess);
+  } catch { /* ignore */ }
+  return null;
+}
+function saveCurrentUser(u: User | null, remember?: boolean): void {
+  const key = STORAGE_PREFIX + 'currentUser';
+  let useSession: boolean;
+  if (remember === undefined) {
+    try { useSession = !!sessionStorage.getItem(key); }
+    catch { useSession = false; }
+  } else {
+    useSession = !remember;
+  }
+  try {
+    if (useSession) {
+      localStorage.removeItem(key);
+      if (u) sessionStorage.setItem(key, JSON.stringify(u));
+      else sessionStorage.removeItem(key);
+    } else {
+      sessionStorage.removeItem(key);
+      saveToStorage('currentUser', u);
+    }
+  } catch { /* ignore */ }
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
     return normalizeLang(loadFromStorage<Language>('lang', 'en'));
@@ -482,7 +517,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [accessNotice, setAccessNotice] = useState<{ section: string; action: string; at: number } | null>(null);
   const clearAccessNotice = () => setAccessNotice(null);
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    return loadFromStorage<User | null>('currentUser', TEST_MODE ? TEST_USER : null);
+    if (TEST_MODE) return TEST_USER;
+    return loadCurrentUser();
   });
   const [projects, setProjects] = useState<Project[]>(() => loadFromStorage('projects', TEST_MODE ? [TEST_PROJECT] : (EMPTY_SEED ? [] : initialProjects)));
   const [currentProjectId, setCurrentProjectIdState] = useState<string>(() => loadFromStorage('currentProjId', TEST_MODE ? TEST_PROJECT.id : (EMPTY_SEED ? '' : (initialProjects[0]?.id || ''))));
@@ -1007,7 +1043,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           customLogoUrl: updates.logoUrl !== undefined ? (updates.logoUrl || undefined) : prevUser.customLogoUrl,
           customBillDesign: bill,
         };
-        saveToStorage('currentUser', next);
+        saveCurrentUser( next);
         return next;
       });
     }
@@ -1236,9 +1272,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const login = (
-    usernameOrEmail: string, 
-    password?: string, 
-    loginType?: 'admin' | 'employee'
+    usernameOrEmail: string,
+    password?: string,
+    loginType?: 'admin' | 'employee',
+    remember: boolean = true
   ): { success: boolean; error?: string } => {
     const trimmedInput = usernameOrEmail.trim().toLowerCase();
     const found = users.find(u => 
@@ -1294,7 +1331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updatedUser = { ...found, lastLoginAt: new Date().toISOString() };
     setUsers(prev => prev.map(u => u.id === found.id ? updatedUser : u));
     setCurrentUser(updatedUser);
-    saveToStorage('currentUser', updatedUser);
+    saveCurrentUser(updatedUser, remember);
     recordActivity(updatedUser, 'login');
 
     if (found.role !== 'admin' && !found.isMasterSuperAdmin) {
@@ -1516,7 +1553,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setUsers(prev => prev.map(u => u.id === user.id ? verifiedUser : u));
     setCurrentUser(verifiedUser);
-    saveToStorage('currentUser', verifiedUser);
+    saveCurrentUser( verifiedUser);
     logAudit('update', 'user', user.id, `User ${user.name} verified account`, 'Account OTP verified and activated');
     return { success: true };
   };
@@ -1573,7 +1610,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updated = { ...fresh, password: hashPassword(next, fresh.username) };
     setUsers(prev => prev.map(u => u.id === fresh.id ? updated : u));
     setCurrentUser(updated);
-    saveToStorage('currentUser', updated);
+    saveCurrentUser( updated);
     logAudit('update', 'user', fresh.id, `Self password change for ${fresh.email}`, 'Password changed successfully');
     return { success: true };
   };
@@ -1598,7 +1635,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updated = { ...currentUser, username: clean };
     setUsers(prev => prev.map(u => u.id === currentUser.id ? updated : u));
     setCurrentUser(updated);
-    saveToStorage('currentUser', updated);
+    saveCurrentUser( updated);
     logAudit('update', 'user', currentUser.id, `Username changed ${old} -> ${clean}`, 'Self username change from Office7');
     return { success: true };
   };
@@ -1648,7 +1685,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers([master]);
     setCurrentUser(master);
     saveToStorage('users', [master]);
-    saveToStorage('currentUser', master);
+    saveCurrentUser( master);
     setAppSettings(prev => ({ ...prev, companyName: cleanCompany }));
     logAudit('create', 'user', master.id, `Master owner initialized: ${master.username}`, `Company: ${cleanCompany}`);
     return { success: true };
@@ -1862,7 +1899,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
         if (currentUser?.id === userId) {
           setCurrentUser(uUpdated);
-          saveToStorage('currentUser', uUpdated);
+          saveCurrentUser( uUpdated);
         }
         return uUpdated;
       }
@@ -1894,7 +1931,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const impersonateTenant = (user: User) => {
     setCurrentUser(user);
-    saveToStorage('currentUser', user);
+    saveCurrentUser( user);
     setAppSettings(prev => ({
       ...prev,
       companyName: user.companyName || prev.companyName,
@@ -1933,7 +1970,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (fresh.active === false || fresh.isLockedBySuperAdmin === true || expired) {
       setAccessNotice({ section: 'session', action: 'expired', at: Date.now() });
       setCurrentUser(null);
-      saveToStorage('currentUser', null);
+      saveCurrentUser( null);
       backendApi.setToken(null);
     }
   }, [users, currentUser]);
@@ -1979,7 +2016,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logAudit('login', 'user', currentUser.id, `User ${currentUser.name} logged out`, 'Session ended');
     }
     setCurrentUser(null);
-    saveToStorage('currentUser', null);
+    saveCurrentUser( null);
     backendApi.setToken(null);
   };
 
@@ -1998,7 +2035,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setCurrentUser(target);
-    saveToStorage('currentUser', target);
+    saveCurrentUser( target);
   };
 
   const addUser = (userData: Omit<User, 'id' | 'createdAt'>): { success: boolean; error?: string } => {

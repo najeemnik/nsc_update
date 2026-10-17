@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { DocumentRecord } from '../../types';
 import { DocComposerModal, ComposedDocPaper } from '../docs/DocComposerModal';
+import { DocumentViewerModal, ViewerDoc } from '../DocumentViewerModal';
 
 interface DocumentsViewProps {
   onOpenAddDocument: () => void;
@@ -45,6 +46,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   const [composerOpen, setComposerOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<DocumentRecord | null>(null);
   const [printDoc, setPrintDoc] = useState<DocumentRecord | null>(null);
+  const [viewDoc, setViewDoc] = useState<ViewerDoc | null>(null);
 
   const projectDocs = documents.filter(d => d.projectId === currentProject?.id);
 
@@ -184,15 +186,14 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             <div className="pt-4 border-t border-line flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 {doc.fileUrl && !doc.fileUrl.startsWith('#') && (
-                  <a
-                    href={doc.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => setViewDoc({ title: doc.title, url: doc.fileUrl || '' })}
                     className="p-2 text-slate-600 dark:text-slate-300 hover:text-cyan-600 hover:bg-cyan-50 dark:hover:bg-slate-800 rounded-xl transition"
                     title={t('view') || 'View File'}
                   >
                     <Eye className="w-4 h-4" />
-                  </a>
+                  </button>
                 )}
                 {doc.sourceType === 'composed' && (
                   <>
@@ -250,6 +251,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       {printDoc && (
         <ComposedDocPaper doc={printDoc} onClose={() => setPrintDoc(null)} />
       )}
+      <DocumentViewerModal doc={viewDoc} onClose={() => setViewDoc(null)} />
     </div>
   );
 };

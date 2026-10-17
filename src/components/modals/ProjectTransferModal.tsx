@@ -1,6 +1,7 @@
 import React, { useState, useId } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Project, ProjectTransferEvent } from '../../types';
+import { DocumentViewerModal, ViewerDoc } from '../DocumentViewerModal';
 import { 
   ArrowRightLeft, 
   X, 
@@ -46,6 +47,7 @@ export const ProjectTransferModal: React.FC<ProjectTransferModalProps> = ({
   const [newOwner, setNewOwner] = useState('');
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0]);
   const [projectStage, setProjectStage] = useState('اسکلت و سیخ‌بندی (Structure & Rebar)');
+  const [viewDoc, setViewDoc] = useState<ViewerDoc | null>(null);
   const [customStage, setCustomStage] = useState('');
   const [currency, setCurrency] = useState<'USD' | 'AFN'>(project?.currency === 'AFN' ? 'AFN' : 'USD');
   const [transferValue, setTransferValue] = useState('');
@@ -647,29 +649,27 @@ export const ProjectTransferModal: React.FC<ProjectTransferModalProps> = ({
                       {(item.contractDocumentUrl || item.receiptDocumentUrl) && (
                         <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
                           {item.contractDocumentUrl && (
-                            <a
-                              href={item.contractDocumentUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => setViewDoc({ title: item.contractDocumentName || (isRtl ? 'سند قرارداد انتقال' : 'Contract Doc'), url: item.contractDocumentUrl || '' })}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 rounded-xl transition font-medium"
                             >
                               <FileCheck2 className="w-3.5 h-3.5" />
                               <span className="truncate max-w-[200px]">{item.contractDocumentName || (isRtl ? 'سند قرارداد انتقال' : 'Contract Doc')}</span>
                               <Eye className="w-3 h-3 text-indigo-400" />
-                            </a>
+                            </button>
                           )}
 
                           {item.receiptDocumentUrl && (
-                            <a
-                              href={item.receiptDocumentUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => setViewDoc({ title: item.receiptDocumentName || (isRtl ? 'رسید پرداخت' : 'Payment Receipt'), url: item.receiptDocumentUrl || '' })}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 rounded-xl transition font-medium"
                             >
                               <Receipt className="w-3.5 h-3.5" />
                               <span className="truncate max-w-[200px]">{item.receiptDocumentName || (isRtl ? 'رسید پرداخت' : 'Payment Receipt')}</span>
                               <Eye className="w-3 h-3 text-emerald-400" />
-                            </a>
+                            </button>
                           )}
                         </div>
                       )}
@@ -691,6 +691,7 @@ export const ProjectTransferModal: React.FC<ProjectTransferModalProps> = ({
           </button>
         </div>
       </div>
+      <DocumentViewerModal doc={viewDoc} onClose={() => setViewDoc(null)} />
     </div>
   );
 };

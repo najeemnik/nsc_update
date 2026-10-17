@@ -58,6 +58,16 @@ export const FirstRunSetupView: React.FC = () => {
       }
     }
     const res = bootstrapMasterAdmin({ name, username, email, password, companyName });
+    if (res.success && !import.meta.env.DEV) {
+      // Wave 38: seal the domain so no second office can be initialized.
+      try {
+        await fetch(`${API_BASE_URL}/install.php?action=complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: installKey.trim() }),
+        });
+      } catch { /* local account already created; Office7 can re-seal */ }
+    }
     setBusy(false);
     if (!res.success) setError(res.error || 'Failed.');
   };

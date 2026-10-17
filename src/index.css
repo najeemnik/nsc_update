@@ -579,6 +579,10 @@
 .safe-top { padding-top: env(safe-area-inset-top, 0px); }
 .scroll-touch { -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
 .tap-target { min-height: 44px; min-width: 44px; }
+/* Wave 38: compact desktop density — 44px touch minimums apply below lg only. */
+@media (min-width: 1024px) {
+  .tap-compact { min-height: 0; min-width: 0; }
+}
 
 /* ------------------------------------------------------------------------
    GLOBAL PAINT — html base, decorative layer, themed surfaces

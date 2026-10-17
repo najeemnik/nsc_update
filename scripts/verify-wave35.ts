@@ -47,7 +47,7 @@ function main() {
   check('login-no-google-button', !login.includes('Official Google Sign In') && !login.includes('Sign in with Google'));
 
   // --- 3. no silent auto-login in production ---
-  check('currentuser-default-null', ctx.includes("TEST_MODE ? TEST_USER : null"));
+  check('currentuser-default-null', ctx.includes("if (TEST_MODE) return TEST_USER;") && ctx.includes("return loadCurrentUser();") && ctx.includes("return null;"));
 
   // --- 4. master-only guards ---
   for (const fn of ['createTenantCompanyOwnerBySuperAdmin', 'chargeUserSubscription', 'toggleLockUserBySuperAdmin', 'updateTenantByMasterAdmin', 'toggleAiForUser', 'deleteEmployeeAccount', 'createEmployeeAccount']) {

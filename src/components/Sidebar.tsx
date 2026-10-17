@@ -372,7 +372,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onOpe
     .filter(section => section.items.length > 0);
 
   return (
-    <aside className="theme-sidebar w-64 flex-shrink-0 flex flex-col justify-between hidden md:flex border-e no-print min-h-[calc(100vh-4rem)] z-10 transition-all duration-300">
+    <aside className="theme-sidebar w-60 flex-shrink-0 flex flex-col justify-between hidden md:flex border-e no-print min-h-[calc(100vh-4rem)] z-10 transition-all duration-300">
       
       {/* Top Project Badge */}
       <div className="p-3.5 space-y-3.5 overflow-y-auto">
@@ -420,19 +420,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onOpe
                         }
                         setActiveTab(item.id);
                       }}
-                      className={`theme-nav-item w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 group border relative overflow-hidden ${
+                      className={`theme-nav-item w-full flex items-center justify-between px-2 py-1.5 rounded-xl text-[11px] font-bold transition-all duration-200 group border relative overflow-hidden ${
                         isActive 
                           ? `active bg-gradient-to-r ${item.activeGradient} text-white ${item.activeShadow} shadow-md border-transparent font-black ring-1 ring-white/30` 
                           : `bg-white/65 hover:bg-white/95 dark:bg-slate-900/60 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-2xs hover:shadow-xs hover:translate-x-0.5 rtl:hover:-translate-x-0.5`
                       }`}
                     >
                       <div className="flex items-center space-x-2.5 rtl:space-x-reverse truncate z-10">
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 border ${
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 border ${
                           isActive 
                             ? 'bg-white/20 text-white border-white/30 shadow-xs' 
                             : `${item.iconBgLight} ${item.iconBgDark} ${item.iconColor} ${item.borderColorLight} ${item.borderColorDark} shadow-2xs`
                         }`}>
-                          <Icon className="w-4 h-4" />
+                          <Icon className="w-3.5 h-3.5" />
                         </div>
                         <span className="truncate">{item.label}</span>
                       </div>

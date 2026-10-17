@@ -101,6 +101,31 @@ export const AccountingView: React.FC = () => {
   const fmt = (n: number) => formatCurrency(n, 'USD');
   const nameOf = (r: { accountCode: string }) => getAccountDisplayName(r.accountCode, language);
 
+  /* --------- COA accordion groups (Wave 38: click to expand/collapse) --------- */
+  const [coaOpen, setCoaOpen] = useState<Record<string, boolean>>({});
+  const COA_GROUP_DEFS = [
+    { key: '1', label: tp('1000 - Assets', '۱۰۰۰ - دارایی‌ها', '1000 - شتمنۍ') },
+    { key: '2', label: tp('2000 - Liabilities', '۲۰۰۰ - بدهی‌ها', '2000 - پورونه') },
+    { key: '3', label: tp('3000 - Equity', '۳۰۰۰ - حقوق صاحبان سهام و سرمایه', '3000 - پانګه') },
+    { key: '4', label: tp('4000 - Revenue', '۴۰۰۰ - درآمدها و فروش', '4000 - عواید') },
+    { key: '5', label: tp('5000 - Project costs', '۵۰۰۰ - بهای تمام‌شده و مصارف ساخت', '5000 - د پروژې لګښتونه') },
+    { key: '6', label: tp('6000 - Operating expenses', '۶۰۰۰ - مصارف عمومی و اداری', '6000 - عمومي لګښتونه') },
+    { key: '7', label: tp('7000 - Finance costs', '۷۰۰۰ - هزینه‌های مالی', '7000 - مالي لګښتونه') },
+    { key: 'other', label: tp('Other accounts', 'سایر حساب‌ها', 'نور حسابونه') },
+  ];
+  const coaGroupRows = (key: string) => chartOfAccounts.filter(a => {
+    const inGroup = key === 'other' ? !/^[1-7]/.test(a.code) : a.code.startsWith(key);
+    if (!inGroup) return false;
+    return a.code.includes(coaSearch) ||
+      (a.nameFa || '').toLowerCase().includes(coaSearch.toLowerCase()) ||
+      (a.nameEn || '').toLowerCase().includes(coaSearch.toLowerCase());
+  });
+  const coaVisibleGroups = COA_GROUP_DEFS.filter(g =>
+    (coaGroup === 'all' || coaGroup === g.key) && coaGroupRows(g.key).length > 0);
+  const coaGroupTotal = (key: string) => coaGroupRows(key).reduce(
+    (sum, a) => sum + (a.isHeader ? 0 : (getAccountBalance(a.code, projectId)?.netUSD ?? 0)), 0);
+  const coaIsOpen = (key: string) => coaSearch.trim() !== '' || coaOpen[key] !== false;
+
   /* --------- income statement (developer model: Revenue − COGS) --------- */
   const revenueRows = tb.rows.filter(r => r.accountCode.startsWith('4'));
   const cogsRow = tb.rows.find(r => r.accountCode === '5050');
@@ -627,23 +652,38 @@ export const AccountingView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {chartOfAccounts
-                    .filter(a => {
-                      const matchesSearch = 
-                        a.code.includes(coaSearch) ||
-                        (a.nameFa || '').toLowerCase().includes(coaSearch.toLowerCase()) ||
-                        (a.nameEn || '').toLowerCase().includes(coaSearch.toLowerCase());
-                      const matchesGroup = coaGroup === 'all' || a.code.startsWith(coaGroup);
-                      return matchesSearch && matchesGroup;
-                    })
-                    .map(a => {
-                      const balance = getAccountBalance(a.code, projectId);
-                      const isHeader = !!a.isHeader;
+                  {coaVisibleGroups.map(g => {
+                    const gOpen = coaIsOpen(g.key);
+                    const gRows = coaGroupRows(g.key);
+                    return (
+                      <React.Fragment key={g.key}>
+                        <tr
+                          onClick={() => setCoaOpen(prev => ({ ...prev, [g.key]: prev[g.key] === false }))}
+                          className="bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer transition print:bg-slate-100"
+                        >
+                          <td colSpan={6} className="py-3 px-3">
+                            <div className="flex items-center gap-2">
+                              <span className="print:hidden text-amber-600 shrink-0">
+                                {gOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              </span>
+                              <span className="font-black text-ink text-xs">{g.label}</span>
+                              <span className="px-2 py-0.5 rounded-full bg-surface-2 text-[10px] font-bold text-ink-muted">
+                                {gRows.length}
+                              </span>
+                              <span className="ms-auto font-mono font-bold text-ink text-xs">
+                                {fmt(coaGroupTotal(g.key))}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {gRows.map(a => {
+                          const balance = getAccountBalance(a.code, projectId);
+                          const isHeader = !!a.isHeader;
 
                       return (
-                        <tr 
-                          key={a.code} 
-                          className={`transition ${isHeader ? 'bg-surface-2/60 font-black' : 'hover:bg-surface-2/30'}`}
+                        <tr
+                          key={a.code}
+                          className={`transition ${isHeader ? 'bg-surface-2/60 font-black' : 'hover:bg-surface-2/30'}${gOpen ? '' : ' hidden print:table-row'}`}
                         >
                           <td className="py-2.5 px-3 font-mono font-bold text-amber-600">
                             {a.code}
@@ -670,8 +710,14 @@ export const AccountingView: React.FC = () => {
                             {balance ? fmt(balance.netUSD) : '—'}
                           </td>
                         </tr>
-                      );
-                    })}
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
+                  {coaVisibleGroups.length === 0 && (
+                    <tr><td colSpan={6} className="py-12 text-center text-slate-400">{t('accEmpty') || 'No postings yet for this project'}</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>

@@ -144,6 +144,8 @@ export const canDo = (
 ): boolean => {
   if (!user) return false;
   if (user.isMasterSuperAdmin === true) return true;
+  // Wave 38: Visual Builder is Office7-only — tenant admins and staff never see it.
+  if (section === 'builder') return false;
   if (user.active === false) return false;
   if (user.isLockedBySuperAdmin === true) return false;
   if (user.role === 'admin') return true; // owner: full access over own company
