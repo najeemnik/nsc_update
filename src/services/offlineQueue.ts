@@ -193,24 +193,35 @@ export interface SyncResult {
   remaining: number;
 }
 
-/** Replay the queue FIFO. Failed items stay queued with attempts+1. */
+/** Replay the queue FIFO.
+ * Wave 52: the sender reports the HTTP status, so poison is retired instead
+ * of retried forever — 401 waits for the next login (never counted), permanent
+ * client rejections (400/403/409/422) and 25-times-failing items are dropped
+ * as dead (fresh state re-pushes on the next change or sync-all), everything
+ * else stays queued with attempts+1.
+ */
 export async function syncOutbox(
   outbox: Outbox,
-  sender: (m: QueuedMutation) => Promise<boolean>,
+  sender: (m: QueuedMutation) => Promise<number>,
 ): Promise<SyncResult> {
   const items = await outbox.list();
   let sent = 0;
   let failed = 0;
   for (const m of items) {
-    let ok = false;
+    let status = 0;
     try {
-      ok = await sender(m);
+      status = await sender(m);
     } catch {
-      ok = false;
+      status = 0;
     }
-    if (ok) {
+    if (status >= 200 && status < 300) {
       await outbox.remove(m.id);
       sent += 1;
+    } else if (status === 401) {
+      failed += 1; // needs a fresh login — keep queued without counting
+    } else if (status === 400 || status === 403 || status === 409 || status === 422 || (m.attempts ?? 0) >= 25) {
+      await outbox.remove(m.id);
+      failed += 1; // dead payload — never would succeed
     } else {
       await outbox.markAttempt(m.id);
       failed += 1;

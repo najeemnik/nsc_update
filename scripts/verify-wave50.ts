@@ -1,5 +1,5 @@
 /**
- * Wave 50 verification: roster pull (two-way sync) + tenants reshape + v1.0.11.
+ * Wave 50 verification: roster pull (two-way sync) + tenants reshape + v1.0.12.
  * Run: npm run test:wave50
  */
 import * as fs from 'fs';
@@ -42,7 +42,7 @@ function main() {
   // UI message shows received counts (3 languages).
   check('ui-received', usersView.includes('received ${r.pulledNew} new') && usersView.includes('دریافت ${r.pulledNew} جدید') && usersView.includes('ترلاسه شول ${r.pulledNew} نوي'));
   // Version bump.
-  check('version', loginView.includes('v1.0.11') && pkg.includes('"version": "1.0.11"'));
+  check('version', loginView.includes('v1.0.12') && pkg.includes('"version": "1.0.12"'));
   // Backend tenants: login shape, no hashes, scoped for non-masters.
   check('ten-camel', tenants.includes("'companyName' =>") && tenants.includes("'isMasterSuperAdmin' =>") && tenants.includes("'appProfile' =>"));
   check('ten-locked', tenants.includes("'isLocked' =>"));

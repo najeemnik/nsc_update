@@ -1291,6 +1291,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const saltOf = (u: Pick<User, 'username' | 'hashSalt'>): string =>
     (u.hashSalt || u.username || '').trim().toLowerCase();
 
+  // Wave 52: usernames must survive the server too (api/auth.php rejects
+  // anything outside this set with 400, which would strand the account on
+  // one device). Every creation path checks this before saving.
+  const isValidServerUsername = (v: string): boolean => /^[a-z0-9._-]{3,80}$/i.test(v);
+
   const serializeUserForSync = (u: User): Record<string, unknown> => {
     const pw = (u.password || '').trim();
     return {
@@ -1749,6 +1754,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser?.isMasterSuperAdmin) { denyAccess('tenant_create', 'create'); return { success: false, error: 'forbidden' }; }
     const cleanUsername = data.username.trim().toLowerCase();
     const cleanEmail = data.email.trim().toLowerCase();
+    if (!isValidServerUsername(cleanUsername)) {
+      return { success: false, error: 'نام کاربری فقط حروف/عدد انگلیسی و . _ - (۳ تا ۸۰ حرف) / Username: 3-80 latin letters, digits, . _ -' };
+    }
     if (cleanUsername.length < 3) {
       return { success: false, error: 'نام کاربری حداقل ۳ حرف باشد / Username must be at least 3 characters' };
     }
@@ -1844,7 +1852,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const sixMonthsLater = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
-    const regUsername = data.email.split('@')[0].trim().toLowerCase();
+    const regUsername = data.email.split('@')[0].trim().toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 80);
     if (regUsername.length < 3) {
       return { success: false, otpCode: '', error: 'بخش اول ایمیل حداقل ۳ حرف باشد / Email prefix must be at least 3 characters' };
     }
@@ -2145,6 +2153,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // created exactly like owners — normalized, salted hash, pushed.
     const cleanEmpUsername = employee.username.trim().toLowerCase();
     const cleanEmpEmail = employee.email.trim().toLowerCase();
+    if (!isValidServerUsername(cleanEmpUsername)) {
+      return { success: false, error: 'نام کاربری فقط حروف/عدد انگلیسی و . _ - (۳ تا ۸۰ حرف) / Username: 3-80 latin letters, digits, . _ -' };
+    }
     const newEmp: User = {
       id: 'emp-' + Date.now(),
       username: cleanEmpUsername,
@@ -2405,6 +2416,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const cleanUsername = userData.username.trim().toLowerCase();
     const cleanEmail = userData.email.trim().toLowerCase();
+    if (!isValidServerUsername(cleanUsername)) {
+      return { success: false, error: 'نام کاربری فقط حروف/عدد انگلیسی و . _ - (۳ تا ۸۰ حرف) / Username: 3-80 latin letters, digits, . _ -' };
+    }
     if (cleanUsername.length < 3) {
       return { success: false, error: 'نام کاربری حداقل ۳ حرف باشد / Username must be at least 3 characters' };
     }

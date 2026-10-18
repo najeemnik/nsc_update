@@ -115,7 +115,10 @@ class BackendApiService {
       // Wave 41: a failed USER-SYNC must never log the owner out — drop the
       // dead token silently so the next login restores it.
       const isUserSync = endpoint.includes('action=sync_user') || endpoint.includes('action=delete_user');
-      if ((response.status === 401 || response.status === 403) && this.token && !endpoint.startsWith('auth.php?action=login') && !isUserSync) {
+      // Wave 52: the roster pull is best-effort background work — its failure
+      // (e.g. an outdated office7.php on the host) must NEVER log anyone out.
+      const isTenantsPull = endpoint.includes('office7.php?action=tenants');
+      if ((response.status === 401 || response.status === 403) && this.token && !endpoint.startsWith('auth.php?action=login') && !isUserSync && !isTenantsPull) {
         this.setToken(null);
         window.dispatchEvent(new CustomEvent('nsc:session-expired'));
       } else if ((response.status === 401 || response.status === 403) && this.token && isUserSync) {
@@ -173,8 +176,9 @@ class BackendApiService {
     }
   }
 
-  /** Replay one queued mutation with FRESH headers (current token + gate key). */
-  private async replaySend(m: QueuedMutation): Promise<boolean> {
+  /** Replay one queued mutation with FRESH headers (current token + gate key).
+   * Wave 52: reports the HTTP status so the outbox can retire poison. */
+  private async replaySend(m: QueuedMutation): Promise<number> {
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -188,20 +192,17 @@ class BackendApiService {
         body: m.body,
       });
       // Wave 41: queued user-syncs replaying without a token must not nuke
-      // the local session either — keep them queued for after next login.
+      // the local session either — 401s stay queued for after next login.
       const replayIsUserSync = m.endpoint.includes('action=sync_user') || m.endpoint.includes('action=delete_user');
       if ((res.status === 401 || res.status === 403) && this.token && !replayIsUserSync) {
         this.setToken(null);
         window.dispatchEvent(new CustomEvent('nsc:session-expired'));
-        return false; // keep queued — will replay after next login
-      }
-      if ((res.status === 401 || res.status === 403) && replayIsUserSync) {
+      } else if ((res.status === 401 || res.status === 403) && replayIsUserSync) {
         if (this.token) this.setToken(null);
-        return false; // keep queued — will replay after next login
       }
-      return res.ok;
+      return res.status;
     } catch {
-      return false;
+      return 0;
     }
   }
 

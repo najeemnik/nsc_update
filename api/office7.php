@@ -38,7 +38,11 @@ if (!$isMasterAuthorized && !empty($masterGateKey)) {
     }
 }
 
-if (!$isMasterAuthorized) {
+// Wave 52: the roster download (tenants) is open to any authenticated user —
+// staying logged in must never depend on rank. Every other action here stays
+// master / gate-key only. Non-masters get a scoped list (see below).
+$tenantsOnly = ($method === 'GET') && (($_GET['action'] ?? 'tenants') === 'tenants');
+if (!$isMasterAuthorized && !($tenantsOnly && $currentUser)) {
     jsonResponse(false, null, 'خطای امنیتی: عدم دسترسی به پنل ماستر دفتر هفت.', 403);
 }
 
@@ -54,6 +58,15 @@ if ($method === 'GET') {
         // isLocked. Non-master callers only see themselves + their own company.
         $meId = ($currentUser && isset($currentUser['id'])) ? (string)$currentUser['id'] : '';
         $meMaster = $currentUser && (int)$currentUser['is_master'] === 1;
+        $meUser = ($currentUser && isset($currentUser['username'])) ? strtolower(trim((string)$currentUser['username'])) : '';
+        $meServerId = '';
+        if ($meUser !== '') {
+            try {
+                $idStmt = $db->prepare('SELECT id FROM users WHERE username = :un LIMIT 1');
+                $idStmt->execute(['un' => $meUser]);
+                $meServerId = (string)($idStmt->fetchColumn() ?: '');
+            } catch (Exception $e) { /* ignore */ }
+        }
         $hasAppProfile = true;
         try {
             $tcols = $db->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN);
@@ -68,8 +81,10 @@ if ($method === 'GET') {
                 FROM users";
         $tparams = [];
         if ($meId !== '' && !$meMaster) {
-            $sql .= " WHERE id = :me OR owner_admin_id = :me2";
-            $tparams = ['me' => $meId, 'me2' => $meId];
+            // Fork-tolerant: devices that logged in before sync existed keep
+            // a local id, so match the server id AND the username.
+            $sql .= " WHERE id = :me OR owner_admin_id = :me2 OR username = :mu OR owner_admin_id = :me3";
+            $tparams = ['me' => $meId, 'me2' => $meId, 'mu' => $meUser, 'me3' => ($meServerId !== '' ? $meServerId : $meId)];
         }
         $sql .= " ORDER BY is_master DESC, created_at ASC";
         $stmt = $db->prepare($sql);
