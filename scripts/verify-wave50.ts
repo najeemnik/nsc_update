@@ -1,5 +1,5 @@
 /**
- * Wave 50 verification: roster pull (two-way sync) + tenants reshape + v1.0.12.
+ * Wave 50 verification: roster pull (two-way sync) + tenants reshape + v1.0.13.
  * Run: npm run test:wave50
  */
 import * as fs from 'fs';
@@ -34,7 +34,7 @@ function main() {
   check('pull-lock-flags', ctx.includes('isLockedBySuperAdmin: su.isLocked === true'));
   check('pull-exposed', ctx.includes('pullUsersFromServer: () => Promise<') && ctx.includes('pullUsersFromServer,'));
   // Two-way sync-all + auto triggers.
-  check('sync-two-way', ctx.includes('const pull = await pullUsersFromServer()') && ctx.includes('pulledNew'));
+  check('sync-two-way', ctx.includes('pull = await pullUsersFromServer()') && ctx.includes('pulledNew')); // wave54: pull-first assignment
   check('auto-login-pull', ctx.includes('pullUsersFromServer().catch(() => {});'));
   check('auto-boot-pull', ctx.includes('didBootPullRef') && ctx.includes('2500'));
   // Anti-brick guard.
@@ -42,7 +42,7 @@ function main() {
   // UI message shows received counts (3 languages).
   check('ui-received', usersView.includes('received ${r.pulledNew} new') && usersView.includes('دریافت ${r.pulledNew} جدید') && usersView.includes('ترلاسه شول ${r.pulledNew} نوي'));
   // Version bump.
-  check('version', loginView.includes('v1.0.12') && pkg.includes('"version": "1.0.12"'));
+  check('version', loginView.includes('v1.0.13') && pkg.includes('"version": "1.0.13"'));
   // Backend tenants: login shape, no hashes, scoped for non-masters.
   check('ten-camel', tenants.includes("'companyName' =>") && tenants.includes("'isMasterSuperAdmin' =>") && tenants.includes("'appProfile' =>"));
   check('ten-locked', tenants.includes("'isLocked' =>"));

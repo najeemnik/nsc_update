@@ -26,7 +26,8 @@ function main() {
   check('dbtest-seeds', helper.includes('LEFT(password_hash, 7) AS alg') && helper.includes("IN ('office7','admin')"));
   check('dbtest-attempts', helper.includes('FROM login_attempts WHERE'));
   check('dbtest-phpver', helper.includes('PHP_VERSION'));
-  check('dbtest-readonly', !helper.includes('INSERT INTO') && !helper.includes('UPDATE users') && !helper.includes('DELETE FROM'));
+  const helperPreCreate = helper.split("=== 'usercreate'")[0]; // wave54: only the explicit create mode writes
+  check('dbtest-readonly', !helperPreCreate.includes('INSERT INTO') && !helperPreCreate.includes('UPDATE users') && !helperPreCreate.includes('DELETE FROM'));
 
   console.log(results.join('\n'));
   console.log(`\nwave46: ${passed} passed, ${failed} failed`);

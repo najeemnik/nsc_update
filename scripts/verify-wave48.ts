@@ -26,7 +26,8 @@ function main() {
   check('sim-sha', helper.includes("'::nsc::' . $inPass"));
   check('sim-locked', helper.includes('is_locked') && helper.includes('403'));
   check('sim-verdict', helper.includes('LOGIN WOULD SUCCEED') && helper.includes('WRONG PASSWORD'));
-  check('sim-readonly', !helper.includes('INSERT INTO') && !helper.includes('UPDATE users') && !helper.includes('DELETE FROM'));
+  const helperPreCreate = helper.split("=== 'usercreate'")[0]; // wave54: only the explicit create mode writes
+  check('sim-readonly', !helperPreCreate.includes('INSERT INTO') && !helperPreCreate.includes('UPDATE users') && !helperPreCreate.includes('DELETE FROM'));
 
   console.log(results.join('\n'));
   console.log(`\nwave48: ${passed} passed, ${failed} failed`);

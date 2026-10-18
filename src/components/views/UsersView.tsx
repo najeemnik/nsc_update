@@ -264,9 +264,9 @@ export const UsersView: React.FC = () => {
                 try {
                   const r = await syncAllUsersToServer();
                   setSyncMsg(tp(
-                    `Sent ${r.pushed}, received ${r.pulledNew} new + ${r.pulledUpdated} updated, queued ${r.queued}, failed ${r.failed}`,
-                    `ارسال شد ${r.pushed}، دریافت ${r.pulledNew} جدید + ${r.pulledUpdated} به‌روز، در صف ${r.queued}، ناموفق ${r.failed}`,
-                    `ولېږل شول ${r.pushed}، ترلاسه شول ${r.pulledNew} نوي + ${r.pulledUpdated} تازه، په کتار کې ${r.queued}، ناکام ${r.failed}`,
+                    `Sent ${r.pushed} new, skipped ${r.skipped} existing, received ${r.pulledNew} new + ${r.pulledUpdated} updated, queued ${r.queued}, failed ${r.failed}`,
+                    `ارسال شد ${r.pushed} جدید، رد شد ${r.skipped} موجود، دریافت ${r.pulledNew} جدید + ${r.pulledUpdated} به‌روز، در صف ${r.queued}، ناموفق ${r.failed}`,
+                    `ولېږل شول ${r.pushed} نوي، تېر شول ${r.skipped} شته، ترلاسه شول ${r.pulledNew} نوي + ${r.pulledUpdated} تازه، په کتار کې ${r.queued}، ناکام ${r.failed}`,
                   ) + (r.failed > 0 && r.firstError ? ` — ${r.firstError}` : ''));
                 } catch { setSyncMsg(tp('Sync failed', 'سینک ناموفق بود', 'همغږي ناکامه شوه')); }
                 setSyncBusy(false);

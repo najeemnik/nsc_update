@@ -370,8 +370,8 @@ interface AppContextType {
   authNotice: 'session-expired' | 'server-lockout' | 'server-locked' | null;
   serverSync: { status: 'unknown' | 'checking' | 'ok' | 'no-token' | 'outdated' | 'offline'; lastSyncAt: string | null; lastError: string | null; pendingCount: number };
   refreshServerSyncStatus: () => Promise<void>;
-  syncAllUsersToServer: () => Promise<{ pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; firstError?: string }>;
-  pullUsersFromServer: () => Promise<{ pulledNew: number; updated: number; error?: string }>;
+  syncAllUsersToServer: () => Promise<{ pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; skipped: number; firstError?: string }>;
+  pullUsersFromServer: () => Promise<{ pulledNew: number; updated: number; names: string[]; error?: string }>;
   clearAuthNotice: () => void;
   notifySessionExpired: () => void;
   importBackupJSON: (json: any) => void;
@@ -1446,8 +1446,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // multi-device sync. Users that are new on this device are created WITHOUT
   // a local password: their first login goes through the server leg, which
   // caches their hash (justFetched). Existing locals keep password/salt.
-  const pullUsersFromServer = async (): Promise<{ pulledNew: number; updated: number; error?: string }> => {
-    const summary: { pulledNew: number; updated: number; error?: string } = { pulledNew: 0, updated: 0 };
+  const pullUsersFromServer = async (): Promise<{ pulledNew: number; updated: number; names: string[]; error?: string }> => {
+    const summary: { pulledNew: number; updated: number; names: string[]; error?: string } = { pulledNew: 0, updated: 0, names: [] };
     if (TEST_MODE) return summary;
     if (!backendApi.getToken()) { summary.error = 'no-token'; return summary; }
     try {
@@ -1461,6 +1461,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       for (const su of list) {
         if (!su || !su.username) continue;
         const uname = String(su.username).toLowerCase();
+        summary.names.push(uname);
         const ix = next.findIndex(u => String(u.id) === String(su.id) || u.username.toLowerCase() === uname);
         if (ix >= 0) {
           const keep = next[ix];
@@ -1487,13 +1488,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return summary;
   };
 
-  const syncAllUsersToServer = async (): Promise<{ pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; firstError?: string }> => {
-    const summary: { pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; firstError?: string } = { pushed: 0, pulledNew: 0, pulledUpdated: 0, queued: 0, failed: 0 };
+  const syncAllUsersToServer = async (): Promise<{ pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; skipped: number; firstError?: string }> => {
+    const summary: { pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; skipped: number; firstError?: string } = { pushed: 0, pulledNew: 0, pulledUpdated: 0, queued: 0, failed: 0, skipped: 0 };
     if (TEST_MODE) return summary;
     const online = typeof navigator === 'undefined' || navigator.onLine !== false;
     const hasToken = !!backendApi.getToken();
     if (online && hasToken) {
       await backendApi.syncOfflineQueue().catch(() => {});
+    }
+    // Wave 54: pull FIRST, then push only what the server lacks. Pushing a
+    // stale local copy over a fresh server row used to clobber it (role/hash).
+    let serverNames: Set<string> | null = null;
+    let pull: { pulledNew: number; updated: number; names: string[]; error?: string } = { pulledNew: 0, updated: 0, names: [] };
+    if (online && hasToken) {
+      try {
+        pull = await pullUsersFromServer();
+        summary.pulledNew = pull.pulledNew;
+        summary.pulledUpdated = pull.updated;
+        if (!pull.error) serverNames = new Set(pull.names);
+      } catch { /* fall through to push-all fallback below */ }
     }
     const healedLocals: User[] = [];
     for (const u of users) {
@@ -1505,6 +1518,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         healedLocals.push(su);
       }
       if (!su.password || !isPasswordHash(su.password)) continue;
+      if (serverNames && serverNames.has(su.username.toLowerCase())) { summary.skipped += 1; continue; }
       if (!online || !hasToken) {
         try {
           await backendApi.queueUserSync('sync_user', { user: serializeUserForSync(su) });
@@ -1525,13 +1539,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (healedLocals.length > 0) {
       setUsers(prev => prev.map(u => healedLocals.find(h => h.id === u.id) ?? u));
     }
-    // Wave 50: the button is two-way now — push first, then pull the roster.
-    try {
-      const pull = await pullUsersFromServer();
-      summary.pulledNew = pull.pulledNew;
-      summary.pulledUpdated = pull.updated;
-      if (!summary.firstError && pull.error && pull.error !== 'no-token') summary.firstError = pull.error;
-    } catch { /* pull is best-effort; pushes are already counted */ }
+    if (!summary.firstError && pull.error && pull.error !== 'no-token') summary.firstError = pull.error;
     setServerSync({
       status: !online ? 'offline' : (hasToken ? 'ok' : 'no-token'),
       lastSyncAt: new Date().toISOString(),
@@ -1541,8 +1549,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return summary;
   };
 
-  // Wave 50: remembered sessions never re-login, so a user created on another
-  // device would never appear here. Pull the roster once at boot instead.
+  // Wave 50/54: remembered sessions never re-login — self-heal once at boot
+  // (pull the roster + push anything the server lacks). Needs a live token.
   const didBootPullRef = useRef(false);
   useEffect(() => {
     if (didBootPullRef.current) return undefined;
@@ -1550,7 +1558,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (TEST_MODE) return undefined;
     try {
       if (!backendApi.getToken()) return undefined;
-      const t = window.setTimeout(() => { pullUsersFromServer().catch(() => {}); }, 2500);
+      const t = window.setTimeout(() => { syncAllUsersToServer().catch(() => {}); }, 2500);
       return () => window.clearTimeout(t);
     } catch { /* ignore */ }
     return undefined;

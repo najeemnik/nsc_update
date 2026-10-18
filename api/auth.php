@@ -236,6 +236,11 @@ if ($method === 'POST') {
             'profile' => json_encode($p['appProfile'] ?? ($existing && $hasAppProfile ? json_decode($existing['app_profile_json'] ?? 'null', true) : new stdClass())),
         ];
 
+        // Wave 54: a sync push must never demote a master row — stale device
+        // copies carry role=viewer. Master rank is managed by bootstrap only.
+        if ($existing && (int)$existing['is_master'] === 1) {
+            $row['role'] = 'master';
+        }
         if ($existing) {
             $sql = 'UPDATE users SET owner_admin_id = :owner, name = :n, username = :u, email = :e,
                     password_hash = :h, role = :r, phone = :ph, company_name = :c, company_address = :a,

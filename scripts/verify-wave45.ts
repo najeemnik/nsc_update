@@ -31,7 +31,8 @@ function main() {
   check('helper-gen', helper.includes('::nsc::') && helper.includes('PASSWORD_BCRYPT'));
   check('helper-verify', helper.includes("mode'] ?? ''") && helper.includes('MISMATCH') && helper.includes('MATCH'));
   check('helper-php7', !helper.includes('str_starts_with') && helper.includes("substr($stored, 0, 7)"));
-  check('helper-alone', helper.includes("mode === 'dbtest'") && !helper.includes('INSERT INTO') && !helper.includes('UPDATE users'));
+  const helperPreCreate = helper.split("=== 'usercreate'")[0]; // wave54: only the explicit create mode writes
+  check('helper-alone', helper.includes("mode === 'dbtest'") && !helperPreCreate.includes('INSERT INTO') && !helperPreCreate.includes('UPDATE users'));
 
   console.log(results.join('\n'));
   console.log(`\nwave45: ${passed} passed, ${failed} failed`);

@@ -82,6 +82,60 @@ if ($mode === 'generate') {
         $dbmsg = '<p class="err">DB FAILED: ' . htmlspecialchars($e->getMessage()) . ' — check api/config.php credentials and database name.</p>';
     }
     $out = $dbmsg;
+} elseif ($mode === 'usercreate') {
+    // Wave 54: server-side account creation/repair — bypasses device push.
+    // Same sandwich the app uses (verified byte-equal to the app SHA-256).
+    $cuUser = strtolower(trim((string)($_POST['cusername'] ?? '')));
+    $cuPass = trim((string)($_POST['cpassword'] ?? ''));
+    $cuName = trim((string)($_POST['cname'] ?? ''));
+    $cuRole = strtolower(trim((string)($_POST['crole'] ?? 'admin')));
+    $cuEmail = strtolower(trim((string)($_POST['cemail'] ?? '')));
+    if (!preg_match('/^[a-z0-9._-]{3,80}$/', $cuUser)) {
+        $out = '<p class="err">Invalid username (3-80: a-z 0-9 . _ -).</p>';
+    } elseif ($cuPass === '') {
+        $out = '<p class="err">Password required.</p>';
+    } elseif (!in_array($cuRole, ['admin', 'accountant', 'viewer'], true)) {
+        $out = '<p class="err">Invalid role.</p>';
+    } else try {
+        require_once __DIR__ . '/config.php';
+        require_once __DIR__ . '/db.php';
+        $db = Database::getConnection();
+        if ($cuEmail === '') $cuEmail = $cuUser . '@sync.local';
+        if ($cuName === '') $cuName = $cuUser;
+        $cuHash = 'sha256$' . hash('sha256', $cuUser . '::nsc::' . $cuPass);
+        $ccols = $db->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN);
+        $cHasSalt = in_array('hash_salt', $ccols, true);
+        $s = $db->prepare('SELECT * FROM users WHERE username = :cu LIMIT 1');
+        $s->execute(['cu' => $cuUser]);
+        $ex = $s->fetch() ?: null;
+        if ($ex) {
+            if ((int)$ex['is_master'] === 1) {
+                $csql = 'UPDATE users SET password_hash = :h, is_locked = 0' . ($cHasSalt ? ', hash_salt = :sa' : '') . ' WHERE id = :id';
+                $cparams = ['h' => $cuHash, 'id' => $ex['id']];
+            } else {
+                $csql = 'UPDATE users SET name = :n, email = :e, password_hash = :h, role = :r, is_locked = 0' . ($cHasSalt ? ', hash_salt = :sa' : '') . ' WHERE id = :id';
+                $cparams = ['n' => $cuName, 'e' => $cuEmail, 'h' => $cuHash, 'r' => $cuRole, 'id' => $ex['id']];
+            }
+            if ($cHasSalt) $cparams['sa'] = $cuUser;
+            $db->prepare($csql)->execute($cparams);
+            $out = '<p class="ok">UPDATED <b>' . htmlspecialchars($cuUser) . '</b> (unlocked, password reset). Log in on ANY device with the password you typed.</p>';
+        } else {
+            $e = $db->prepare('SELECT id FROM users WHERE email = :e LIMIT 1');
+            $e->execute(['e' => $cuEmail]);
+            if ($e->fetch()) {
+                $out = '<p class="err">Email already used by another account — pick another email.</p>';
+            } else {
+                $icols = 'id, name, username, email, password_hash, role, subscription_plan, is_locked' . ($cHasSalt ? ', hash_salt' : '');
+                $ivals = ':id, :n, :u, :e, :h, :r, :pl, 0' . ($cHasSalt ? ', :sa' : '');
+                $iparams = ['id' => bin2hex(random_bytes(16)), 'n' => $cuName, 'u' => $cuUser, 'e' => $cuEmail, 'h' => $cuHash, 'r' => $cuRole, 'pl' => 'pro'];
+                if ($cHasSalt) $iparams['sa'] = $cuUser;
+                $db->prepare("INSERT INTO users ($icols) VALUES ($ivals)")->execute($iparams);
+                $out = '<p class="ok">CREATED <b>' . htmlspecialchars($cuUser) . '</b> (' . htmlspecialchars($cuRole) . '). Log in on ANY device with the password you typed — then reload the roster above to confirm.</p>';
+            }
+        }
+    } catch (Throwable $e) {
+        $out = '<p class="err">FAILED: ' . htmlspecialchars($e->getMessage()) . '</p>';
+    }
 } elseif ($mode === 'roster') {
     // Wave 53: zero-typing server truth — who is actually in the database?
     // Shows usernames/roles/locks/hash-TYPES only (never hashes or secrets).
@@ -107,7 +161,7 @@ if ($mode === 'generate') {
                 . '<td>' . htmlspecialchars($r['created_at'] ?? '') . '</td></tr>';
         }
         $html .= '</table>';
-        $html .= '<p class="hint">If your owner is NOT in this list → it never reached the server: on the laptop, log in as office7 and press «Sync all users», then reload this page. If it IS here but login fails → run part 4 (simulator) with its username + password.</p>';
+        $html .= '<p class="hint">If your owner is NOT in this list → it never reached the server: open the app on the laptop (v1.0.13+ pushes it automatically in seconds), or create it directly in part 6 below, then reload this page. If it IS here but login fails → run part 4 (simulator) with its username + password.</p>';
         $out = $html;
     } catch (Throwable $e) {
         $out = '<p class="err">FAILED: ' . htmlspecialchars($e->getMessage()) . '</p>';
@@ -242,5 +296,22 @@ hr{border:0;border-top:1px solid #334155;margin:18px 0}
 <input type="hidden" name="mode" value="roster">
 <p class="hint">One click, no typing — lists every account on the server / فقط یک کلیک.</p>
 <button type="submit">Show roster / نمایش</button>
+</form>
+<hr>
+<h2>6) Create / repair account on the server / ساخت مستقیم</h2>
+<form method="post">
+<input type="hidden" name="mode" value="usercreate">
+<p class="hint">Creates the account (or resets its password) directly on the server — use when device push fails.</p>
+<label>Username / نام کاربری (a-z 0-9 . _ -)</label>
+<input type="text" name="cusername" dir="ltr" required>
+<label>Plain password / رمز ساده</label>
+<input type="text" name="cpassword" dir="ltr" required>
+<label>Role / نقش</label>
+<select name="crole" dir="ltr"><option value="admin">admin (owner/مالک)</option><option value="accountant">accountant</option><option value="viewer">viewer</option></select>
+<label>Name (optional) / نام</label>
+<input type="text" name="cname" dir="ltr">
+<label>Email (optional) / ایمیل</label>
+<input type="text" name="cemail" dir="ltr">
+<button type="submit">Create / repair / بساز</button>
 </form>
 </div></body></html>

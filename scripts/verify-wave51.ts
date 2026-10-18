@@ -35,7 +35,7 @@ function main() {
   check('sync-heal-persist', ctx.includes('healedLocals.find(h => h.id === u.id) ?? u'));
   check('sync-uses-su', ctx.includes('serializeUserSync(su)') || ctx.includes('serializeUserForSync(su)'));
   // Version bump.
-  check('version', loginView.includes('v1.0.12') && pkg.includes('"version": "1.0.12"'));
+  check('version', loginView.includes('v1.0.13') && pkg.includes('"version": "1.0.13"'));
 
   console.log(results.join('\n'));
   console.log(`\nwave51: ${passed} passed, ${failed} failed`);
