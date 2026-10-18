@@ -75,7 +75,7 @@ if ($method === 'POST') {
                 recorded_by_user_id, description
             ) VALUES (
                 :id, :tid, :vno, :pid, 'labor_wage', :wname,
-                'labor', :amt, 'AFN', 1.0, :amt,
+                'labor', :amt, 'AFN', 1.0, :amt2,
                 'cash', :dt, 'paid', :appr,
                 :uid, :desc
             )
@@ -86,7 +86,7 @@ if ($method === 'POST') {
             'vno' => $pvNo,
             'pid' => $projectId,
             'wname' => $workerName,
-            'amt' => $netPaid,
+            'amt' => $netPaid, 'amt2' => $netPaid,
             'dt' => $date,
             'appr' => $approvedBy,
             'uid' => $user['id'],

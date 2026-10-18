@@ -94,8 +94,8 @@ if ($mode === 'generate') {
         require_once __DIR__ . '/db.php';
         $db = Database::getConnection();
         $steps = '<p class="ok">1) DB connected.</p>';
-        $s = $db->prepare('SELECT * FROM users WHERE (username = :u OR email = :u) LIMIT 1');
-        $s->execute(['u' => $inUser]);
+        $s = $db->prepare('SELECT * FROM users WHERE (username = :u1 OR email = :u2) LIMIT 1');
+        $s->execute(['u1' => $inUser, 'u2' => $inUser]);
         $u = $s->fetch() ?: null;
         if (!$u) {
             $steps .= '<p class="err">2) User NOT FOUND in this database (tried: ' . htmlspecialchars($inUser) . '). The app reads a different database than you think!</p>';

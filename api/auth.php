@@ -28,10 +28,10 @@ if ($method === 'POST') {
         // جستجوی کاربر با نام کاربری یا ایمیل
         $stmt = $db->prepare("
             SELECT * FROM users 
-            WHERE (username = :u OR email = :u) 
+            WHERE (username = :u1 OR email = :u2) 
             LIMIT 1
         ");
-        $stmt->execute(['u' => $username]);
+        $stmt->execute(['u1' => $username, 'u2' => $username]);
         $user = $stmt->fetch();
 
         if (!$user) {

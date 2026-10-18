@@ -83,7 +83,7 @@ if ($method === 'POST') {
                     recorded_by_user_id, description
                 ) VALUES (
                     :id, :tid, :vno, :pid, 'supplier', :sid, :sname,
-                    'materials', :amt, 'AFN', 1.0, :amt,
+                    'materials', :amt, 'AFN', 1.0, :amt2,
                     'cash', :dt, 'paid', 'مدیر تدارکات',
                     :uid, :desc
                 )
@@ -95,7 +95,7 @@ if ($method === 'POST') {
                 'pid' => $projectId,
                 'sid' => $supplierId,
                 'sname' => $supplierName,
-                'amt' => $totalPrice,
+                'amt' => $totalPrice, 'amt2' => $totalPrice,
                 'dt' => $date,
                 'uid' => $user['id'],
                 'desc' => "خرید $qty $unit $materialName با قیمت واحد $unitPrice AFN"

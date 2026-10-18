@@ -21,7 +21,7 @@ function main() {
   const helper = read('api/make-hash.php');
 
   check('sim-mode', helper.includes("=== 'logintest'"));
-  check('sim-lookup', helper.includes('username = :u OR email = :u'));
+  check('sim-lookup', helper.includes('username = :u1 OR email = :u2'));
   check('sim-bcrypt', helper.includes('password_verify($inPass, $stored)'));
   check('sim-sha', helper.includes("'::nsc::' . $inPass"));
   check('sim-locked', helper.includes('is_locked') && helper.includes('403'));
