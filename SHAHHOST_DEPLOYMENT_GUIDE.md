@@ -230,3 +230,6 @@ UPDATE users SET password_hash = '<HASH_TAZE>' WHERE username IN ('office7', 'ad
 
 ### ید) موج ۴۷ — ورود بدون mbstring + ping گزارش‌گر (پچ ۱ فایلی)
 - فقط `api/auth.php` را overwrite کنید. ورود دیگر به mbstring وابسته نیست؛ آپدیت last_login نمی‌تواند ورود را بشکند؛ ping حالا `mbstring` و `php` را هم گزارش می‌دهد.
+
+### یه) موج ۴۸ — شبیه‌ساز ورود داخل ابزار (پچ ۱ فایلی)
+- فقط `api/make-hash.php` را overwrite کنید. بخش ۴ قدم‌های دقیق ورود را روی سرور اجرا می‌کند (فقط-خواندنی): اتصال، یافتن یوزر، قفل، تطبیق هش، قفل نرخی — و حکم نهایی می‌دهد.

@@ -82,6 +82,65 @@ if ($mode === 'generate') {
         $dbmsg = '<p class="err">DB FAILED: ' . htmlspecialchars($e->getMessage()) . ' — check api/config.php credentials and database name.</p>';
     }
     $out = $dbmsg;
+} elseif ($mode === 'logintest') {
+    // Wave 48: server-side login simulator — runs the EXACT steps of
+    // api/auth.php login (read-only, writes nothing) and reports each one.
+    $inUser = trim((string)($_POST['username'] ?? ''));
+    $inPass = trim((string)($_POST['password'] ?? ''));
+    if ($inUser === '') {
+        $out = '<p class="err">Username required.</p>';
+    } else try {
+        require_once __DIR__ . '/config.php';
+        require_once __DIR__ . '/db.php';
+        $db = Database::getConnection();
+        $steps = '<p class="ok">1) DB connected.</p>';
+        $s = $db->prepare('SELECT * FROM users WHERE (username = :u OR email = :u) LIMIT 1');
+        $s->execute(['u' => $inUser]);
+        $u = $s->fetch() ?: null;
+        if (!$u) {
+            $steps .= '<p class="err">2) User NOT FOUND in this database (tried: ' . htmlspecialchars($inUser) . '). The app reads a different database than you think!</p>';
+            $out = $steps;
+        } else {
+            $steps .= '<p class="ok">2) User FOUND: username=' . htmlspecialchars($u['username']) . ' locked=' . (int)$u['is_locked'] . ' master=' . (int)$u['is_master'] . '</p>';
+            if ((int)$u['is_locked'] === 1) {
+                $steps .= '<p class="err">3) Account is LOCKED (403). Set is_locked=0 in phpMyAdmin.</p>';
+                $out = $steps;
+            } else {
+                $stored = trim((string)($u['password_hash'] ?? ''));
+                $steps .= '<p>3) Stored hash: prefix=<b>' . htmlspecialchars(substr($stored, 0, 7)) . '</b> length=' . strlen($stored) . '</p>';
+                $ok = false;
+                if ($stored !== '' && substr($stored, 0, 7) === 'sha256$') {
+                    $saltRaw = ($u['hash_salt'] ?? '') !== '' ? $u['hash_salt'] : $u['username'];
+                    $salt = function_exists('mb_strtolower') ? mb_strtolower(trim((string)$saltRaw), 'UTF-8') : strtolower(trim((string)$saltRaw));
+                    $calc = 'sha256$' . hash('sha256', $salt . '::nsc::' . $inPass);
+                    $ok = function_exists('hash_equals') ? hash_equals($stored, $calc) : ($stored === $calc);
+                    $steps .= '<p>4) sha256 branch (salt=' . htmlspecialchars($salt) . '): <b>' . ($ok ? 'MATCH' : 'MISMATCH') . '</b></p>';
+                } elseif ($stored !== '') {
+                    $ok = password_verify($inPass, $stored);
+                    $steps .= '<p>4) bcrypt branch: password_verify = <b>' . ($ok ? 'TRUE' : 'FALSE') . '</b></p>';
+                } else {
+                    $steps .= '<p class="err">4) Stored hash is EMPTY.</p>';
+                }
+                $fails = 0;
+                try {
+                    $a = $db->prepare('SELECT COUNT(*) AS c FROM login_attempts WHERE identifier = :i AND attempted_at > (NOW() - INTERVAL 15 MINUTE)');
+                    $a->execute(['i' => strtolower($inUser)]);
+                    $fails = (int)($a->fetch()['c'] ?? 0);
+                    $steps .= '<p>5) Recent fails for this name: <b>' . $fails . '</b>' . ($fails >= 5 ? ' (RATE-LOCKED 15 min)' : '') . '</p>';
+                } catch (Throwable $e) { $steps .= '<p class="hint">5) attempts check skipped.</p>'; }
+                if ($ok && $fails < 5) {
+                    $steps .= '<p class="ok">RESULT: LOGIN WOULD SUCCEED. If the app still says &quot;not found&quot;, the break is HTTP transport or the app build — send this whole result.</p>';
+                } elseif ($ok) {
+                    $steps .= '<p class="err">RESULT: password CORRECT but RATE-LOCKED. Empty the login_attempts table in phpMyAdmin and try once.</p>';
+                } else {
+                    $steps .= '<p class="err">RESULT: WRONG PASSWORD for this hash. Generate a fresh hash in part 1, paste into phpMyAdmin, log in with that plain password.</p>';
+                }
+                $out = $steps;
+            }
+        }
+    } catch (Throwable $e) {
+        $out = '<p class="err">FAILED: ' . htmlspecialchars($e->getMessage()) . '</p>';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -135,5 +194,16 @@ hr{border:0;border-top:1px solid #334155;margin:18px 0}
 <input type="hidden" name="mode" value="dbtest">
 <p class="hint">Reads config.php and checks the users table (read-only, no passwords shown) / فقط خواندن، بدون نمایش رمز.</p>
 <button type="submit">Test DB / تست</button>
+</form>
+<hr>
+<h2>4) Login simulator / شبیه‌ساز ورود</h2>
+<form method="post">
+<input type="hidden" name="mode" value="logintest">
+<p class="hint">Runs the exact login steps on the server (read-only) / دقیقاً قدم‌های ورود را روی سرور اجرا می‌کند.</p>
+<label>Username / نام کاربری</label>
+<input type="text" name="username" dir="ltr" placeholder="e.g. office7" required>
+<label>Plain password / رمز ساده</label>
+<input type="text" name="password" dir="ltr" required>
+<button type="submit">Simulate login / شبیه‌سازی</button>
 </form>
 </div></body></html>
