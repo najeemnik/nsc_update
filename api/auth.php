@@ -43,7 +43,7 @@ if ($method === 'POST') {
         }
 
         // محدودیت تلاش ورود: حداکثر ۵ تلاش ناموفق در ۱۵ دقیقه برای هر نام کاربری
-        $attemptKey = mb_strtolower($username, 'UTF-8');
+        $attemptKey = function_exists('mb_strtolower') ? mb_strtolower($username, 'UTF-8') : strtolower($username);
         $clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         try {
             $rlStmt = $db->prepare("SELECT COUNT(*) AS c FROM login_attempts WHERE identifier = :ident AND attempted_at > (NOW() - INTERVAL 15 MINUTE)");
@@ -61,7 +61,7 @@ if ($method === 'POST') {
         if ($storedHash !== '') {
             if (substr($storedHash, 0, 7) === 'sha256$') {
                 $saltRaw = ($user['hash_salt'] ?? '') !== '' ? $user['hash_salt'] : $user['username'];
-                $salt = mb_strtolower(trim((string)$saltRaw), 'UTF-8');
+                $salt = function_exists('mb_strtolower') ? mb_strtolower(trim((string)$saltRaw), 'UTF-8') : strtolower(trim((string)$saltRaw));
                 $calc = 'sha256$' . hash('sha256', $salt . '::nsc::' . $password);
                 $passwordMatches = hash_equals($storedHash, $calc);
             } else {
@@ -85,8 +85,10 @@ if ($method === 'POST') {
 
         // به‌روزرسانی تاریخ آخرین ورود
         $now = date('Y-m-d H:i:s');
-        $upStmt = $db->prepare("UPDATE users SET last_login_at = :now WHERE id = :id");
-        $upStmt->execute(['now' => $now, 'id' => $user['id']]);
+        try {
+            $upStmt = $db->prepare("UPDATE users SET last_login_at = :now WHERE id = :id");
+            $upStmt->execute(['now' => $now, 'id' => $user['id']]);
+        } catch (Exception $e) { error_log('last_login update failed: ' . $e->getMessage()); }
 
         // تولید توکن امنیتی
         $token = generateToken($user['id'], $user['role'], (int)$user['is_master'], (int)($user['token_version'] ?? 0));
@@ -323,7 +325,7 @@ if ($method === 'GET') {
     // Wave 41: capability probe (no auth) — lets the app tell outdated
     // server files apart from a dead connection.
     if (($_GET['action'] ?? '') === 'ping') {
-        jsonResponse(true, ['wave' => 40, 'time' => date('c')]);
+        jsonResponse(true, ['wave' => 40, 'time' => date('c'), 'mbstring' => function_exists('mb_strtolower'), 'php' => PHP_VERSION]);
     }
     // دریافت اطلاعات کاربر لاگین شده فعلی
     $user = authenticateUser(false);

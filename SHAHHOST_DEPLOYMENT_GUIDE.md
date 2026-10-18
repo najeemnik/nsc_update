@@ -227,3 +227,6 @@ UPDATE users SET password_hash = '<HASH_TAZE>' WHERE username IN ('office7', 'ad
 
 ### یج) موج ۴۶ — تست خودکار دیتابیس داخل ابزار هش (پچ ۱ فایلی)
 - فقط `api/make-hash.php` را overwrite کنید. بخش ۳ (Test DB) فقط-خواندنی نشان می‌دهد: اتصال config، تعداد سطرهای users، وضعیت office7/admin (قفل؟ نوع هش؟)، تلاش‌های اخیر ورود. هیچ رمزی نشان نمی‌دهد. بعد از استفاده پاکش کنید.
+
+### ید) موج ۴۷ — ورود بدون mbstring + ping گزارش‌گر (پچ ۱ فایلی)
+- فقط `api/auth.php` را overwrite کنید. ورود دیگر به mbstring وابسته نیست؛ آپدیت last_login نمی‌تواند ورود را بشکند؛ ping حالا `mbstring` و `php` را هم گزارش می‌دهد.
