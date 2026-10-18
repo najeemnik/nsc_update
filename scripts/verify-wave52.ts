@@ -43,7 +43,7 @@ function main() {
   check('val-emp', ctx.includes('if (!isValidServerUsername(cleanEmpUsername))'));
   check('val-reg', ctx.includes(".replace(/[^a-z0-9._-]/g, '').slice(0, 80)"));
   // Version bump.
-  check('version', loginView.includes('v1.0.13') && pkg.includes('"version": "1.0.13"'));
+  check('version', loginView.includes('v1.0.14') && pkg.includes('"version": "1.0.14"'));
 
   console.log(results.join('\n'));
   console.log(`\nwave52: ${passed} passed, ${failed} failed`);

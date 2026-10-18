@@ -1,5 +1,5 @@
 /**
- * Wave 54 verification: pull-first sync + master role guard + server-side create + v1.0.13.
+ * Wave 54 verification: pull-first sync + master role guard + server-side create + v1.0.14.
  * Run: npm run test:wave54
  */
 import * as fs from 'fs';
@@ -28,7 +28,7 @@ function main() {
   // Pull-first sync, push only server-absent.
   check('pull-names', ctx.includes('names: string[]') && ctx.includes('summary.names.push(uname)'));
   check('pull-first', ctx.indexOf('pull = await pullUsersFromServer()') < ctx.indexOf('for (const u of users)'));
-  check('skip-present', ctx.includes("serverNames.has(su.username.toLowerCase())") && ctx.includes('summary.skipped += 1'));
+  check('skip-present', ctx.includes("serverNames.has((su.username || '').trim().toLowerCase())") && ctx.includes('summary.skipped += 1')); // wave55: guarded
   check('boot-auto', ctx.includes('syncAllUsersToServer().catch(() => {}); }, 2500)'));
   check('boot-no-pullonly', !ctx.includes('pullUsersFromServer().catch(() => {}); }, 2500)'));
   check('ui-skipped', usersView.includes('skipped ${r.skipped} existing') && usersView.includes('رد شد ${r.skipped} موجود'));
@@ -41,7 +41,7 @@ function main() {
   check('mk-master-safe', helper.includes('password_hash = :h, is_locked = 0'));
   check('mk-form', helper.includes('value="usercreate"') && helper.includes('Create / repair'));
   // Version bump.
-  check('version', loginView.includes('v1.0.13') && pkg.includes('"version": "1.0.13"'));
+  check('version', loginView.includes('v1.0.14') && pkg.includes('"version": "1.0.14"'));
 
   console.log(results.join('\n'));
   console.log(`\nwave54: ${passed} passed, ${failed} failed`);

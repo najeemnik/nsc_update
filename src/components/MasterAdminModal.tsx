@@ -311,9 +311,9 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
 
   const filteredTenants = tenantUsers.filter(u => {
     const matchesSearch = 
-      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.name || '').trim().toLowerCase().includes(searchQuery.toLowerCase()) ||
       (u.companyName && u.companyName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.email || '').trim().toLowerCase().includes(searchQuery.toLowerCase()) ||
       (u.phone && u.phone.includes(searchQuery));
     if (!matchesSearch) return false;
     if (statusFilter === 'locked') return u.isLockedBySuperAdmin;

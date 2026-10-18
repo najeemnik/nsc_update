@@ -370,8 +370,8 @@ interface AppContextType {
   authNotice: 'session-expired' | 'server-lockout' | 'server-locked' | null;
   serverSync: { status: 'unknown' | 'checking' | 'ok' | 'no-token' | 'outdated' | 'offline'; lastSyncAt: string | null; lastError: string | null; pendingCount: number };
   refreshServerSyncStatus: () => Promise<void>;
-  syncAllUsersToServer: () => Promise<{ pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; skipped: number; firstError?: string }>;
-  pullUsersFromServer: () => Promise<{ pulledNew: number; updated: number; names: string[]; error?: string }>;
+  syncAllUsersToServer: () => Promise<{ pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; skipped: number; deduped: number; firstError?: string }>;
+  pullUsersFromServer: () => Promise<{ pulledNew: number; updated: number; names: string[]; deduped?: number; error?: string }>;
   clearAuthNotice: () => void;
   notifySessionExpired: () => void;
   importBackupJSON: (json: any) => void;
@@ -1446,8 +1446,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // multi-device sync. Users that are new on this device are created WITHOUT
   // a local password: their first login goes through the server leg, which
   // caches their hash (justFetched). Existing locals keep password/salt.
-  const pullUsersFromServer = async (): Promise<{ pulledNew: number; updated: number; names: string[]; error?: string }> => {
-    const summary: { pulledNew: number; updated: number; names: string[]; error?: string } = { pulledNew: 0, updated: 0, names: [] };
+  const pullUsersFromServer = async (): Promise<{ pulledNew: number; updated: number; names: string[]; deduped?: number; error?: string }> => {
+    const summary: { pulledNew: number; updated: number; names: string[]; deduped?: number; error?: string } = { pulledNew: 0, updated: 0, names: [], deduped: 0 };
     if (TEST_MODE) return summary;
     if (!backendApi.getToken()) { summary.error = 'no-token'; return summary; }
     try {
@@ -1457,12 +1457,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         summary.error = (res as any).error || `server-${(res as any).status ?? '?'}`;
         return summary;
       }
+      // Wave 55: collapse local same-username duplicates FIRST (legacy forks
+      // with untrimmed names never matched the server row, so "two office7s"
+      // piled up). Keeper = the copy holding a password, else the first.
+      const seen = new Map<string, number>();
       const next = [...users];
+      for (let i = next.length - 1; i >= 0; i--) {
+        const k = (next[i].username || '').trim().toLowerCase();
+        if (!k) continue;
+        if (seen.has(k)) {
+          const keeperIx = seen.get(k)!;
+          if (!next[keeperIx].password && next[i].password) {
+            next[keeperIx] = next[i];
+          }
+          next.splice(i, 1);
+          summary.deduped = (summary.deduped ?? 0) + 1;
+        } else {
+          seen.set(k, i);
+        }
+      }
       for (const su of list) {
         if (!su || !su.username) continue;
         const uname = String(su.username).toLowerCase();
         summary.names.push(uname);
-        const ix = next.findIndex(u => String(u.id) === String(su.id) || u.username.toLowerCase() === uname);
+        const ix = next.findIndex(u => String(u.id) === String(su.id) || (u.username || '').trim().toLowerCase() === uname);
         if (ix >= 0) {
           const keep = next[ix];
           const merged = serverUserToLocal(su, keep.password || '', keep.id);
@@ -1489,7 +1507,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const syncAllUsersToServer = async (): Promise<{ pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; skipped: number; firstError?: string }> => {
-    const summary: { pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; skipped: number; firstError?: string } = { pushed: 0, pulledNew: 0, pulledUpdated: 0, queued: 0, failed: 0, skipped: 0 };
+    const summary: { pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; skipped: number; deduped: number; firstError?: string } = { pushed: 0, pulledNew: 0, pulledUpdated: 0, queued: 0, failed: 0, skipped: 0, deduped: 0 };
     if (TEST_MODE) return summary;
     const online = typeof navigator === 'undefined' || navigator.onLine !== false;
     const hasToken = !!backendApi.getToken();
@@ -1499,12 +1517,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Wave 54: pull FIRST, then push only what the server lacks. Pushing a
     // stale local copy over a fresh server row used to clobber it (role/hash).
     let serverNames: Set<string> | null = null;
-    let pull: { pulledNew: number; updated: number; names: string[]; error?: string } = { pulledNew: 0, updated: 0, names: [] };
+    let pull: { pulledNew: number; updated: number; names: string[]; deduped?: number; error?: string } = { pulledNew: 0, updated: 0, names: [], deduped: 0 };
     if (online && hasToken) {
       try {
         pull = await pullUsersFromServer();
         summary.pulledNew = pull.pulledNew;
         summary.pulledUpdated = pull.updated;
+        summary.deduped = pull.deduped ?? 0;
         if (!pull.error) serverNames = new Set(pull.names);
       } catch { /* fall through to push-all fallback below */ }
     }
@@ -1514,11 +1533,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (u.password && (u.password as string).trim() !== '' && !isPasswordHash(u.password)) {
         // Wave 51: staff created before hashing (plaintext, never pushed) heal
         // here — upgrade to the salted hash login uses, push it, persist below.
-        su = { ...u, password: hashPassword((u.password as string).trim(), u.username), hashSalt: u.username.toLowerCase() };
+        su = { ...u, password: hashPassword((u.password as string).trim(), u.username), hashSalt: (u.username || '').trim().toLowerCase() };
         healedLocals.push(su);
       }
       if (!su.password || !isPasswordHash(su.password)) continue;
-      if (serverNames && serverNames.has(su.username.toLowerCase())) { summary.skipped += 1; continue; }
+      if (serverNames && serverNames.has((su.username || '').trim().toLowerCase())) { summary.skipped += 1; continue; }
       if (!online || !hasToken) {
         try {
           await backendApi.queueUserSync('sync_user', { user: serializeUserForSync(su) });
@@ -1576,9 +1595,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // is still accepted for legacy space-padded passwords.
     const rawPw = password || '';
     const pw = rawPw.trim();
+    // Wave 55: legacy records may carry untrimmed/empty fields — never crash, never miss.
+    const unameOf = (u: { username?: string }): string => (u.username || '').trim().toLowerCase();
+    const emailOf = (u: { email?: string }): string => (u.email || '').trim().toLowerCase();
     let found = users.find(u =>
-      u.email.toLowerCase() === trimmedInput ||
-      u.username.toLowerCase() === trimmedInput
+      emailOf(u) === trimmedInput ||
+      unameOf(u) === trimmedInput
     );
     const verifyLocal = (candidate: string) =>
       !!found && !!candidate && !!found.password && verifyPassword(candidate, found.password, saltOf(found));
@@ -1594,7 +1616,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (res.success && su && su.username) {
           const cached = serverUserToLocal(su, hashPassword(pw, (su.username || trimmedInput).toLowerCase()), found?.id);
           setUsers(prev => {
-            const ix = prev.findIndex(u => u.id === cached.id || u.username.toLowerCase() === cached.username.toLowerCase());
+            const ix = prev.findIndex(u => u.id === cached.id || unameOf(u) === (cached.username || '').trim().toLowerCase());
             if (ix >= 0) { const next = [...prev]; next[ix] = { ...cached, createdAt: prev[ix].createdAt }; return next; }
             return [...prev, cached];
           });
@@ -1642,7 +1664,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Upgrade legacy plaintext passwords to salted hashes on successful login.
     if (!isPasswordHash(found.password)) {
       const upgraded = hashPassword(pw, found.username);
-      const reanchored = { ...found, password: upgraded, hashSalt: found.username.toLowerCase() };
+      const reanchored = { ...found, password: upgraded, hashSalt: (found.username || '').trim().toLowerCase() };
       const foundId = found.id;
       setUsers(prev => prev.map(u => u.id === foundId ? reanchored : u));
       found = reanchored;
@@ -1723,7 +1745,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else if (res.success && (res.data as any)?.user) {
           const su = (res.data as any).user;
           setUsers(prev => prev.map(u => {
-            if (u.username.toLowerCase() !== (su.username || '').toLowerCase()) return u;
+            if (unameOf(u) !== (su.username || '').trim().toLowerCase()) return u;
             const merged = serverUserToLocal(su, u.password || '', u.id);
             return { ...merged, password: u.password, hashSalt: u.hashSalt || merged.hashSalt, createdAt: u.createdAt };
           }));
@@ -1768,14 +1790,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (cleanUsername.length < 3) {
       return { success: false, error: 'نام کاربری حداقل ۳ حرف باشد / Username must be at least 3 characters' };
     }
-    const duplicate = users.find(u => 
-      u.username.toLowerCase() === cleanUsername || 
-      u.email.toLowerCase() === cleanEmail
+    const duplicate = users.find(u =>
+      (u.username || '').trim().toLowerCase() === cleanUsername ||
+      (u.email || '').trim().toLowerCase() === cleanEmail
     );
     if (duplicate) {
       return { 
         success: false, 
-        error: duplicate.username.toLowerCase() === cleanUsername 
+        error: (duplicate.username || '').trim().toLowerCase() === cleanUsername 
           ? 'این نام کاربری قبلاً استفاده شده است' 
           : 'این ایمیل قبلاً ثبت گردیده است' 
       };
@@ -1854,7 +1876,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     companyName: string;
     companyAddress: string;
   }): { success: boolean; otpCode: string; error?: string } => {
-    const existing = users.find(u => u.email.toLowerCase() === data.email.trim().toLowerCase());
+    const existing = users.find(u => (u.email || '').trim().toLowerCase() === data.email.trim().toLowerCase());
     if (existing) {
       return { success: false, otpCode: '', error: 'این ایمیل قبلاً ثبت شده است' };
     }
@@ -1913,7 +1935,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const verifyOtpAndActivate = (email: string, otpCode: string): { success: boolean; error?: string } => {
-    const user = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+    const user = users.find(u => (u.email || '').trim().toLowerCase() === email.trim().toLowerCase());
     if (!user) {
       return { success: false, error: 'کاربر یافت نشد' };
     }
@@ -1938,7 +1960,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const requestPasswordReset = (email: string): { success: boolean; otpCode?: string; error?: string } => {
-    const user = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+    const user = users.find(u => (u.email || '').trim().toLowerCase() === email.trim().toLowerCase());
     if (!user) {
       return { success: false, error: 'حسابی با این ایمیل یافت نشد' };
     }
@@ -1949,7 +1971,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const completePasswordReset = (email: string, otpCode: string, newPassword: string): { success: boolean; error?: string } => {
-    const user = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+    const user = users.find(u => (u.email || '').trim().toLowerCase() === email.trim().toLowerCase());
     if (!user) {
       return { success: false, error: 'کاربر یافت نشد' };
     }
@@ -1963,7 +1985,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (nextPw.length < 6) {
       return { success: false, error: 'رمز جدید باید حداقل ۶ کاراکتر باشد / New password must be at least 6 characters' };
     }
-    const resetUser: User = { ...user, password: hashPassword(nextPw, user.username), hashSalt: user.username.toLowerCase(), otpCode: undefined, otpIssuedAt: undefined };
+    const resetUser: User = { ...user, password: hashPassword(nextPw, user.username), hashSalt: (user.username || '').trim().toLowerCase(), otpCode: undefined, otpIssuedAt: undefined };
     setUsers(prev => prev.map(u => u.id === user.id ? resetUser : u));
     pushUserToServer(resetUser);
     logAudit('update', 'user', user.id, `Password updated for ${user.email}`, 'Password changed successfully');
@@ -1988,7 +2010,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (next.length < 6) {
       return { success: false, error: 'New password must be at least 6 characters / رمز جدید باید حداقل ۶ کاراکتر باشد' };
     }
-    const updated = { ...fresh, password: hashPassword(next, fresh.username), hashSalt: fresh.username.toLowerCase() };
+    const updated = { ...fresh, password: hashPassword(next, fresh.username), hashSalt: (fresh.username || '').trim().toLowerCase() };
     setUsers(prev => prev.map(u => u.id === fresh.id ? updated : u));
     pushUserToServer(updated);
     setCurrentUser(updated);
@@ -2009,7 +2031,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!/^[a-z0-9._-]+$/.test(clean)) {
       return { success: false, error: 'Username may only contain latin letters, digits, . _ - / نام کاربری فقط حروف لاتین و عدد باشد' };
     }
-    const taken = users.some(u => u.id !== currentUser.id && u.username.toLowerCase() === clean);
+    const taken = users.some(u => u.id !== currentUser.id && (u.username || '').trim().toLowerCase() === clean);
     if (taken) {
       return { success: false, error: 'This username is already taken / این نام کاربری قبلاً استفاده شده است' };
     }
@@ -2153,7 +2175,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     permissions: User['permissions'];
   }): { success: boolean; error?: string } => {
     if (!currentUser?.isMasterSuperAdmin && currentUser?.role !== 'admin') { denyAccess('staff', 'create'); return { success: false, error: 'forbidden' }; }
-    const existing = users.find(u => u.email.toLowerCase() === employee.email.trim().toLowerCase() || u.username.toLowerCase() === employee.username.trim().toLowerCase());
+    const existing = users.find(u => (u.email || '').trim().toLowerCase() === employee.email.trim().toLowerCase() || (u.username || '').trim().toLowerCase() === employee.username.trim().toLowerCase());
     if (existing) {
       return { success: false, error: 'این ایمیل یا نام کاربری قبلاً استفاده شده است' };
     }
@@ -2205,7 +2227,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           email: updates.email !== undefined ? updates.email.trim() : u.email,
           phone: updates.phone !== undefined ? updates.phone.trim() : u.phone,
           password: updates.password && updates.password.trim() ? (isPasswordHash(updates.password.trim()) ? updates.password.trim() : hashPassword(updates.password.trim(), u.username)) : u.password,
-          hashSalt: updates.password && updates.password.trim() && !isPasswordHash(updates.password.trim()) ? u.username.toLowerCase() : u.hashSalt,
+          hashSalt: updates.password && updates.password.trim() && !isPasswordHash(updates.password.trim()) ? (u.username || '').trim().toLowerCase() : u.hashSalt,
           permissions: updates.permissions !== undefined ? updates.permissions : u.permissions,
           active: updates.active !== undefined ? updates.active : u.active,
         };
@@ -2277,7 +2299,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           companyName: updates.companyName !== undefined ? updates.companyName : u.companyName,
           companyAddress: updates.companyAddress !== undefined ? updates.companyAddress : u.companyAddress,
           password: updates.password !== undefined && updates.password.trim() ? (isPasswordHash(updates.password.trim()) ? updates.password.trim() : hashPassword(updates.password.trim(), u.username)) : u.password,
-          hashSalt: updates.password !== undefined && updates.password.trim() && !isPasswordHash(updates.password.trim()) ? u.username.toLowerCase() : u.hashSalt,
+          hashSalt: updates.password !== undefined && updates.password.trim() && !isPasswordHash(updates.password.trim()) ? (u.username || '').trim().toLowerCase() : u.hashSalt,
           customLogoUrl: updates.customLogoUrl !== undefined ? updates.customLogoUrl : u.customLogoUrl,
           customBillDesign: updates.customBillDesign !== undefined ? updates.customBillDesign : u.customBillDesign,
           customButtonConfig: updates.customButtonConfig !== undefined ? updates.customButtonConfig : u.customButtonConfig,
@@ -2431,13 +2453,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'نام کاربری حداقل ۳ حرف باشد / Username must be at least 3 characters' };
     }
     const duplicate = users.find(u =>
-      u.username.toLowerCase() === cleanUsername ||
-      u.email.toLowerCase() === cleanEmail
+      (u.username || '').trim().toLowerCase() === cleanUsername ||
+      (u.email || '').trim().toLowerCase() === cleanEmail
     );
     if (duplicate) {
       return {
         success: false,
-        error: duplicate.username.toLowerCase() === cleanUsername
+        error: (duplicate.username || '').trim().toLowerCase() === cleanUsername
           ? 'این نام کاربری قبلاً استفاده شده است'
           : 'این ایمیل قبلاً ثبت گردیده است',
       };
@@ -2465,7 +2487,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const safe: Partial<User> = { ...updates };
     if (typeof safe.password === 'string' && safe.password.trim() && target && !isPasswordHash(safe.password.trim())) {
       safe.password = hashPassword(safe.password.trim(), target.username);
-      safe.hashSalt = target.username.toLowerCase();
+      safe.hashSalt = (target.username || '').trim().toLowerCase();
     }
     setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...safe } : u)));
     if (target) pushUserToServer({ ...target, ...safe });
@@ -3631,7 +3653,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
     } else if (pay.relatedType === 'contractor') {
       setContractors(prev => prev.map(x => {
-        if (x.id !== pay.relatedId && x.name.toLowerCase() !== pay.partyName.toLowerCase()) return x;
+        if (x.id !== pay.relatedId && (x.name || '').trim().toLowerCase() !== pay.partyName.toLowerCase()) return x;
         const newPaid = adding ? (x.totalPaid || 0) + mag : Math.max(0, (x.totalPaid || 0) - mag);
         return { ...x, totalPaid: newPaid, remainingBalance: Math.max(0, x.contractAmount - newPaid) };
       }));
