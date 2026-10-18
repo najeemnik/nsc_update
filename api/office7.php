@@ -49,24 +49,54 @@ if ($method === 'GET') {
     $action = $_GET['action'] ?? 'tenants';
 
     if ($action === 'tenants') {
-        $stmt = $db->query("
-            SELECT id, owner_admin_id, name, username, email, role, phone, 
-                   company_name, company_address, subscription_plan, 
-                   subscription_expires_at, is_locked, is_master, 
-                   permissions_json, allowed_modules_json, allowed_tabs_json, 
-                   last_login_at, created_at 
-            FROM users 
-            ORDER BY is_master DESC, created_at ASC
-        ");
-        $users = $stmt->fetchAll();
-
-        foreach ($users as &$u) {
-            $u['permissions'] = json_decode($u['permissions_json'] ?? '{}', true);
-            $u['customEnabledModules'] = json_decode($u['allowed_modules_json'] ?? '{}', true);
-            $u['allowedTabs'] = json_decode($u['allowed_tabs_json'] ?? '[]', true);
-            unset($u['permissions_json'], $u['allowed_modules_json'], $u['allowed_tabs_json']);
+        // Wave 50: roster download for multi-device sync. Same camelCase user
+        // shape as auth.php login (password hashes are NEVER included), plus
+        // isLocked. Non-master callers only see themselves + their own company.
+        $meId = ($currentUser && isset($currentUser['id'])) ? (string)$currentUser['id'] : '';
+        $meMaster = $currentUser && (int)$currentUser['is_master'] === 1;
+        $hasAppProfile = true;
+        try {
+            $tcols = $db->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN);
+            $hasAppProfile = in_array('app_profile_json', $tcols, true);
+        } catch (Exception $e) { /* ignore */ }
+        $sql = "SELECT id, owner_admin_id, name, username, email, role, phone,
+                       company_name, company_address, subscription_plan,
+                       subscription_expires_at, is_locked, is_master,
+                       permissions_json, allowed_modules_json, allowed_tabs_json"
+            . ($hasAppProfile ? ", app_profile_json" : "") . ",
+                       last_login_at, created_at
+                FROM users";
+        $tparams = [];
+        if ($meId !== '' && !$meMaster) {
+            $sql .= " WHERE id = :me OR owner_admin_id = :me2";
+            $tparams = ['me' => $meId, 'me2' => $meId];
         }
-
+        $sql .= " ORDER BY is_master DESC, created_at ASC";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($tparams);
+        $users = [];
+        foreach ($stmt->fetchAll() as $r) {
+            $users[] = [
+                'id' => $r['id'],
+                'name' => $r['name'],
+                'username' => $r['username'],
+                'email' => $r['email'],
+                'role' => $r['role'],
+                'phone' => $r['phone'],
+                'companyName' => $r['company_name'],
+                'companyAddress' => $r['company_address'],
+                'isMasterSuperAdmin' => (bool)$r['is_master'],
+                'isLocked' => ((int)$r['is_locked'] === 1),
+                'ownerAdminId' => $r['owner_admin_id'],
+                'subscriptionPlan' => $r['subscription_plan'],
+                'subscriptionExpiresAt' => $r['subscription_expires_at'],
+                'permissions' => json_decode($r['permissions_json'] ?? '{}', true),
+                'customEnabledModules' => json_decode($r['allowed_modules_json'] ?? '{}', true),
+                'allowedTabs' => json_decode($r['allowed_tabs_json'] ?? '[]', true),
+                'appProfile' => $hasAppProfile ? json_decode($r['app_profile_json'] ?? 'null', true) : null,
+                'lastLoginAt' => $r['last_login_at'],
+            ];
+        }
         jsonResponse(true, ['users' => $users]);
     }
 

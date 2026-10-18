@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Language, 
   User, 
@@ -370,7 +370,8 @@ interface AppContextType {
   authNotice: 'session-expired' | 'server-lockout' | 'server-locked' | null;
   serverSync: { status: 'unknown' | 'checking' | 'ok' | 'no-token' | 'outdated' | 'offline'; lastSyncAt: string | null; lastError: string | null; pendingCount: number };
   refreshServerSyncStatus: () => Promise<void>;
-  syncAllUsersToServer: () => Promise<{ pushed: number; queued: number; failed: number; firstError?: string }>;
+  syncAllUsersToServer: () => Promise<{ pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; firstError?: string }>;
+  pullUsersFromServer: () => Promise<{ pulledNew: number; updated: number; error?: string }>;
   clearAuthNotice: () => void;
   notifySessionExpired: () => void;
   importBackupJSON: (json: any) => void;
@@ -1367,6 +1368,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // recorded in serverSync so the Users page can show them.
   const pushUserToServer = (u: User): void => {
     if (TEST_MODE) return; // the test version never touches the production server
+    // Wave 50: freshly pulled users have no local password yet — pushing one
+    // would overwrite the good server hash with a hash of nothing. Skip it;
+    // the record syncs back after its first login on this device.
+    if (!u.password || !(u.password as string).trim()) return;
     const payload = serializeUserForSync(u);
     if (!backendApi.getToken()) {
       backendApi.queueUserSync('sync_user', { user: payload }).catch(() => {});
@@ -1432,8 +1437,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Wave 41: heal accounts created before the server knew them (pre-patch
   // users, token-less sessions). Idempotent — the server upserts by username.
-  const syncAllUsersToServer = async (): Promise<{ pushed: number; queued: number; failed: number; firstError?: string }> => {
-    const summary: { pushed: number; queued: number; failed: number; firstError?: string } = { pushed: 0, queued: 0, failed: 0 };
+  // Wave 50: download the user roster from the server — the missing half of
+  // multi-device sync. Users that are new on this device are created WITHOUT
+  // a local password: their first login goes through the server leg, which
+  // caches their hash (justFetched). Existing locals keep password/salt.
+  const pullUsersFromServer = async (): Promise<{ pulledNew: number; updated: number; error?: string }> => {
+    const summary: { pulledNew: number; updated: number; error?: string } = { pulledNew: 0, updated: 0 };
+    if (TEST_MODE) return summary;
+    if (!backendApi.getToken()) { summary.error = 'no-token'; return summary; }
+    try {
+      const res = await backendApi.getOffice7Tenants();
+      const list = (res.data as any)?.users;
+      if (!res.success || !Array.isArray(list)) {
+        summary.error = (res as any).error || `server-${(res as any).status ?? '?'}`;
+        return summary;
+      }
+      const next = [...users];
+      for (const su of list) {
+        if (!su || !su.username) continue;
+        const uname = String(su.username).toLowerCase();
+        const ix = next.findIndex(u => String(u.id) === String(su.id) || u.username.toLowerCase() === uname);
+        if (ix >= 0) {
+          const keep = next[ix];
+          const merged = serverUserToLocal(su, keep.password || '', keep.id);
+          next[ix] = {
+            ...merged,
+            password: keep.password,
+            hashSalt: keep.hashSalt || merged.hashSalt,
+            createdAt: keep.createdAt,
+            active: su.isLocked !== true,
+            isLockedBySuperAdmin: su.isLocked === true,
+          };
+          summary.updated += 1;
+        } else {
+          const nu = serverUserToLocal(su, '', undefined);
+          nu.active = su.isLocked !== true;
+          nu.isLockedBySuperAdmin = su.isLocked === true;
+          next.push(nu);
+          summary.pulledNew += 1;
+        }
+      }
+      setUsers(next);
+    } catch { summary.error = 'network'; }
+    return summary;
+  };
+
+  const syncAllUsersToServer = async (): Promise<{ pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; firstError?: string }> => {
+    const summary: { pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; firstError?: string } = { pushed: 0, pulledNew: 0, pulledUpdated: 0, queued: 0, failed: 0 };
     if (TEST_MODE) return summary;
     const online = typeof navigator === 'undefined' || navigator.onLine !== false;
     const hasToken = !!backendApi.getToken();
@@ -1459,6 +1509,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch { summary.failed += 1; if (!summary.firstError) summary.firstError = 'network'; }
     }
+    // Wave 50: the button is two-way now — push first, then pull the roster.
+    try {
+      const pull = await pullUsersFromServer();
+      summary.pulledNew = pull.pulledNew;
+      summary.pulledUpdated = pull.updated;
+      if (!summary.firstError && pull.error && pull.error !== 'no-token') summary.firstError = pull.error;
+    } catch { /* pull is best-effort; pushes are already counted */ }
     setServerSync({
       status: !online ? 'offline' : (hasToken ? 'ok' : 'no-token'),
       lastSyncAt: new Date().toISOString(),
@@ -1467,6 +1524,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     return summary;
   };
+
+  // Wave 50: remembered sessions never re-login, so a user created on another
+  // device would never appear here. Pull the roster once at boot instead.
+  const didBootPullRef = useRef(false);
+  useEffect(() => {
+    if (didBootPullRef.current) return undefined;
+    didBootPullRef.current = true;
+    if (TEST_MODE) return undefined;
+    try {
+      if (!backendApi.getToken()) return undefined;
+      const t = window.setTimeout(() => { pullUsersFromServer().catch(() => {}); }, 2500);
+      return () => window.clearTimeout(t);
+    } catch { /* ignore */ }
+    return undefined;
+  }, []);
 
   const login = async (
     usernameOrEmail: string,
@@ -1640,6 +1712,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }).catch(() => {});
     }
+    // Wave 50: a fresh login brings a fresh roster (background, never blocks).
+    pullUsersFromServer().catch(() => {});
     return { success: true };
   };
 
@@ -4643,6 +4717,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       serverSync,
       refreshServerSyncStatus,
       syncAllUsersToServer,
+      pullUsersFromServer,
       clearAuthNotice,
       notifySessionExpired: () => setAuthNotice('session-expired'),
       clearAuditLogs,
