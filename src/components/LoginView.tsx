@@ -880,7 +880,7 @@ export const LoginView: React.FC = () => {
               {serverPing === 'down' && tp('Server unreachable', 'سرور قطع است', 'سرور قطع دی')}
             </span>
           </button>
-          <span className="font-mono text-[11px] text-amber-600">nik-smartcount.com · v1.0.10</span>
+          <span className="font-mono text-[11px] text-amber-600">nik-smartcount.com · v1.0.11</span>
         </div>
       </footer>
     </div>

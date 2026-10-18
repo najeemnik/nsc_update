@@ -1490,17 +1490,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (online && hasToken) {
       await backendApi.syncOfflineQueue().catch(() => {});
     }
+    const healedLocals: User[] = [];
     for (const u of users) {
-      if (!u.password || !isPasswordHash(u.password)) continue; // legacy plaintext upgrades on next login
+      let su = u;
+      if (u.password && (u.password as string).trim() !== '' && !isPasswordHash(u.password)) {
+        // Wave 51: staff created before hashing (plaintext, never pushed) heal
+        // here — upgrade to the salted hash login uses, push it, persist below.
+        su = { ...u, password: hashPassword((u.password as string).trim(), u.username), hashSalt: u.username.toLowerCase() };
+        healedLocals.push(su);
+      }
+      if (!su.password || !isPasswordHash(su.password)) continue;
       if (!online || !hasToken) {
         try {
-          await backendApi.queueUserSync('sync_user', { user: serializeUserForSync(u) });
+          await backendApi.queueUserSync('sync_user', { user: serializeUserForSync(su) });
           summary.queued += 1;
         } catch { summary.failed += 1; }
         continue;
       }
       try {
-        const res = await backendApi.syncUser(serializeUserForSync(u));
+        const res = await backendApi.syncUser(serializeUserForSync(su));
         if (res.success && !res.queued) summary.pushed += 1;
         else if (res.queued || res.offline) summary.queued += 1;
         else {
@@ -1508,6 +1516,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!summary.firstError) summary.firstError = res.error || `server-${res.status ?? '?'}`;
         }
       } catch { summary.failed += 1; if (!summary.firstError) summary.firstError = 'network'; }
+    }
+    if (healedLocals.length > 0) {
+      setUsers(prev => prev.map(u => healedLocals.find(h => h.id === u.id) ?? u));
     }
     // Wave 50: the button is two-way now — push first, then pull the roster.
     try {
@@ -1622,6 +1633,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const foundId = found.id;
       setUsers(prev => prev.map(u => u.id === foundId ? reanchored : u));
       found = reanchored;
+      // Wave 51: the healed hash must reach the server too (self-service
+      // update for existing rows; harmless no-op otherwise).
+      pushUserToServer(reanchored);
     }
     if (!found.isMasterSuperAdmin && found.subscriptionExpiresAt) {
       const now = new Date().getTime();
@@ -2127,11 +2141,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (existing) {
       return { success: false, error: 'این ایمیل یا نام کاربری قبلاً استفاده شده است' };
     }
+    // Wave 51: staff accounts must log in on EVERY device, so they are
+    // created exactly like owners — normalized, salted hash, pushed.
+    const cleanEmpUsername = employee.username.trim().toLowerCase();
+    const cleanEmpEmail = employee.email.trim().toLowerCase();
     const newEmp: User = {
       id: 'emp-' + Date.now(),
-      username: employee.username.trim(),
-      email: employee.email.trim(),
-      password: employee.password,
+      username: cleanEmpUsername,
+      email: cleanEmpEmail,
+      password: hashPassword(employee.password.trim(), cleanEmpUsername),
+      hashSalt: cleanEmpUsername,
       name: employee.name.trim(),
       phone: employee.phone?.trim(),
       companyName: currentUser?.companyName || appSettings.companyName,
@@ -2143,6 +2162,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setUsers(prev => [...prev, newEmp]);
+    pushUserToServer(newEmp);
     logAudit('create', 'user', newEmp.id, `Created Staff Member ${newEmp.name}`, `Role: ${newEmp.role}`);
     return { success: true };
   };
