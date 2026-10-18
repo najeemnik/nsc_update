@@ -31,7 +31,7 @@ function main() {
   check('helper-gen', helper.includes('::nsc::') && helper.includes('PASSWORD_BCRYPT'));
   check('helper-verify', helper.includes("mode'] ?? ''") && helper.includes('MISMATCH') && helper.includes('MATCH'));
   check('helper-php7', !helper.includes('str_starts_with') && helper.includes("substr($stored, 0, 7)"));
-  check('helper-alone', !helper.includes('config.php') && !helper.includes('Database::'));
+  check('helper-alone', helper.includes("mode === 'dbtest'") && !helper.includes('INSERT INTO') && !helper.includes('UPDATE users'));
 
   console.log(results.join('\n'));
   console.log(`\nwave45: ${passed} passed, ${failed} failed`);

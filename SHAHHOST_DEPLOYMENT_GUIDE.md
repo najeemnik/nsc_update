@@ -224,3 +224,6 @@ UPDATE users SET password_hash = '<HASH_TAZE>' WHERE username IN ('office7', 'ad
 - **پچ فقط PHP:** `api/auth.php` و `api/install.php` را overwrite کنید + فایل تازه `api/make-hash.php` را آپلود کنید (بعد از استفاده پاکش کنید).
 - `make-hash.php` را در براوزر باز کنید: بخش ۱ هش تازه می‌سازد (برای paste در phpMyAdmin)، بخش ۲ بررسی می‌کند آیا هش داخل دیتابیس با رمز شما MATCH است یا نه — با همان منطق ورود سرور.
 - ورود حالا فاصله/خط اضافیِ کپی‌شده در `password_hash` را نادیده می‌گیرد.
+
+### یج) موج ۴۶ — تست خودکار دیتابیس داخل ابزار هش (پچ ۱ فایلی)
+- فقط `api/make-hash.php` را overwrite کنید. بخش ۳ (Test DB) فقط-خواندنی نشان می‌دهد: اتصال config، تعداد سطرهای users، وضعیت office7/admin (قفل؟ نوع هش؟)، تلاش‌های اخیر ورود. هیچ رمزی نشان نمی‌دهد. بعد از استفاده پاکش کنید.

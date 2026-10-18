@@ -52,6 +52,36 @@ if ($mode === 'generate') {
     $out = $match
         ? '<p class="ok">MATCH — this password IS correct for that hash. If app login still fails, the problem is the server/API link, not the password.</p>'
         : '<p class="err">MISMATCH — this password does NOT match that hash (or the username salt is wrong). Generate a fresh hash above and paste it into phpMyAdmin.</p>';
+} elseif ($mode === 'dbtest') {
+    // Wave 46: read-only database check — answers "is the app even reading
+    // the database you edited?" without showing any secret.
+    try {
+        if (!file_exists(__DIR__ . '/config.php')) throw new Exception('config.php not found next to make-hash.php');
+        require_once __DIR__ . '/config.php';
+        require_once __DIR__ . '/db.php';
+        $db = Database::getConnection();
+        $dbmsg = '<p class="ok">DB CONNECTED — config.php credentials work.</p>';
+        try {
+            $c = $db->query('SELECT COUNT(*) AS c FROM users')->fetch();
+            $dbmsg .= '<p>users table rows: <b>' . (int)($c['c'] ?? 0) . '</b></p>';
+        } catch (Throwable $e) { $dbmsg .= '<p class="err">users table read failed: ' . htmlspecialchars($e->getMessage()) . '</p>'; }
+        try {
+            $st = $db->query("SELECT username, is_locked, LEFT(password_hash, 7) AS alg, CHAR_LENGTH(password_hash) AS hlen FROM users WHERE username IN ('office7','admin')");
+            $list = $st->fetchAll();
+            if (!$list) { $dbmsg .= '<p class="err">office7/admin rows NOT FOUND in THIS database — you may be editing a different database in phpMyAdmin!</p>'; }
+            foreach ($list as $r) {
+                $dbmsg .= '<p>user <b>' . htmlspecialchars($r['username']) . '</b> — locked=' . (int)$r['is_locked']
+                    . ' — hash starts with <b>' . htmlspecialchars($r['alg']) . '</b> (length ' . (int)$r['hlen'] . ')</p>';
+            }
+        } catch (Throwable $e) { $dbmsg .= '<p class="err">seed lookup failed: ' . htmlspecialchars($e->getMessage()) . '</p>'; }
+        try {
+            $a = $db->query('SELECT COUNT(*) AS c FROM login_attempts WHERE attempted_at > (NOW() - INTERVAL 15 MINUTE)')->fetch();
+            $dbmsg .= '<p>recent login_attempts (15 min): <b>' . (int)($a['c'] ?? 0) . '</b> (5+ on one name = that name is locked)</p>';
+        } catch (Throwable $e) { $dbmsg .= '<p class="hint">login_attempts table missing (old database?)</p>'; }
+    } catch (Throwable $e) {
+        $dbmsg = '<p class="err">DB FAILED: ' . htmlspecialchars($e->getMessage()) . ' — check api/config.php credentials and database name.</p>';
+    }
+    $out = $dbmsg;
 }
 ?>
 <!DOCTYPE html>
@@ -76,6 +106,7 @@ hr{border:0;border-top:1px solid #334155;margin:18px 0}
 <body><div class="box">
 <h1>NSC Hash Helper / ابزار هش رمز</h1>
 <p class="warn">Delete this file from the server after use / بعد از استفاده این فایل را از سرور پاک کنید.</p>
+<p>Server PHP: <b><?php echo PHP_VERSION; ?></b></p>
 <?php echo $out; ?>
 <h2>1) Generate / ساخت هش تازه</h2>
 <form method="post">
@@ -97,5 +128,12 @@ hr{border:0;border-top:1px solid #334155;margin:18px 0}
 <label>Stored hash from phpMyAdmin (copy the whole password_hash cell) / هش داخل phpMyAdmin</label>
 <textarea name="stored" rows="3" required></textarea>
 <button type="submit">Verify / بررسی</button>
+</form>
+<hr>
+<h2>3) Database test / تست دیتابیس</h2>
+<form method="post">
+<input type="hidden" name="mode" value="dbtest">
+<p class="hint">Reads config.php and checks the users table (read-only, no passwords shown) / فقط خواندن، بدون نمایش رمز.</p>
+<button type="submit">Test DB / تست</button>
 </form>
 </div></body></html>
