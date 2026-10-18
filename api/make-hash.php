@@ -82,6 +82,36 @@ if ($mode === 'generate') {
         $dbmsg = '<p class="err">DB FAILED: ' . htmlspecialchars($e->getMessage()) . ' — check api/config.php credentials and database name.</p>';
     }
     $out = $dbmsg;
+} elseif ($mode === 'roster') {
+    // Wave 53: zero-typing server truth — who is actually in the database?
+    // Shows usernames/roles/locks/hash-TYPES only (never hashes or secrets).
+    try {
+        require_once __DIR__ . '/config.php';
+        require_once __DIR__ . '/db.php';
+        $db = Database::getConnection();
+        $rows = $db->query("SELECT username, name, email, role, is_locked, is_master, password_hash, created_at FROM users ORDER BY created_at ASC")->fetchAll();
+        $html = '<p class="ok">Users on this server: <b>' . count($rows) . '</b></p>';
+        $html .= '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-size:13px;direction:ltr">';
+        $html .= '<tr><th>#</th><th>username</th><th>name</th><th>role</th><th>master</th><th>locked</th><th>hash</th><th>created</th></tr>';
+        $n = 0;
+        foreach ($rows as $r) {
+            $n++;
+            $h = trim((string)($r['password_hash'] ?? ''));
+            $ht = ($h === '') ? 'EMPTY!' : ((substr($h, 0, 7) === 'sha256$') ? 'sha256$…' : ((substr($h, 0, 4) === '$2y$') ? 'bcrypt…' : 'OTHER!'));
+            $html .= '<tr><td>' . $n . '</td><td><b>' . htmlspecialchars($r['username']) . '</b></td>'
+                . '<td>' . htmlspecialchars($r['name'] ?? '') . '</td>'
+                . '<td>' . htmlspecialchars($r['role'] ?? '') . '</td>'
+                . '<td>' . ((int)$r['is_master'] === 1 ? 'YES' : 'no') . '</td>'
+                . '<td>' . ((int)$r['is_locked'] === 1 ? '<b>LOCKED</b>' : 'no') . '</td>'
+                . '<td>' . $ht . '</td>'
+                . '<td>' . htmlspecialchars($r['created_at'] ?? '') . '</td></tr>';
+        }
+        $html .= '</table>';
+        $html .= '<p class="hint">If your owner is NOT in this list → it never reached the server: on the laptop, log in as office7 and press «Sync all users», then reload this page. If it IS here but login fails → run part 4 (simulator) with its username + password.</p>';
+        $out = $html;
+    } catch (Throwable $e) {
+        $out = '<p class="err">FAILED: ' . htmlspecialchars($e->getMessage()) . '</p>';
+    }
 } elseif ($mode === 'logintest') {
     // Wave 48: server-side login simulator — runs the EXACT steps of
     // api/auth.php login (read-only, writes nothing) and reports each one.
@@ -205,5 +235,12 @@ hr{border:0;border-top:1px solid #334155;margin:18px 0}
 <label>Plain password / رمز ساده</label>
 <input type="text" name="password" dir="ltr" required>
 <button type="submit">Simulate login / شبیه‌سازی</button>
+</form>
+<hr>
+<h2>5) Server roster / کی‌ها در سرور اند؟</h2>
+<form method="post">
+<input type="hidden" name="mode" value="roster">
+<p class="hint">One click, no typing — lists every account on the server / فقط یک کلیک.</p>
+<button type="submit">Show roster / نمایش</button>
 </form>
 </div></body></html>
