@@ -30,6 +30,7 @@ export const UsersView: React.FC = () => {
     users, currentUser, addUser, updateUser, deleteUser, toggleUserActive,
     projects, can, t, tp, language,
     serverSync, refreshServerSyncStatus, syncAllUsersToServer,
+    syncReceipts, retryUserPush,
   } = useApp();
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -362,6 +363,37 @@ export const UsersView: React.FC = () => {
                       )}
                     </h3>
                     <p className="text-xs text-slate-400 font-mono">@{u.username}</p>
+                    {/* Wave 60: server-delivery receipt per account. */}
+                    {(() => {
+                      const r = syncReceipts[u.id];
+                      if (r && r.status === 'synced') {
+                        return (
+                          <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                            <CloudUpload className="w-3 h-3" />
+                            {tp('On server', 'در سرور', 'په سرور کې')}
+                          </span>
+                        );
+                      }
+                      if (!r || r.status === 'pending') {
+                        return (
+                          <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            {tp('Sending…', 'در حال ارسال…', 'استول کېږي…')}
+                          </span>
+                        );
+                      }
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => retryUserPush(u.id)}
+                          title={r.error || ''}
+                          className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:underline"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          {tp('Not sent — tap to retry', 'ارسال نشد — برای تلاش بزنید', 'ونه استول شو — د هڅې لپاره ووهئ')}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
 

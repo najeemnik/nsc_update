@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "1.0.15",
+  "version": "1.0.16",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -50,7 +50,9 @@
     "test:wave55": "esbuild scripts/verify-wave55.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave55.cjs --log-level=error && node node_modules/.cache/verify-wave55.cjs",
     "test:wave56": "esbuild scripts/verify-wave56.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave56.cjs --log-level=error && node node_modules/.cache/verify-wave56.cjs",
     "test:wave57": "esbuild scripts/verify-wave57.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave57.cjs --log-level=error && node node_modules/.cache/verify-wave57.cjs",
-    "test:wave58": "esbuild scripts/verify-wave58.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave58.cjs --log-level=error && node node_modules/.cache/verify-wave58.cjs"
+    "test:wave58": "esbuild scripts/verify-wave58.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave58.cjs --log-level=error && node node_modules/.cache/verify-wave58.cjs",
+    "test:wave59": "esbuild scripts/verify-wave59.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave59.cjs --log-level=error && node node_modules/.cache/verify-wave59.cjs",
+    "test:wave60": "esbuild scripts/verify-wave60.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave60.cjs --log-level=error && node node_modules/.cache/verify-wave60.cjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

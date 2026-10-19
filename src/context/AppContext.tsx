@@ -369,6 +369,9 @@ interface AppContextType {
   /** اطلاع امنیتی نشست: منقضی‌شده (خروج اجباری) یا قفل موقت سرور (429) */
   authNotice: 'session-expired' | 'server-lockout' | 'server-locked' | null;
   serverSync: { status: 'unknown' | 'checking' | 'ok' | 'no-token' | 'outdated' | 'offline'; lastSyncAt: string | null; lastError: string | null; pendingCount: number };
+  /** Wave 60: per-user push receipt — proves each account reached the server. */
+  syncReceipts: Record<string, { status: 'synced' | 'pending' | 'failed'; error?: string; at: number }>;
+  retryUserPush: (id: string) => void;
   refreshServerSyncStatus: () => Promise<void>;
   syncAllUsersToServer: () => Promise<{ pushed: number; pulledNew: number; pulledUpdated: number; queued: number; failed: number; skipped: number; deduped: number; firstError?: string }>;
   pullUsersFromServer: () => Promise<{ pulledNew: number; updated: number; names: string[]; deduped?: number; error?: string }>;
@@ -478,6 +481,45 @@ function saveToStorage<T>(key: string, value: T): boolean {
   }
 }
 
+// Wave 59: per-company data partitioning. Every company (an owner + their
+// staff) gets an isolated storage namespace; Office7 keeps the pre-partition
+// pool (adopted once). The roster ('users') and session stay global.
+const OFFICE7_SCOPE = '__office7__';
+let ACTIVE_SCOPE: string | null = null;
+function scopeOf(u: User | null): string {
+  if (!u) return ACTIVE_SCOPE || OFFICE7_SCOPE;
+  if (u.isMasterSuperAdmin) return OFFICE7_SCOPE;
+  return (u.ownerAdminId || u.id || '').trim() || OFFICE7_SCOPE;
+}
+function bootScope(): string {
+  try { return scopeOf(loadCurrentUser()); } catch { return OFFICE7_SCOPE; }
+}
+function activeScope(): string {
+  if (!ACTIVE_SCOPE) ACTIVE_SCOPE = bootScope();
+  return ACTIVE_SCOPE;
+}
+function saveScoped<T>(key: string, value: T): boolean {
+  return saveToStorage(activeScope() + ':' + key, value);
+}
+function loadScoped<T>(key: string, fallback: T): T {
+  const sKey = activeScope() + ':' + key;
+  try {
+    const saved = localStorage.getItem(STORAGE_PREFIX + sKey);
+    if (saved) return JSON.parse(saved) as T;
+  } catch { /* fall through */ }
+  if (activeScope() === OFFICE7_SCOPE) {
+    try {
+      const legacy = localStorage.getItem(STORAGE_PREFIX + key);
+      if (legacy) {
+        const v = JSON.parse(legacy) as T;
+        try { localStorage.setItem(STORAGE_PREFIX + sKey, legacy); } catch { /* ignore */ }
+        return v;
+      }
+    } catch { /* fall through */ }
+  }
+  return fallback;
+}
+
 // Wave 38 remember-me: the session user lives in localStorage when "remember"
 // is checked, otherwise in sessionStorage (dies with the tab — nothing is
 // kept in the browser). All currentUser writes go through these helpers.
@@ -524,14 +566,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (TEST_MODE) return TEST_USER;
     return loadCurrentUser();
   });
-  const [projects, setProjects] = useState<Project[]>(() => loadFromStorage('projects', TEST_MODE ? [TEST_PROJECT] : (EMPTY_SEED ? [] : initialProjects)));
-  const [currentProjectId, setCurrentProjectIdState] = useState<string>(() => loadFromStorage('currentProjId', TEST_MODE ? TEST_PROJECT.id : (EMPTY_SEED ? '' : (initialProjects[0]?.id || ''))));
-  const [expenses, setExpenses] = useState<Expense[]>(() => loadFromStorage('expenses', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialExpenses)));
-  const [steelRecords, setSteelRecords] = useState<SteelRecord[]>(() => loadFromStorage('steel', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialSteelRecords)));
-  const [concreteRecords, setConcreteRecords] = useState<ConcreteRecord[]>(() => loadFromStorage('concrete', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialConcreteRecords)));
-  const [contractors, setContractors] = useState<Contractor[]>(() => loadFromStorage('contractors', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialContractors)));
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadFromStorage('suppliers', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialSuppliers)));
-  const [apartments, setApartments] = useState<ApartmentUnit[]>(() => loadFromStorage('apartments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialApartments)));
+  const [projects, setProjects] = useState<Project[]>(() => loadScoped('projects', TEST_MODE ? [TEST_PROJECT] : (EMPTY_SEED ? [] : initialProjects)));
+  const [currentProjectId, setCurrentProjectIdState] = useState<string>(() => loadScoped('currentProjId', TEST_MODE ? TEST_PROJECT.id : (EMPTY_SEED ? '' : (initialProjects[0]?.id || ''))));
+  const [expenses, setExpenses] = useState<Expense[]>(() => loadScoped('expenses', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialExpenses)));
+  const [steelRecords, setSteelRecords] = useState<SteelRecord[]>(() => loadScoped('steel', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialSteelRecords)));
+  const [concreteRecords, setConcreteRecords] = useState<ConcreteRecord[]>(() => loadScoped('concrete', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialConcreteRecords)));
+  const [contractors, setContractors] = useState<Contractor[]>(() => loadScoped('contractors', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialContractors)));
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadScoped('suppliers', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialSuppliers)));
+  const [apartments, setApartments] = useState<ApartmentUnit[]>(() => loadScoped('apartments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialApartments)));
   const initialLaborRecords: LaborRecord[] = [
     {
       id: 'lab-1',
@@ -675,15 +717,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   ];
 
-  const [assets, setAssets] = useState<FixedAsset[]>(() => loadFromStorage('assets', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialAssets)));
-  const [laborRecords, setLaborRecords] = useState<LaborRecord[]>(() => loadFromStorage('labor', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialLaborRecords)));
-  const [payments, setPayments] = useState<Payment[]>(() => loadFromStorage('payments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialPayments)));
-  const [documents, setDocuments] = useState<DocumentRecord[]>(() => loadFromStorage('documents', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialDocuments)));
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => loadFromStorage('auditLogs', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialAuditLogs)));
-  const [activityEvents, setActivityEvents] = useState<UserActivityEvent[]>(() => loadFromStorage('activityEvents', []));
+  const [assets, setAssets] = useState<FixedAsset[]>(() => loadScoped('assets', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialAssets)));
+  const [laborRecords, setLaborRecords] = useState<LaborRecord[]>(() => loadScoped('labor', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialLaborRecords)));
+  const [payments, setPayments] = useState<Payment[]>(() => loadScoped('payments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialPayments)));
+  const [documents, setDocuments] = useState<DocumentRecord[]>(() => loadScoped('documents', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialDocuments)));
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => loadScoped('auditLogs', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialAuditLogs)));
+  const [activityEvents, setActivityEvents] = useState<UserActivityEvent[]>(() => loadScoped('activityEvents', []));
   const [notifications, setNotifications] = useState<SystemReminderNotification[]>(() => loadFromStorage('notifications', []));
   const [customAccounts, setCustomAccountsState] = useState<Account[]>(() => {
-    const clean = sanitizeCustomAccounts(loadFromStorage('customAccounts', []));
+    const clean = sanitizeCustomAccounts(loadScoped('customAccounts', []));
     setRegistryAccounts(clean);
     return clean;
   });
@@ -719,11 +761,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       categories: { ...DEFAULT_NOTIFICATION_PREFS.categories, ...(loaded.categories || {}) },
     };
   });
-  const [projectPartners, setProjectPartners] = useState<ProjectPartner[]>(() => loadFromStorage('projectPartners', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectPartners)));
-  const [projectInvestments, setProjectInvestments] = useState<ProjectInvestment[]>(() => loadFromStorage('projectInvestments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectInvestments)));
-  const [partnerEquityTransfers, setPartnerEquityTransfers] = useState<PartnerEquityTransfer[]>(() => loadFromStorage('partnerEquityTransfers', []));
-  const [interProjectTransfers, setInterProjectTransfers] = useState<InterProjectTransfer[]>(() => loadFromStorage('interProjectTransfers', []));
-  const [projectBudgets, setProjectBudgets] = useState<ProjectBudget[]>(() => loadFromStorage('projectBudgets', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectBudgets)));
+  const [projectPartners, setProjectPartners] = useState<ProjectPartner[]>(() => loadScoped('projectPartners', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectPartners)));
+  const [projectInvestments, setProjectInvestments] = useState<ProjectInvestment[]>(() => loadScoped('projectInvestments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectInvestments)));
+  const [partnerEquityTransfers, setPartnerEquityTransfers] = useState<PartnerEquityTransfer[]>(() => loadScoped('partnerEquityTransfers', []));
+  const [interProjectTransfers, setInterProjectTransfers] = useState<InterProjectTransfer[]>(() => loadScoped('interProjectTransfers', []));
+  const [projectBudgets, setProjectBudgets] = useState<ProjectBudget[]>(() => loadScoped('projectBudgets', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectBudgets)));
 
   // Google Drive state (in-memory token cached in googleDriveAuth)
   const [isGoogleDriveConnected, setIsGoogleDriveConnected] = useState<boolean>(false);
@@ -774,32 +816,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [serverSync, setServerSync] = useState<{ status: 'unknown' | 'checking' | 'ok' | 'no-token' | 'outdated' | 'offline'; lastSyncAt: string | null; lastError: string | null; pendingCount: number }>({
     status: 'unknown', lastSyncAt: null, lastError: null, pendingCount: 0,
   });
+  const [syncReceipts, setSyncReceipts] = useState<Record<string, { status: 'synced' | 'pending' | 'failed'; error?: string; at: number }>>(() => loadFromStorage('syncReceipts', {}));
+  useEffect(() => { saveToStorage('syncReceipts', syncReceipts); }, [syncReceipts]);
   const clearAuthNotice = () => setAuthNotice(null);
 
   // Sync to local storage
   useEffect(() => { if (!saveToStorage('users', users)) { setStorageError('users'); } }, [users]);
-  useEffect(() => { if (!saveToStorage('projects', projects)) { setStorageError('projects'); } }, [projects]);
-  useEffect(() => { if (!saveToStorage('currentProjId', currentProjectId)) { setStorageError('currentProjId'); } }, [currentProjectId]);
-  useEffect(() => { if (!saveToStorage('expenses', expenses)) { setStorageError('expenses'); } }, [expenses]);
-  useEffect(() => { if (!saveToStorage('steel', steelRecords)) { setStorageError('steel'); } }, [steelRecords]);
-  useEffect(() => { if (!saveToStorage('concrete', concreteRecords)) { setStorageError('concrete'); } }, [concreteRecords]);
-  useEffect(() => { if (!saveToStorage('contractors', contractors)) { setStorageError('contractors'); } }, [contractors]);
-  useEffect(() => { if (!saveToStorage('suppliers', suppliers)) { setStorageError('suppliers'); } }, [suppliers]);
-  useEffect(() => { if (!saveToStorage('labor', laborRecords)) { setStorageError('labor'); } }, [laborRecords]);
-  useEffect(() => { if (!saveToStorage('assets', assets)) { setStorageError('assets'); } }, [assets]);
-  useEffect(() => { if (!saveToStorage('apartments', apartments)) { setStorageError('apartments'); } }, [apartments]);
-  useEffect(() => { if (!saveToStorage('payments', payments)) { setStorageError('payments'); } }, [payments]);
-  useEffect(() => { if (!saveToStorage('documents', documents)) { setStorageError('documents'); } }, [documents]);
-  useEffect(() => { if (!saveToStorage('auditLogs', auditLogs)) { setStorageError('auditLogs'); } }, [auditLogs]);
-  useEffect(() => { if (!saveToStorage('activityEvents', activityEvents.slice(-600))) { setStorageError('activityEvents'); } }, [activityEvents]);
+  useEffect(() => { if (!saveScoped('projects', projects)) { setStorageError('projects'); } }, [projects]);
+  useEffect(() => { if (!saveScoped('currentProjId', currentProjectId)) { setStorageError('currentProjId'); } }, [currentProjectId]);
+  useEffect(() => { if (!saveScoped('expenses', expenses)) { setStorageError('expenses'); } }, [expenses]);
+  useEffect(() => { if (!saveScoped('steel', steelRecords)) { setStorageError('steel'); } }, [steelRecords]);
+  useEffect(() => { if (!saveScoped('concrete', concreteRecords)) { setStorageError('concrete'); } }, [concreteRecords]);
+  useEffect(() => { if (!saveScoped('contractors', contractors)) { setStorageError('contractors'); } }, [contractors]);
+  useEffect(() => { if (!saveScoped('suppliers', suppliers)) { setStorageError('suppliers'); } }, [suppliers]);
+  useEffect(() => { if (!saveScoped('labor', laborRecords)) { setStorageError('labor'); } }, [laborRecords]);
+  useEffect(() => { if (!saveScoped('assets', assets)) { setStorageError('assets'); } }, [assets]);
+  useEffect(() => { if (!saveScoped('apartments', apartments)) { setStorageError('apartments'); } }, [apartments]);
+  useEffect(() => { if (!saveScoped('payments', payments)) { setStorageError('payments'); } }, [payments]);
+  useEffect(() => { if (!saveScoped('documents', documents)) { setStorageError('documents'); } }, [documents]);
+  useEffect(() => { if (!saveScoped('auditLogs', auditLogs)) { setStorageError('auditLogs'); } }, [auditLogs]);
+  useEffect(() => { if (!saveScoped('activityEvents', activityEvents.slice(-600))) { setStorageError('activityEvents'); } }, [activityEvents]);
   useEffect(() => { if (!saveToStorage('notifications', notifications.slice(-150))) { setStorageError('notifications'); } }, [notifications]);
   useEffect(() => { if (!saveToStorage('notificationPrefs', notificationPrefs)) { setStorageError('notificationPrefs'); } }, [notificationPrefs]);
-  useEffect(() => { if (!saveToStorage('customAccounts', customAccounts)) { setStorageError('customAccounts'); } }, [customAccounts]);
-  useEffect(() => { if (!saveToStorage('projectPartners', projectPartners)) { setStorageError('projectPartners'); } }, [projectPartners]);
-  useEffect(() => { if (!saveToStorage('projectInvestments', projectInvestments)) { setStorageError('projectInvestments'); } }, [projectInvestments]);
-  useEffect(() => { if (!saveToStorage('partnerEquityTransfers', partnerEquityTransfers)) { setStorageError('partnerEquityTransfers'); } }, [partnerEquityTransfers]);
-  useEffect(() => { if (!saveToStorage('interProjectTransfers', interProjectTransfers)) { setStorageError('interProjectTransfers'); } }, [interProjectTransfers]);
-  useEffect(() => { if (!saveToStorage('projectBudgets', projectBudgets)) { setStorageError('projectBudgets'); } }, [projectBudgets]);
+  useEffect(() => { if (!saveScoped('customAccounts', customAccounts)) { setStorageError('customAccounts'); } }, [customAccounts]);
+  useEffect(() => { if (!saveScoped('projectPartners', projectPartners)) { setStorageError('projectPartners'); } }, [projectPartners]);
+  useEffect(() => { if (!saveScoped('projectInvestments', projectInvestments)) { setStorageError('projectInvestments'); } }, [projectInvestments]);
+  useEffect(() => { if (!saveScoped('partnerEquityTransfers', partnerEquityTransfers)) { setStorageError('partnerEquityTransfers'); } }, [partnerEquityTransfers]);
+  useEffect(() => { if (!saveScoped('interProjectTransfers', interProjectTransfers)) { setStorageError('interProjectTransfers'); } }, [interProjectTransfers]);
+  useEffect(() => { if (!saveScoped('projectBudgets', projectBudgets)) { setStorageError('projectBudgets'); } }, [projectBudgets]);
 
   const isCurrentTimeDay = (): boolean => {
     const hour = new Date().getHours();
@@ -1378,22 +1422,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // the record syncs back after its first login on this device.
     if (!u.password || !(u.password as string).trim()) return;
     const payload = serializeUserForSync(u);
+    // Wave 60: every push leaves a per-user receipt (synced/pending/failed).
+    const markReceipt = (status: 'synced' | 'pending' | 'failed', error?: string) => {
+      setSyncReceipts(prev => ({ ...prev, [u.id]: { status, error, at: Date.now() } }));
+    };
     if (!backendApi.getToken()) {
       backendApi.queueUserSync('sync_user', { user: payload }).catch(() => {});
+      markReceipt('pending');
       setServerSync(prev => ({ ...prev, status: 'no-token', pendingCount: prev.pendingCount + 1 }));
       return;
     }
+    markReceipt('pending');
     try {
       backendApi.syncUser(payload).then((res) => {
         if (res.success && !res.queued) {
+          markReceipt('synced');
           setServerSync(prev => ({ ...prev, status: 'ok', lastSyncAt: new Date().toISOString(), lastError: null }));
         } else if (res.queued || res.offline) {
+          markReceipt('pending');
           setServerSync(prev => ({ ...prev, pendingCount: prev.pendingCount + 1 }));
         } else {
+          markReceipt('failed', res.error || 'sync-failed');
           setServerSync(prev => ({ ...prev, lastError: res.error || 'sync-failed' }));
         }
-      }).catch(() => {});
-    } catch { /* offline queue / network — replays automatically */ }
+      }).catch(() => { markReceipt('pending'); });
+    } catch { markReceipt('pending'); /* offline queue / network — replays automatically */ }
+  };
+
+  // Wave 60: rejected/pending pushes are retried automatically (and manually
+  // per row). Cooling window keeps a poison payload from hammering the host.
+  const retryFailedPushes = () => {
+    if (TEST_MODE) return;
+    if (!backendApi.getToken()) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    const now = Date.now();
+    for (const u of users) {
+      const r = syncReceipts[u.id];
+      if (r?.status === 'synced') continue;
+      if (r && now - (r.at || 0) < 2 * 60 * 1000) continue;
+      if (!u.password || !(u.password as string).trim()) continue;
+      pushUserToServer(u);
+    }
+  };
+  const retryUserPush = (id: string) => {
+    const u = users.find(x => x.id === id);
+    if (u) pushUserToServer(u);
   };
 
   const deleteUserOnServer = (id: string, username: string): void => {
@@ -1501,6 +1574,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           summary.pulledNew += 1;
         }
       }
+      // Wave 60: the server HAS these rows — strongest delivery proof, heals stale badges.
+      if (summary.names.length > 0) {
+        const have = new Set(summary.names);
+        setSyncReceipts(prev => {
+          const nextR = { ...prev };
+          for (const u of next) {
+            if (have.has((u.username || '').trim().toLowerCase())) {
+              nextR[u.id] = { status: 'synced', at: Date.now() };
+            }
+          }
+          return nextR;
+        });
+      }
       setUsers(next);
     } catch { summary.error = 'network'; }
     return summary;
@@ -1588,6 +1674,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // to once per 2 minutes, visible tab + live token only, never blocks).
   const bgSyncPullRef = useRef(pullUsersFromServer);
   bgSyncPullRef.current = pullUsersFromServer;
+  const bgSyncRetryRef = useRef(retryFailedPushes);
+  bgSyncRetryRef.current = retryFailedPushes;
   useEffect(() => {
     if (TEST_MODE) return undefined;
     let last = 0;
@@ -1599,13 +1687,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
         if (!backendApi.getToken()) return;
         last = now;
-        backendApi.syncOfflineQueue().catch(() => {}).finally(() => { bgSyncPullRef.current().catch(() => {}); });
+        backendApi.syncOfflineQueue().catch(() => {}).finally(() => { bgSyncRetryRef.current(); bgSyncPullRef.current().catch(() => {}); });
       } catch { /* ignore */ }
     };
     const id = window.setInterval(bgSync, 5 * 60 * 1000);
     window.addEventListener('focus', bgSync);
     return () => { window.clearInterval(id); window.removeEventListener('focus', bgSync); };
   }, []);
+
+  // Wave 59: identity switch — point the storage namespace at the new user's
+  // company and reload every partitioned dataset. Called synchronously with
+  // setCurrentUser so persist-effects always write new data to the new scope.
+  // (Users roster + session + device settings stay global.)
+  const switchCompanyScope = (u: User | null) => {
+    ACTIVE_SCOPE = scopeOf(u);
+    if (!u) return;
+    setProjects(loadScoped('projects', TEST_MODE ? [TEST_PROJECT] : (EMPTY_SEED ? [] : initialProjects)));
+    setCurrentProjectIdState(loadScoped('currentProjId', TEST_MODE ? TEST_PROJECT.id : (EMPTY_SEED ? '' : (initialProjects[0]?.id || ''))));
+    setExpenses(loadScoped('expenses', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialExpenses)));
+    setSteelRecords(loadScoped('steel', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialSteelRecords)));
+    setConcreteRecords(loadScoped('concrete', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialConcreteRecords)));
+    setContractors(loadScoped('contractors', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialContractors)));
+    setSuppliers(loadScoped('suppliers', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialSuppliers)));
+    setApartments(loadScoped('apartments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialApartments)));
+    setAssets(loadScoped('assets', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialAssets)));
+    setLaborRecords(loadScoped('labor', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialLaborRecords)));
+    setPayments(loadScoped('payments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialPayments)));
+    setDocuments(loadScoped('documents', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialDocuments)));
+    setAuditLogs(loadScoped('auditLogs', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialAuditLogs)));
+    setActivityEvents(loadScoped('activityEvents', []));
+    setProjectPartners(loadScoped('projectPartners', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectPartners)));
+    setProjectInvestments(loadScoped('projectInvestments', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectInvestments)));
+    setPartnerEquityTransfers(loadScoped('partnerEquityTransfers', []));
+    setInterProjectTransfers(loadScoped('interProjectTransfers', []));
+    setProjectBudgets(loadScoped('projectBudgets', TEST_MODE ? [] : (EMPTY_SEED ? [] : initialProjectBudgets)));
+    setCustomAccountsState(sanitizeCustomAccounts(loadScoped('customAccounts', [])));
+  };
 
   const login = async (
     usernameOrEmail: string,
@@ -1715,6 +1832,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const updatedUser = { ...found, lastLoginAt: new Date().toISOString() };
     setUsers(prev => prev.map(u => u.id === found.id ? updatedUser : u));
+    switchCompanyScope(updatedUser);
     setCurrentUser(updatedUser);
     saveCurrentUser(updatedUser, remember);
     recordActivity(updatedUser, 'login');
@@ -1978,6 +2096,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       lastLoginAt: new Date().toISOString(),
     };
     setUsers(prev => prev.map(u => u.id === user.id ? verifiedUser : u));
+    switchCompanyScope(verifiedUser);
     setCurrentUser(verifiedUser);
     saveCurrentUser( verifiedUser);
     logAudit('update', 'user', user.id, `User ${user.name} verified account`, 'Account OTP verified and activated');
@@ -2114,6 +2233,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setUsers([master]);
+    switchCompanyScope(master);
     setCurrentUser(master);
     saveToStorage('users', [master]);
     saveCurrentUser( master);
@@ -2368,6 +2488,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const impersonateTenant = (user: User) => {
+    switchCompanyScope(user);
     setCurrentUser(user);
     saveCurrentUser( user);
     setAppSettings(prev => ({
@@ -2426,7 +2547,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (currentProjectId && !ids.has(currentProjectId)) {
       const first = projects.find(p => ids.has(p.id));
       setCurrentProjectIdState(first ? first.id : '');
-      saveToStorage('currentProjId', first ? first.id : '');
+      saveScoped('currentProjId', first ? first.id : '');
     }
   }, [currentUser, projects, currentProjectId]);
 
@@ -4412,7 +4533,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearAuditLogs = () => {
     if (!guard('audit_logs', 'del')) return;
     setAuditLogs([]);
-    saveToStorage('auditLogs', []);
+    saveScoped('auditLogs', []);
   };
 
   const exportBackupJSON = exportJsonBackup;
@@ -4813,6 +4934,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clearStorageError,
       authNotice,
       serverSync,
+      syncReceipts,
+      retryUserPush,
       refreshServerSyncStatus,
       syncAllUsersToServer,
       pullUsersFromServer,

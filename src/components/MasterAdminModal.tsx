@@ -150,6 +150,8 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
     aiUsageTick,
     impersonateTenant,
     addUser,
+    syncReceipts,
+    retryUserPush,
     activityEvents,
     logout,
     t,
@@ -875,6 +877,22 @@ export const MasterAdminModal: React.FC<MasterAdminModalProps> = ({ isOpen, onCl
               }`}>
                 {isEmployee ? (user.role === 'accountant' ? 'کارمند · محاسب' : user.role === 'viewer' ? 'کارمند · ناظر' : 'کارمند') : 'مالک کمپنی'}
               </span>
+              {/* Wave 60: server-delivery receipt (tap = retry now). */}
+              {(() => {
+                const r = syncReceipts[user.id];
+                const cls = r?.status === 'synced'
+                  ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                  : r?.status === 'failed'
+                    ? 'bg-rose-100 text-rose-700 border-rose-200'
+                    : 'bg-amber-100 text-amber-700 border-amber-200';
+                const label = r?.status === 'synced' ? 'در سرور ✓' : r?.status === 'failed' ? `ارسال نشد: ${r.error || ''}` : 'در حال ارسال…';
+                return (
+                  <button type="button" onClick={() => retryUserPush(user.id)} title="تلاش مجدد ارسال به سرور"
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls}`}>
+                    {label}
+                  </button>
+                );
+              })()}
 
               {isLocked ? (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
