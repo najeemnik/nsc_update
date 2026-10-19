@@ -142,9 +142,11 @@ if ($method === 'POST') {
         $hash = trim((string)($p['passwordHash'] ?? ''));
         $fid = trim((string)($p['id'] ?? ''));
         if ($username === '' || !preg_match('/^[a-z0-9._-]{3,80}$/i', $username)) {
+            logSyncReject($db, $me, $username, 'invalid-username');
             jsonResponse(false, null, 'نام کاربری نامعتبر است.', 400);
         }
         if ($hash === '' || substr($hash, 0, 7) !== 'sha256$' || strlen($hash) > 255) {
+            logSyncReject($db, $me, $username, 'invalid-hash');
             jsonResponse(false, null, 'Invalid password hash.', 400);
         }
         if ($email === '') $email = strtolower($username) . '@sync.local';
@@ -171,17 +173,21 @@ if ($method === 'POST') {
 
         $isSelf = $existing && (string)$existing['id'] === (string)$me['id'];
         if ($existing && (int)$existing['is_master'] === 1 && !$isSelf) {
+            logSyncReject($db, $me, $username, 'master-touch-denied');
             jsonResponse(false, null, 'حساب‌های مدیر ارشد قابل تغییر نیست.', 403);
         }
         if (!$existing && !empty($p['isMaster'])) {
+            logSyncReject($db, $me, $username, 'master-create-denied');
             jsonResponse(false, null, 'Master accounts are created only via installer bootstrap.', 403);
         }
         if (!$mePriv && !$isSelf) {
+            logSyncReject($db, $me, $username, 'privilege-denied');
             jsonResponse(false, null, 'عدم دسترسی.', 403);
         }
         if ($mePriv && !$meMaster && $existing && !$isSelf) {
             $ownerOf = (string)($existing['owner_admin_id'] ?? '');
             if ($ownerOf !== '' && $ownerOf !== (string)$me['id']) {
+                logSyncReject($db, $me, $username, 'owner-mismatch');
                 jsonResponse(false, null, 'این کاربر متعلق به شرکت شما نیست.', 403);
             }
         }
@@ -190,6 +196,7 @@ if ($method === 'POST') {
         $s->execute(['e' => $email]);
         $emailRow = $s->fetch();
         if ($emailRow && (!$existing || (string)$emailRow['id'] !== (string)$existing['id'])) {
+            logSyncReject($db, $me, $username, 'email-conflict');
             jsonResponse(false, null, 'این ایمیل قبلاً ثبت گردیده است.', 409);
         }
 

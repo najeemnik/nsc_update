@@ -254,3 +254,6 @@ UPDATE users SET password_hash = '<HASH_TAZE>' WHERE username IN ('office7', 'ad
 
 ### یو) موج ۵۵ — یک هویت برای هر یوزرنیم (نسخه ۱٫۰٫۱۴، فقط dist)
 - dist را overwrite کنید، هر دستگاه تازه‌سازی تا v1.0.14. با یک‌بار بازشدن/سینک، رکوردهای تکراری (دو office7 و...) خودکار یکی می‌شوند. مدیریت همه از پنل دفترهفت با office7.
+
+### یو) موج ۵۶ — ثبت دلیل رد push (پچ ۳ فایلی)
+- `api/db.php` + `api/auth.php` + `api/make-hash.php` را overwrite کنید. بعد در اپ یک‌بار سینک بزنید و صفحه roster را reload کنید — جدول «تلاش‌های اخیر» دقیقاً نشان می‌دهد pushها چرا رد می‌شوند.

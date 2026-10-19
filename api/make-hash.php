@@ -161,6 +161,21 @@ if ($mode === 'generate') {
                 . '<td>' . htmlspecialchars($r['created_at'] ?? '') . '</td></tr>';
         }
         $html .= '</table>';
+        // Wave 56: recent push/auth attempts — shows WHY pushes never land.
+        try {
+            $log = $db->query("SELECT created_at, user_name, action, module, record_id, details FROM system_audit_logs WHERE module IN ('user_sync', 'auth') AND action IN ('create', 'update', 'sync_rejected', 'auth_rejected', 'login') ORDER BY created_at DESC LIMIT 15")->fetchAll();
+            $html .= '<h3>Recent push/auth attempts / تلاش‌های اخیر (' . count($log) . ')</h3>';
+            if (count($log) === 0) {
+                $html .= '<p class="hint">No push or login attempts recorded yet — press «Sync all users» in the app, then reload this page.</p>';
+            } else {
+                $html .= '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-size:12px;direction:ltr">';
+                $html .= '<tr><th>time</th><th>who</th><th>action</th><th>target</th><th>details</th></tr>';
+                foreach ($log as $e) {
+                    $html .= '<tr><td>' . htmlspecialchars($e['created_at'] ?? '') . '</td><td>' . htmlspecialchars($e['user_name'] ?? '') . '</td><td><b>' . htmlspecialchars($e['action'] ?? '') . '</b></td><td>' . htmlspecialchars($e['record_id'] ?? '') . '</td><td>' . htmlspecialchars($e['details'] ?? '') . '</td></tr>';
+                }
+                $html .= '</table>';
+            }
+        } catch (Throwable $e2) { $html .= '<p class="hint">Activity log unavailable.</p>'; }
         $html .= '<p class="hint">If your owner is NOT in this list → it never reached the server: open the app on the laptop (v1.0.13+ pushes it automatically in seconds), or create it directly in part 6 below, then reload this page. If it IS here but login fails → run part 4 (simulator) with its username + password.</p>';
         $out = $html;
     } catch (Throwable $e) {

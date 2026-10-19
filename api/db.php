@@ -74,6 +74,9 @@ function generateUuid(): string {
  * دریافت توکن و احراز هویت کاربر
  */
 function authenticateUser(bool $requireMaster = false): array {
+    // Wave 56: connect first so every rejection below is logged (only attempts
+    // carrying a Bearer are logged — headerless bot probes stay out).
+    $db = Database::getConnection();
     $headers = getallheaders();
     $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
 
@@ -84,29 +87,43 @@ function authenticateUser(bool $requireMaster = false): array {
     $token = $matches[1];
     $payload = verifyToken($token);
     if (!$payload) {
+        logSyncReject($db, [], '', 'auth:invalid-or-expired-token');
         jsonResponse(false, null, 'توکن امنیتی نامعتبر یا منقضی شده است. لطفاً دوباره وارد شوید.', 401);
     }
-
-    $db = Database::getConnection();
     $stmt = $db->prepare("SELECT * FROM users WHERE id = :id AND is_locked = 0 LIMIT 1");
     $stmt->execute(['id' => $payload['user_id']]);
     $user = $stmt->fetch();
 
     if (!$user) {
+        logSyncReject($db, ['id' => (string)($payload['user_id'] ?? ''), 'name' => 'unknown'], '', 'auth:user-missing-or-locked');
         jsonResponse(false, null, 'حساب کاربری مسدود شده یا یافت نشد.', 403);
     }
 
     // ابطال نشست‌ها: توکن‌های صادرشده قبل از logout_all نامعتبرند
     $tokenVersion = (int)($payload['ver'] ?? 0);
     if ($tokenVersion !== (int)($user['token_version'] ?? 0)) {
+        logSyncReject($db, $user, '', 'auth:token-version-mismatch');
         jsonResponse(false, null, 'نشست امنیتی شما باطل شده است. لطفاً دوباره وارد شوید.', 401);
     }
 
     if ($requireMaster && (int)$user['is_master'] !== 1) {
+        logSyncReject($db, $user, '', 'auth:master-required');
         jsonResponse(false, null, 'دسترسی غیرمجاز: این عملیات مختص مدیریت ارشد (دفتر هفت) می‌باشد.', 403);
     }
 
     return $user;
+}
+
+/**
+ * Wave 56: rejection logger — sync/auth failures are recorded with their
+ * reason so the roster page can show WHY pushes never land. Never throws.
+ */
+function logSyncReject(PDO $db, array $me, string $username, string $reason): void {
+    try {
+        $module = (strpos($reason, 'auth:') === 0) ? 'auth' : 'user_sync';
+        $action = ($module === 'auth') ? 'auth_rejected' : 'sync_rejected';
+        logAudit($db, isset($me['id']) && $me['id'] !== '' ? (string)$me['id'] : null, (string)($me['name'] ?? 'unknown'), $action, $module, $username !== '' ? $username : null, $reason);
+    } catch (Throwable $e) { /* never break the API response */ }
 }
 
 /**

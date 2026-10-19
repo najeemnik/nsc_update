@@ -47,7 +47,8 @@
     "test:wave52": "esbuild scripts/verify-wave52.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave52.cjs --log-level=error && node node_modules/.cache/verify-wave52.cjs",
     "test:wave53": "esbuild scripts/verify-wave53.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave53.cjs --log-level=error && node node_modules/.cache/verify-wave53.cjs",
     "test:wave54": "esbuild scripts/verify-wave54.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave54.cjs --log-level=error && node node_modules/.cache/verify-wave54.cjs",
-    "test:wave55": "esbuild scripts/verify-wave55.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave55.cjs --log-level=error && node node_modules/.cache/verify-wave55.cjs"
+    "test:wave55": "esbuild scripts/verify-wave55.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave55.cjs --log-level=error && node node_modules/.cache/verify-wave55.cjs",
+    "test:wave56": "esbuild scripts/verify-wave56.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-wave56.cjs --log-level=error && node node_modules/.cache/verify-wave56.cjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
