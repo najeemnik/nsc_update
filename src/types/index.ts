@@ -1,0 +1,1121 @@
+export type Language = 'en' | 'fa' | 'ps';
+export type UserRole = 'admin' | 'accountant' | 'viewer';
+
+export type MorphismTheme = 
+  | 'glassmorphism' 
+  | 'neumorphism' 
+  | 'skeuomorphism' 
+  | 'squirclemorphism' 
+  | 'metalmorphism' 
+  | 'ar_morphism'
+  | 'cosmic_orange'
+  | 'blue_titanium'
+  | 'desert_titanium';
+
+export type AppTheme = MorphismTheme | 'slate' | 'navy' | 'emerald' | 'dark_gold';
+
+export interface ReportCustomization {
+  style: 'classic' | 'modern' | 'compact' | 'executive';
+  showLogo: boolean;
+  showSignatures: boolean;
+  signature1Title: string;
+  signature2Title: string;
+  signature3Title: string;
+  headerNote?: string;
+  footerNote?: string;
+  watermarkText?: string;
+  uploadedWordTemplateName?: string;
+  uploadedTemplateContent?: string;
+}
+
+export interface SectionProtectionSettings {
+  passwords: Record<string, string>;
+  enabled: Record<string, boolean>;
+}
+
+export interface GoogleDriveConfig {
+  connected: boolean;
+  userEmail?: string;
+  folderId?: string;
+  folderName?: string;
+  lastBackupDate?: string;
+  autoBackup?: boolean;
+}
+
+export interface AppSettings {
+  companyName: string;
+  companySubtitle: string;
+  logoUrl?: string;
+  receiptHeader?: string;
+  receiptFooter?: string;
+  receiptContact?: string;
+  theme: AppTheme;
+  darkMode?: boolean;
+  themeSchedule?: 'auto' | 'light' | 'dark';
+  uiScale?: 's' | 'm' | 'l'; // Wave 42: interface size (s=compact default)
+  reduceMotion?: boolean;
+  backgroundImageUrl?: string;
+  backgroundOpacity?: number;
+  customCategories?: string[];
+  geminiApiKey?: string;
+  aiEnabled?: boolean;
+  billDesign?: CustomBillDesign;
+  actionButtons?: CustomActionButton[];
+  reportCustomization?: ReportCustomization;
+  sectionProtection?: SectionProtectionSettings;
+  googleDrive?: GoogleDriveConfig;
+  exchangeRateUSDToAFN?: number;
+  defaultCurrency?: string;
+  enabledModules?: {
+    steel?: boolean;
+    concrete?: boolean;
+    expenses?: boolean;
+    contractors?: boolean;
+    suppliers?: boolean;
+    apartments?: boolean;
+    payments?: boolean;
+    budget?: boolean;
+    accounting?: boolean;
+    documents?: boolean;
+    reports?: boolean;
+    auditLogs?: boolean;
+    users?: boolean;
+    aiAssistant?: boolean;
+    googleDrive?: boolean;
+    income?: boolean;
+    materials?: boolean;
+    labor?: boolean;
+    treasury?: boolean;
+    pettyCash?: boolean;
+    assets?: boolean;
+    transfers?: boolean;
+    journal?: boolean;
+  };
+}
+
+export type SettlementMode = 'cash' | 'credit' | 'partial';
+
+/** Wave 19: the 7 separable access rights (per project × per section). */
+export type GrantAction = 'view' | 'create' | 'edit' | 'del' | 'approve' | 'print' | 'export';
+
+export interface SectionGrant {
+  view: boolean;
+  create: boolean;
+  edit: boolean;
+  del: boolean;
+  approve: boolean;
+  print: boolean;
+  export: boolean;
+}
+
+/** Access to one project ('*' = all current + future projects). */
+export interface ProjectGrant {
+  projectId: string;
+  sections: Partial<Record<string, Partial<SectionGrant>>>;
+}
+
+export interface UserPermissions {
+  allowedTabs?: string[];
+  canManageSales?: boolean;
+  canManageMaterials?: boolean;
+  canManageExpenses?: boolean;
+  canManageReports?: boolean;
+  canManageProjects?: boolean;
+  canManagePayments?: boolean;
+  canManageSettings?: boolean;
+  canManageTreasury?: boolean;
+  canManagePayroll?: boolean;
+  canManageAssets?: boolean;
+  canManageTransfers?: boolean;
+  canManageJournal?: boolean;
+  aiEnabled?: boolean;
+  allowedModules?: string[];
+}
+
+export interface CustomActionButton {
+  id: string;
+  label: string;
+  /** Dari/Persian label (falls back to `label` when absent) */
+  labelFa?: string;
+  /** English label (falls back to `label` when absent) */
+  labelEn?: string;
+  /** Pashto label (falls back to `labelFa`, then `label`) */
+  labelPs?: string;
+  /** Action key alias — falls back to `id` when absent */
+  actionKey?: string;
+  enabled: boolean;
+  /** Editor visibility flag — kept in sync with `enabled` */
+  isEnabled?: boolean;
+  color: 'blue' | 'emerald' | 'amber' | 'rose' | 'purple' | 'slate' | 'indigo' | 'orange' | 'primary' | 'success' | 'danger' | 'warning' | 'info';
+  shape: 'pill' | 'rounded-xl' | 'rounded-md' | 'rounded' | 'square';
+  order: number;
+}
+
+export const DEFAULT_ACTION_BUTTONS: CustomActionButton[] = [
+  { id: 'addExpense', label: 'ثبت مصارف', labelFa: 'ثبت مصارف', labelEn: 'Record Expense', labelPs: 'مصرف ثبتول', actionKey: 'addExpense', enabled: true, isEnabled: true, color: 'blue', shape: 'rounded-xl', order: 1 },
+  { id: 'addPayment', label: 'پرداخت وجه', labelFa: 'پرداخت وجه', labelEn: 'Make Payment', labelPs: 'تادیه کول', actionKey: 'addPayment', enabled: true, isEnabled: true, color: 'emerald', shape: 'rounded-xl', order: 2 },
+  { id: 'addIncome', label: 'دریافت عواید', labelFa: 'دریافت عواید', labelEn: 'Receive Income', labelPs: 'عواید ترلاسه کول', actionKey: 'addIncome', enabled: true, isEnabled: true, color: 'emerald', shape: 'rounded-xl', order: 3 },
+  { id: 'addMaterial', label: 'خرید مصالح', labelFa: 'خرید مصالح', labelEn: 'Buy Materials', labelPs: 'مصالح اخیستل', actionKey: 'addMaterial', enabled: true, isEnabled: true, color: 'amber', shape: 'rounded-xl', order: 4 },
+  { id: 'addLabor', label: 'معاشات کارگران', labelFa: 'معاشات کارگران', labelEn: 'Labor Wages', labelPs: 'مزدونه ورکول', actionKey: 'addLabor', enabled: true, isEnabled: true, color: 'purple', shape: 'rounded-xl', order: 5 },
+  { id: 'addSteel', label: 'سیخ‌گول', labelFa: 'سیخ‌گول', labelEn: 'Rebar Steel', labelPs: 'سیخ ګول', actionKey: 'addSteel', enabled: true, isEnabled: true, color: 'amber', shape: 'rounded-xl', order: 6 },
+  { id: 'addConcrete', label: 'کانکریت', labelFa: 'کانکریت', labelEn: 'Concrete', labelPs: 'کانکریټ', actionKey: 'addConcrete', enabled: true, isEnabled: true, color: 'blue', shape: 'rounded-xl', order: 7 },
+  { id: 'addApartment', label: 'فروش پلاک', labelFa: 'فروش پلاک', labelEn: 'Sell Unit', labelPs: 'پلاک پلورل', actionKey: 'addApartment', enabled: true, isEnabled: true, color: 'indigo', shape: 'rounded-xl', order: 8 },
+  { id: 'addContractor', label: 'قراردادی جدید', labelFa: 'قراردادی جدید', labelEn: 'New Contractor', labelPs: 'نوی قراردادي', actionKey: 'addContractor', enabled: true, isEnabled: true, color: 'orange', shape: 'rounded-xl', order: 9 },
+  { id: 'addTransfer', label: 'حواله پروژه‌ای', labelFa: 'حواله پروژه‌ای', labelEn: 'Project Transfer', labelPs: 'د پروژې حواله', actionKey: 'addTransfer', enabled: true, isEnabled: true, color: 'purple', shape: 'rounded-xl', order: 10 },
+  { id: 'addPettyCash', label: 'تنخواه کارگاه', labelFa: 'تنخواه کارگاه', labelEn: 'Petty Cash', labelPs: 'پرچون نغدې', actionKey: 'addPettyCash', enabled: true, isEnabled: true, color: 'slate', shape: 'rounded-xl', order: 11 },
+  { id: 'addAsset', label: 'ثبت ماشین‌آلات', labelFa: 'ثبت ماشین‌آلات', labelEn: 'Record Machinery', labelPs: 'ماشینونه ثبتول', actionKey: 'addAsset', enabled: true, isEnabled: true, color: 'amber', shape: 'rounded-xl', order: 12 },
+];
+
+export type DocSectionId =
+  | 'bank'
+  | 'notes'
+  | 'terms'
+  | 'signatures'
+  | 'stamp'
+  | 'qr'
+  | 'footer';
+
+export interface CustomBillDesign {
+  receiptTitle?: string;
+  receiptHeader?: string;
+  receiptSubheader?: string;
+  receiptSubtitle?: string;
+  receiptFooter?: string;
+  receiptContact?: string;
+  taxNumber?: string;
+  companyAddress?: string;
+  companyPhone?: string;
+  companyEmail?: string;
+  logoPosition?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  borderStyle?: string;
+  termsAndConditions?: string;
+  /** Wave 19: bank details printed on bills/receipts. */
+  bankDetails?: string;
+  customNote?: string;
+  watermarkText?: string;
+  themeColor?: string;
+  showStampArea?: boolean;
+  showStampSignature?: boolean;
+  showWatermark?: boolean;
+  showQrCode?: boolean;
+  showWithholdingTax?: boolean;
+  showRetention?: boolean;
+  showRetentionBox?: boolean;
+  paperSize?: 'A4' | 'A5' | 'thermal';
+  customNotesHtml?: string;
+  /** Wave 27: printable font stack key (see docDesign FONT_OPTIONS). */
+  fontFamily?: string;
+  /** Wave 27: base font scale 0.85..1.3 (default 1). */
+  fontScale?: number;
+  /** Wave 27: page margin in mm, 4..25 (default 12). */
+  marginMm?: number;
+  /** Wave 27: logo height in px, 28..96 (default 56). */
+  logoSize?: number;
+  /** Wave 27: order of optional sections below totals. */
+  sectionOrder?: DocSectionId[];
+}
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  password?: string;
+  /** Wave 40: original salt of the password hash (survives username changes). */
+  hashSalt?: string;
+  name: string;
+  phone?: string;
+  companyName?: string;
+  companyAddress?: string;
+  role: UserRole;
+  isMasterSuperAdmin?: boolean;
+  ownerAdminId?: string;
+  active: boolean;
+  verified?: boolean;
+  otpCode?: string;
+  otpIssuedAt?: string;
+  subscriptionPlan?: 'trial' | '6_months' | '1_year' | 'lifetime';
+  subscriptionExpiresAt?: string;
+  isLockedBySuperAdmin?: boolean;
+  permissions?: UserPermissions;
+  /** Wave 19: explicit per-project × per-section grants (owner-managed). */
+  projectGrants?: ProjectGrant[];
+  /** Wave 19: optional access expiry (ISO date); past date = access denied. */
+  accessExpiresAt?: string;
+  customTheme?: AppTheme;
+  customBackgroundUrl?: string;
+  customLogoUrl?: string;
+  customBillDesign?: CustomBillDesign;
+  customButtonConfig?: CustomActionButton[];
+  customEnabledModules?: {
+    steel?: boolean;
+    concrete?: boolean;
+    expenses?: boolean;
+    contractors?: boolean;
+    suppliers?: boolean;
+    apartments?: boolean;
+    payments?: boolean;
+    budget?: boolean;
+    accounting?: boolean;
+    documents?: boolean;
+    reports?: boolean;
+    auditLogs?: boolean;
+    users?: boolean;
+    income?: boolean;
+    materials?: boolean;
+    labor?: boolean;
+    treasury?: boolean;
+    pettyCash?: boolean;
+    assets?: boolean;
+    transfers?: boolean;
+    journal?: boolean;
+  };
+  createdAt: string;
+  lastLoginAt?: string;
+  isActive?: boolean;
+  allowedTabs?: string[];
+}
+
+export type ProjectStatus = 'planning' | 'in_construction' | 'finishing' | 'completed';
+
+export interface GeneralExpenseItem {
+  id: string;
+  title: string;
+  amount: number;
+  currency: 'USD' | 'AFN';
+  exchangeRate?: number;
+  equivalentAmount?: number;
+  notes?: string;
+}
+
+export interface ProjectPartner {
+  id: string;
+  projectId: string;
+  name: string;
+  phone?: string;
+  nationalId?: string;
+  sharePercentage?: number;
+  initialInvestment?: number;
+  currency: 'USD' | 'AFN' | string;
+  investmentDate?: string;
+  notes?: string;
+  status?: 'active' | 'exited' | 'transferred';
+  exitDate?: string;
+  exitReason?: string;
+  transferredToPartnerId?: string;
+  transferredToPartnerName?: string;
+  transferPrice?: number;
+  transferCurrency?: 'USD' | 'AFN' | string;
+  createdAt: string;
+}
+
+export interface PartnerEquityTransfer {
+  id: string;
+  projectId: string;
+  fromPartnerId: string;
+  fromPartnerName: string;
+  toPartnerId?: string;
+  toPartnerName: string;
+  transferredPercentage: number;
+  transferPrice: number;
+  currency: 'USD' | 'AFN' | string;
+  transferDate: string;
+  transferType: 'partner_to_partner' | 'new_partner' | 'company_buyout';
+  deedNumber?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface ProjectInvestment {
+  id: string;
+  projectId: string;
+  partnerId: string;
+  partnerName: string;
+  amount: number;
+  currency: 'USD' | 'AFN' | string;
+  exchangeRate?: number;
+  date: string;
+  type: 'initial' | 'additional';
+  paymentMethod?: string;
+  receiptNumber?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+/** Wave 21: local inter-project money/material ledger with approval workflow. */
+export interface InterProjectTransfer {
+  id: string;
+  fromProjectId: string;
+  toProjectId: string;
+  kind: 'funds' | 'materials' | 'equipment';
+  amount: number;
+  currency: 'USD' | 'AFN' | string;
+  materialDetail?: string;
+  fromAccount?: string;
+  toAccount?: string;
+  date: string;
+  reason?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedBy?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  attachments?: AttachmentRef[];
+  createdAt: string;
+}
+
+export interface ProjectTransferEvent {
+  id: string;
+  projectId: string;
+  previousOwner: string;
+  newOwner: string;
+  transferDate: string;
+  projectStage: string;
+  transferValue: number;
+  amountPaid: number;
+  remainingAmount: number;
+  currency: 'USD' | 'AFN' | string;
+  contractDocumentUrl?: string;
+  contractDocumentName?: string;
+  receiptDocumentUrl?: string;
+  receiptDocumentName?: string;
+  notes?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  code: string;
+  address: string;
+  city: string;
+  clientOwner?: string;
+  initialOwner?: string;
+  currentOwner?: string;
+  landInfo: string;
+  landAreaM2?: number;
+  deedNumber?: string;
+  floors: number;
+  units: number;
+  buildingArea: number;
+  totalArea?: number;
+  startDate?: string;
+  expectedCompletionDate?: string;
+  status: ProjectStatus;
+  description: string;
+  projectImage?: string;
+  currency: string;
+  defaultExchangeRate?: number;
+  initialGeneralExpenses?: GeneralExpenseItem[];
+  companyName?: string;
+  userId?: string;
+  budget?: number;
+  partners?: ProjectPartner[];
+  investments?: ProjectInvestment[];
+  transferHistory?: ProjectTransferEvent[];
+  floorsCount?: number;
+  unitsCount?: number;
+  /** Wave 29: per-project wallpaper (data: image or same-origin path). */
+  backgroundImageUrl?: string;
+  /** Wave 29: cover | contain | repeat | stretch. */
+  backgroundSize?: string;
+  /** Wave 29: CSS position key, e.g. 'center', 'top left'. */
+  backgroundPosition?: string;
+  /** Wave 29: wallpaper opacity 5..60 (%). */
+  backgroundOpacity?: number;
+  /** Wave 29: backdrop blur 0..12 (px). */
+  backgroundBlur?: number;
+  createdAt: string;
+}
+
+/** Wave 23: document lifecycle — draft (not booked) → approved (booked, editable) → posted (booked, locked). */
+export type DocStatus = 'draft' | 'approved' | 'posted';
+
+export type PaymentStatus = 'paid' | 'partial' | 'unpaid';
+
+/**
+ * Wave 25: stored file attachment (bill scan, photo, PDF).
+ * Kept inside the owning record so it travels with export/backup/offline queue.
+ * `data` is a data: URL (image/* or application/pdf only — see scanEngine).
+ */
+export interface StoredAttachment {
+  id: string;
+  name: string;
+  kind: 'scan' | 'photo' | 'pdf' | 'file';
+  mime: string;
+  size: number;
+  data: string;
+  pageCount?: number;
+  width?: number;
+  height?: number;
+  uploadedAt: string;
+  uploadedBy?: string;
+  note?: string;
+}
+
+/** Legacy records carry raw data: URL strings; new ones carry objects. */
+export type AttachmentRef = string | StoredAttachment;
+
+export interface Expense {
+  id: string;
+  projectId: string;
+  category: string;
+  description: string;
+  item?: string;
+  quantity?: number;
+  unit?: string;
+  unitPrice?: number;
+  convertedQuantity?: number;
+  convertedUnit?: string;
+  date: string;
+  time?: string;
+  amount: number;
+  currency: string;
+  exchangeRate?: number;
+  amountInUSD?: number;
+  amountInAFN?: number;
+  partyType?: 'supplier' | 'contractor' | 'labour' | 'other';
+  partyId?: string;
+  partyName?: string;
+  paymentStatus?: PaymentStatus;
+  /** Wave 19: owner approval workflow. undefined = legacy (counts normally). */
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
+  approvedBy?: string;
+  approvedAt?: string;
+  /** Wave 23: lifecycle state. undefined = legacy (treated as approved). */
+  docStatus?: DocStatus;
+  postedBy?: string;
+  postedAt?: string;
+  /** Reversal chain: original keeps reversedBy, mirror keeps reversalOf. */
+  reversedBy?: string;
+  reversalOf?: string;
+  correctionNote?: string;
+  paymentMethod?: 'Cash' | 'Bank' | 'Hawala' | 'Personal' | string;
+  billNumber?: string;
+  paidAmount?: number;
+  remainingAmount?: number;
+  documentUrl?: string;
+  googleDriveFileId?: string;
+  googleDriveLink?: string;
+  notes?: string;
+  title?: string;
+  totalAmountUSD?: number;
+  totalAmountAFN?: number;
+  recipientName?: string;
+  recipientId?: string;
+  receiptUrl?: string;
+  attachments?: AttachmentRef[];
+  invoiceNumber?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface SteelRecord {
+  id: string;
+  projectId: string;
+  billNumber: string;
+  date: string;
+  time?: string;
+  supplierId?: string;
+  supplierName: string;
+  kg: number;
+  tons: number;
+  sizeMm?: string;
+  originCountry?: string;
+  pricePerTon: number;
+  totalAmount: number;
+  currency?: string;
+  exchangeRate?: number;
+  amountInUSD?: number;
+  amountInAFN?: number;
+  paidAmount: number;
+  remainingBalance: number;
+  vehicleNumber?: string;
+  scaleWeightKg?: number;
+  unloadingLocation?: string;
+  notes?: string;
+  documentUrl?: string;
+  googleDriveFileId?: string;
+  googleDriveLink?: string;
+  size?: string;
+  brand?: string;
+  invoiceNumber?: string;
+  totalKg?: number;
+  totalCostUSD?: number;
+  bundles?: number | string;
+  branches?: number | string;
+  attachments?: AttachmentRef[];
+  createdAt: string;
+}
+
+export interface ConcreteRecord {
+  id: string;
+  projectId: string;
+  billNumber: string;
+  date: string;
+  time?: string;
+  supplierId?: string;
+  supplierName: string;
+  concreteGrade: string;
+  elementPoured?: string;
+  quantityM3: number;
+  pricePerM3: number;
+  pumpCharge?: number;
+  totalAmount: number;
+  currency?: string;
+  exchangeRate?: number;
+  amountInUSD?: number;
+  amountInAFN?: number;
+  paidAmount: number;
+  remainingBalance: number;
+  slumpTestCm?: number;
+  labReportNumber?: string;
+  mixerCount?: number;
+  notes?: string;
+  documentUrl?: string;
+  googleDriveFileId?: string;
+  googleDriveLink?: string;
+  volumeM3?: number;
+  totalCostUSD?: number;
+  structurePart?: string;
+  invoiceNumber?: string;
+  pumpCost?: number;
+  attachments?: AttachmentRef[];
+  createdAt: string;
+}
+
+export interface Contractor {
+  id: string;
+  projectId: string;
+  name: string;
+  phone: string;
+  contractType: string;
+  currency?: 'USD' | 'AFN' | string;
+  contractAmount: number;
+  workDescription?: string;
+  totalPaid?: number;
+  remainingBalance?: number;
+  startDate?: string;
+  endDate?: string;
+  paymentTerms?: string;
+  retentionPercentage?: number;
+  status?: 'active' | 'completed' | 'suspended';
+  trade?: string;
+  notes?: string;
+  createdAt: string;
+  documentUrl?: string;
+}
+
+export interface Supplier {
+  id: string;
+  projectId: string;
+  name: string;
+  contact?: string;
+  phone: string;
+  currency?: 'USD' | 'AFN' | string;
+  materialsSupplied: string;
+  category?: string;
+  address?: string;
+  bankOrSarafiDetails?: string;
+  totalPurchases?: number;
+  totalPaid?: number;
+  remainingBalance?: number;
+  notes?: string;
+  createdAt: string;
+  documentUrl?: string;
+}
+
+export type UnitStatus = 'available' | 'reserved' | 'sold';
+export type ApartmentStatus = UnitStatus;
+export type UnitType = 'apartment' | 'penthouse' | 'shop' | 'office' | 'parking';
+
+export interface ApartmentUnit {
+  id: string;
+  projectId: string;
+  unitNumber: string;
+  floor: number;
+  buildingSection?: string;
+  unitType?: UnitType;
+  type?: string;
+  areaM2: number;
+  rooms?: number;
+  pricePerM2?: number;
+  totalPrice?: number;
+  salePrice?: number;
+  currency?: 'USD' | 'AFN' | string;
+  exchangeRate?: number;
+  salePriceInAFN?: number;
+  salePriceInUSD?: number;
+  status: UnitStatus;
+  buyerName?: string;
+  buyerPhone?: string;
+  buyerTazkira?: string;
+  buyerDetails?: string;
+  contractDate?: string;
+  saleDate?: string;
+  downPayment?: number;
+  downPaymentCurrency?: 'USD' | 'AFN' | string;
+  amountReceived?: number;
+  totalReceived?: number;
+  remainingBalance?: number;
+  payments?: any[];
+  installments?: InstallmentRecord[];
+  areaSqm?: number;
+  roomsCount?: number;
+  totalPriceUSD?: number;
+  downPaymentUSD?: number;
+  paidAmountUSD?: number;
+  notes?: string;
+  attachments?: AttachmentRef[];
+  createdAt: string;
+}
+
+export type InstallmentStatus = 'Pending' | 'Due' | 'Partially Paid' | 'Paid' | 'Overdue';
+
+export interface InstallmentPaymentRecord {
+  id: string;
+  paymentId?: string;
+  paymentNumber?: number;
+  amount: number;
+  currency: string;
+  date: string;
+  receiptNumber?: string;
+  notes?: string;
+  receivedBy?: string;
+}
+
+export interface InstallmentRecord {
+  id: string;
+  installmentNumber: number;
+  buyerName?: string;
+  buyerPhone?: string;
+  apartmentNumber?: string;
+  apartmentId?: string;
+  projectId?: string;
+  amount: number;
+  dueDate: string;
+  paidAmount: number;
+  remainingAmount: number;
+  currency?: string;
+  status: InstallmentStatus;
+  paymentHistory: InstallmentPaymentRecord[];
+  notes?: string;
+  // Backward compatibility fields
+  date?: string;
+  received?: boolean;
+  receivedDate?: string;
+}
+
+export type NotificationType = 
+  | 'installment_due_soon' 
+  | 'installment_overdue' 
+  | 'installment_paid'
+  | 'unpaid_purchase' 
+  | 'outstanding_debt' 
+  | 'missing_document' 
+  | 'project_inactivity'
+  | 'general_financial';
+
+export interface SystemReminderNotification {
+  id: string;
+  reminderKey: string; // Used for deduplication
+  projectId?: string;
+  projectName?: string;
+  apartmentId?: string;
+  apartmentNumber?: string;
+  installmentId?: string;
+  installmentNumber?: number;
+  expenseId?: string;
+  paymentId?: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  read: boolean;
+  dismissed: boolean;
+  priority: 1 | 2 | 3 | 4 | 5 | 6 | 7; // 1 = highest (overdue installments)
+  actionTab?: string;
+  actionPayload?: any;
+}
+
+export interface NotificationPrefs {
+  enabled: boolean;
+  categories: Record<NotificationType, boolean>;
+  quietStart: string; // HH:MM — toasts muted inside this window
+  quietEnd: string; // HH:MM
+  dueSoonDays: number;
+  inactivityDays: number;
+}
+
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  enabled: true,
+  categories: {
+    installment_overdue: true,
+    installment_due_soon: true,
+    installment_paid: true,
+    unpaid_purchase: true,
+    outstanding_debt: true,
+    missing_document: true,
+    project_inactivity: true,
+    general_financial: true,
+  },
+  quietStart: '22:00',
+  quietEnd: '07:00',
+  dueSoonDays: 7,
+  inactivityDays: 14,
+};
+
+export interface FixedAsset {
+  id: string;
+  assetTag: string;
+  name: string;
+  category: 'machinery' | 'vehicle' | 'equipment' | 'building' | 'it';
+  assignedProjectId?: string;
+  purchaseDate: string;
+  purchaseCost: number;
+  salvageValue: number;
+  usefulLifeYears: number;
+  monthlyDepreciation: number;
+  accumulatedDepreciation: number;
+  currentBookValue: number;
+  runningHours?: number;
+  hourlyOperatingRate?: number;
+  serialNumber?: string;
+  assignedPerson?: string;
+  status: 'active' | 'maintenance' | 'idle' | 'disposed';
+  notes?: string;
+  attachments?: AttachmentRef[];
+  createdAt?: string;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Accounting / Chart of Accounts / Journal                                  */
+/*                                                                           */
+/* Journal entries are DERIVED from operational records (expenses, steel,    */
+/* concrete, payments, apartment sales, partner investments) by the journal  */
+/* engine (`src/utils/journalEngine.ts`). They are a pure projection — never */
+/* edited directly, never out of sync with the underlying business data.     */
+/* ------------------------------------------------------------------------ */
+
+export type JournalSourceType =
+  | 'expense'
+  | 'steel'
+  | 'concrete'
+  | 'payment'
+  | 'apartment_sale'
+  | 'investment'
+  | 'adjustment';
+
+export interface JournalLine {
+  /** 4-digit account code from the Chart of Accounts */
+  accountCode: string;
+  /**
+   * Phase 3 (WIP): when a construction cost line is capitalized into 1500
+   * WIP, this field preserves the natural cost classification (e.g. '5100'
+   * Steel) so cost-detail reports stay possible alongside the functional
+   * WIP/COGS presentation.
+   */
+  costAccountCode?: string;
+  /** Amounts in the entry's original currency */
+  debit: number;
+  credit: number;
+  /** Normalized amounts (entry exchange rate) for cross-currency reporting */
+  debitUSD: number;
+  creditUSD: number;
+  debitAFN: number;
+  creditAFN: number;
+  memo?: string;
+}
+
+export interface JournalEntry {
+  /** Deterministic id: `je-{sourceType}-{sourceId}` (+ suffix when needed) */
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  time?: string;
+  projectId?: string;
+  description: string;
+  sourceType: JournalSourceType;
+  /** Id of the business record this entry was derived from */
+  sourceId: string;
+  currency: string;
+  exchangeRate: number;
+  lines: JournalLine[];
+  /** Sum of line debits/credits (normalized) — used for balance checks */
+  totalDebitUSD: number;
+  totalCreditUSD: number;
+}
+
+export interface AccountBalance {
+  accountCode: string;
+  nameEn: string;
+  nameFa: string;
+  namePs: string;
+  accountType: 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+  isHeader: boolean;
+  /** Total debits minus credits, in account-normal sign convention */
+  balanceUSD: number;
+  balanceAFN: number;
+  /** Net balance in USD (same normal-sign convention as balanceUSD) */
+  netUSD: number;
+  debitUSD: number;
+  creditUSD: number;
+  debitAFN: number;
+  creditAFN: number;
+  entryCount: number;
+}
+
+export interface TrialBalanceRow {
+  accountCode: string;
+  nameEn: string;
+  nameFa: string;
+  namePs: string;
+  debitUSD: number;
+  creditUSD: number;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Project Budget (per-project, per-account)                                 */
+/*                                                                           */
+/* One budget line per (projectId, accountCode). The accountCode links the   */
+/* budget directly into the Chart of Accounts — no parallel/duplicate        */
+/* category system. Actual spending is derived live from purchases           */
+/* (expenses / steel / concrete) via the same category→account mapping the   */
+/* journal engine uses, so Budget vs Actual can never disagree by mapping.   */
+/* ------------------------------------------------------------------------ */
+
+export interface ProjectBudget {
+  id: string;
+  projectId: string;
+  /** COA code: 4-digit trade main (e.g. '5950') or 6-digit leaf (e.g. '595008') */
+  accountCode: string;
+  /**
+   * Wave 16: user-defined line name. When set, this is an independent custom
+   * row under the trade (never upsert-merged); reports roll it into the main.
+   */
+  customLabel?: string;
+  amount: number;
+  currency: string;
+  exchangeRate?: number;
+  amountUSD?: number;
+  amountAFN?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+  createdBy?: string;
+}
+
+export type BudgetStatus = 'normal' | 'warning' | 'over' | 'unbudgeted';
+
+export interface BudgetLineReport {
+  accountCode: string;
+  nameEn: string;
+  nameFa: string;
+  namePs: string;
+  /** Whether an explicit budget exists for this account on this project */
+  hasBudget: boolean;
+  budgetUSD: number;
+  /** Committed cost = purchases recorded (accrual basis) */
+  committedUSD: number;
+  /** Portion of the committed cost actually settled in cash */
+  paidUSD: number;
+  payableUSD: number;
+  remainingUSD: number;
+  /** committed/budget*100 — null when no budget exists */
+  usagePct: number | null;
+  status: BudgetStatus;
+}
+
+export type Apartment = ApartmentUnit;
+
+export type PaymentMethod = 'Cash' | 'Bank Transfer' | 'Hawala / Sarafi' | 'Hawala / Sarrafi' | 'Cheque';
+export type PaymentRelatedType = 
+  | 'contractor' 
+  | 'supplier' 
+  | 'material_steel' 
+  | 'material_concrete' 
+  | 'expense' 
+  | 'steel' 
+  | 'concrete' 
+  | 'apartment_sale' 
+  | 'other';
+
+export interface Payment {
+  id: string;
+  projectId: string;
+  date: string;
+  time?: string;
+  amount: number;
+  currency: string;
+  exchangeRate?: number;
+  amountInUSD?: number;
+  amountInAFN?: number;
+  amountUSD?: number;
+  amountAFN?: number;
+  /** Wave 23: lifecycle state. undefined = legacy (treated as approved). */
+  docStatus?: DocStatus;
+  postedBy?: string;
+  postedAt?: string;
+  reversedBy?: string;
+  reversalOf?: string;
+  correctionNote?: string;
+  method: PaymentMethod;
+  paymentMethod?: string;
+  paymentType?: 'income' | 'expense';
+  relatedType: PaymentRelatedType;
+  relatedId?: string;
+  partyName: string;
+  recipientName?: string;
+  recipientId?: string;
+  /** Recipient classification (e.g. 'apartment_buyer') used by income reports */
+  recipientType?: string;
+  receiptNumber?: string;
+  referenceNumber?: string;
+  bankOrSarafiName?: string;
+  description: string;
+  notes?: string;
+  documentUrl?: string;
+  attachments?: AttachmentRef[];
+  createdAt: string;
+  createdBy: string;
+}
+
+export type DocumentCategory = 
+  | 'permits'
+  | 'drawings'
+  | 'lab_reports'
+  | 'contracts'
+  | 'invoices'
+  | 'sales_contracts'
+  | 'legal'
+  | 'bill'
+  | 'receipt'
+  | 'photo'
+  | 'backup'
+  | 'other'
+  | string;
+
+export interface DocumentRecord {
+  id: string;
+  projectId: string;
+  title: string;
+  category: DocumentCategory;
+  fileUrl: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: string;
+  relatedType?: string;
+  relatedId?: string;
+  amount?: number;
+  date: string;
+  googleDriveFileId?: string;
+  googleDriveLink?: string;
+  notes?: string;
+  /** Wave 28: composed (editor-made) document body, plain text with {{variables}}. */
+  content?: string;
+  /** Wave 28: 'file' = uploaded file (default), 'composed' = built in DocComposer. */
+  sourceType?: 'file' | 'composed';
+  createdAt: string;
+}
+
+export type DocumentAttachment = DocumentRecord;
+
+/** دفتر هفت usage telemetry: what each user touched and when */
+export interface UserActivityEvent {
+  id: string;
+  userId: string;
+  userName: string;
+  role: UserRole;
+  kind: 'login' | 'logout' | 'feature';
+  /** tab/section id for 'feature' kind */
+  feature?: string;
+  label?: string;
+  timestamp: string; // ISO
+}
+
+export interface AuditLog {
+  id: string;
+  projectId?: string;
+  projectName?: string;
+  userId?: string;
+  userName: string;
+  date?: string;
+  time?: string;
+  timestamp?: string;
+  action: 'create' | 'update' | 'delete' | 'login' | string;
+  entityType: 'expense' | 'steel' | 'concrete' | 'contractor' | 'supplier' | 'apartment' | 'payment' | 'project' | 'user' | string;
+  entityId?: string;
+  entityName?: string;
+  recordTitle: string;
+  previousValue?: any;
+  newValue?: any;
+  oldValue?: any;
+  details: string;
+}
+
+export interface ProjectFinancialSummary {
+  totalExpenses: number;
+  totalPayments: number;
+  totalOutstanding: number;
+  totalSales: number;
+  totalSalesReceived: number;
+  salesOutstanding: number;
+  netPosition: number;
+  steelTotal: number;
+  steelPaid: number;
+  steelRemaining: number;
+  concreteTotal: number;
+  concretePaid: number;
+  concreteRemaining: number;
+  contractorTotal: number;
+  contractorPaid: number;
+  contractorRemaining: number;
+  supplierTotal: number;
+  supplierPaid: number;
+  supplierRemaining: number;
+  expensesUSD?: number;
+  expensesAFN?: number;
+  paymentsUSD?: number;
+  paymentsAFN?: number;
+  outstandingUSD?: number;
+  outstandingAFN?: number;
+  salesUSD?: number;
+  salesAFN?: number;
+  salesReceivedUSD?: number;
+  salesReceivedAFN?: number;
+  salesOutstandingUSD?: number;
+  salesOutstandingAFN?: number;
+  netPositionUSD?: number;
+  netPositionAFN?: number;
+  steelUSD?: number;
+  steelAFN?: number;
+  concreteUSD?: number;
+  concreteAFN?: number;
+  contractorUSD?: number;
+  contractorAFN?: number;
+  supplierUSD?: number;
+  supplierAFN?: number;
+}
+
+export interface LaborRecord {
+  id: string;
+  projectId: string;
+  workerName: string;
+  role: string;
+  phone?: string;
+  workPeriod: string;
+  daysWorked: number;
+  dailyRate: number;
+  grossWage: number;
+  advanceDeduction: number;
+  netPayable: number;
+  paymentStatus: 'paid' | 'pending' | 'partial';
+  paidDate?: string;
+  approvedBy?: string;
+  notes?: string;
+  attachments?: AttachmentRef[];
+  createdAt?: string;
+}
+

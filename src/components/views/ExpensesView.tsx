@@ -1,0 +1,495 @@
+import React, { useState, useMemo } from 'react';
+import { useApp } from '../../context/AppContext';
+import { AttachmentClip } from '../docs/AttachmentClip';
+import { 
+  Receipt, 
+  Plus, 
+  Search, 
+  Filter, 
+  Download, 
+  Trash2, 
+  FileText, 
+  DollarSign, 
+  Calendar, 
+  Eye, 
+  Printer, 
+  CheckCircle2, 
+  Clock, 
+  AlertCircle,
+  Wallet,
+  Coins,
+  AlertTriangle,
+  Coffee,
+  Building2,
+  XCircle,
+  Lock,
+  LockOpen,
+  Undo2,
+  Package
+} from 'lucide-react';
+import { Expense } from '../../types';
+import { downloadCsv } from '../../utils/csvExport';
+import { expUSD, expAFN, isCountedDoc, docStateOf } from '../../utils/docFinance';
+import { ExpenseBillDoc, GoodsReceiptDoc } from '../docs/printDocs';
+
+interface ExpensesViewProps {
+  onOpenAddExpense: () => void;
+}
+
+export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) => {
+  const { 
+    currentProject, 
+    expenses, 
+    deleteExpense, 
+    updateExpense, 
+    formatCurrency, 
+    formatNumber, 
+    t,
+    tp,
+    language,
+    contractors,
+    suppliers,
+    can,
+    denyAccess,
+    printIfAllowed,
+    approveExpense,
+    rejectExpense,
+    postExpense,
+    unpostExpense,
+    reverseExpense,
+    tx,
+  } = useApp();
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [selectedDoc, setSelectedDoc] = useState<{ exp: Expense; kind: 'bill' | 'grn' } | null>(null);
+  const [activeViewMode, setActiveViewMode] = useState<'all' | 'petty_cash'>('all');
+
+  // Filter expenses for current project
+  const projectExpenses = useMemo(() => {
+    return expenses.filter(e => e.projectId === currentProject?.id);
+  }, [expenses, currentProject]);
+
+  // Petty cash specific expenses
+  const pettyCashExpenses = useMemo(() => {
+    return projectExpenses.filter(e => 
+      e.category === 'چای، نان و مهمان‌داری ساحه' || 
+      e.category === 'تنخواه‌گردان' || 
+      e.category === 'مصارف خرد ساحه' ||
+      e.category === 'Office' ||
+      e.category === 'Other' ||
+      (e.notes && e.notes.toLowerCase().includes('pcv')) ||
+      (e.invoiceNumber && e.invoiceNumber.toLowerCase().includes('pcv'))
+    );
+  }, [projectExpenses]);
+
+  // Imprest Fund Calculations (سقف تنخواه ۱۰۰ هزار افغانی کارگاه)
+  const imprestCapAFN = 100000;
+  const pettyCashSpentAFN = pettyCashExpenses.filter(isCountedDoc).reduce((sum, e) => sum + expAFN(e), 0);
+  const pettyCashBalanceAFN = Math.max(0, imprestCapAFN - (pettyCashSpentAFN % imprestCapAFN));
+  const isReplenishNeeded = pettyCashBalanceAFN < (imprestCapAFN * 0.25);
+
+  const filteredExpenses = useMemo(() => {
+    return projectExpenses.filter(e => {
+      const matchesSearch = 
+        (e.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (e.invoiceNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (e.notes || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (e.category || '').toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesCategory = categoryFilter === 'all' || e.category === categoryFilter;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [projectExpenses, searchTerm, categoryFilter]);
+
+  const bookedExpenses = filteredExpenses.filter(isCountedDoc);
+  const totalExpenseUSD = bookedExpenses.reduce((sum, e) => sum + expUSD(e), 0);
+  const totalExpenseAFN = bookedExpenses.reduce((sum, e) => sum + expAFN(e), 0);
+
+  const categories = Array.from(new Set(projectExpenses.map(e => e.category).filter(Boolean)));
+
+  const handleDelete = (id: string, title: string) => {
+    if (!can('expenses', 'del')) { denyAccess('expenses', 'del'); return; }
+    if (confirm(t('confirmDeleteExpense') || `Are you sure you want to delete "${title}"?`)) {
+      deleteExpense(id);
+    }
+  };
+
+  const handlePrint = () => {
+    printIfAllowed('expenses');
+  };
+
+  const canApprove = can('expenses', 'approve');
+
+  const handleExportCsv = () => {
+    if (!can('expenses', 'export')) { denyAccess('expenses', 'export'); return; }
+    downloadCsv(`expenses-${currentProject?.code || 'project'}-${new Date().toISOString().split('T')[0]}`, 
+      ['Date', 'Title', 'Category', 'Vendor', 'Qty', 'Unit', 'Amount', 'Currency', 'USD', 'Invoice', 'Status'],
+      filteredExpenses.map(e => [
+        e.date, e.title, e.category, e.recipientName || '',
+        e.quantity ?? '', e.unit || '', e.amount ?? '', e.currency || '',
+        Math.round(expUSD(e) * 100) / 100, e.invoiceNumber || '', e.approvalStatus || 'booked',
+      ]));
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-ink flex items-center gap-2.5">
+            <Receipt className="w-6 h-6 text-rose-600 dark:text-rose-400" />
+            <span>{t('constructionExpenses') || 'Expenses & Bills'}</span>
+          </h1>
+          <p className="text-xs text-ink-muted mt-1">
+            {currentProject?.name} • {t('totalExpenses')}: <strong>{formatCurrency(totalExpenseUSD, 'USD')}</strong>
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-semibold transition"
+          >
+            <Printer className="w-4 h-4" />
+            <span>{t('print') || 'Print'}</span>
+          </button>
+
+          <button
+            onClick={handleExportCsv}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold shadow-lg shadow-emerald-500/25 transition active:scale-95"
+          >
+            <Download className="w-4 h-4" />
+            <span>{t('exportCsv') || 'CSV'}</span>
+          </button>
+
+          <button
+            onClick={() => { if (can('expenses', 'create')) onOpenAddExpense(); else denyAccess('expenses', 'create'); }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold text-xs shadow-lg shadow-rose-500/25 transition active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{t('addExpense') || 'New Expense / Bill'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* View Mode Toggle: All Invoices vs Site Petty Cash */}
+      <div className="flex items-center gap-2 p-1.5 bg-surface-2 rounded-2xl w-fit text-xs font-bold border border-line">
+        <button
+          type="button"
+          onClick={() => setActiveViewMode('all')}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition ${
+            activeViewMode === 'all' 
+              ? 'bg-surface text-ink shadow-xs' 
+              : 'text-slate-500 hover:text-ink'
+          }`}
+        >
+          <Receipt className="w-4 h-4 text-rose-500" />
+          <span>{tp('All site bills & expenses', 'همه بل‌ها و مصارف کارگاه', 'د ساحې ټول بیلونه او لګښتونه')} ({projectExpenses.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveViewMode('petty_cash')}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition ${
+            activeViewMode === 'petty_cash' 
+              ? 'bg-surface text-ink shadow-xs' 
+              : 'text-slate-500 hover:text-ink'
+          }`}
+        >
+          <Wallet className="w-4 h-4 text-emerald-500" />
+          <span>{tp('Site imprest fund', 'صندوق تنخواه‌گردان کارگاه', 'د ساحې لنډمهاله صندوق')} ({pettyCashExpenses.length})</span>
+        </button>
+      </div>
+
+      {activeViewMode === 'petty_cash' ? (
+        /* PETTY CASH IMPREST VIEW */
+        <div className="space-y-6">
+          {/* Warning banner if cash in box is low */}
+          {isReplenishNeeded && (
+            <div className="p-4 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                <div>
+                  <h4 className="font-bold text-amber-800 dark:text-amber-300">
+                    {tp('Site imprest top-up needed', 'هشدار ضرورت شارژ مجدد تنخواه کارگاه', 'د ساحې صندوق بېرته ډکولو اړتیا')}
+                  </h4>
+                  <p className="text-[11px] text-amber-700/80 dark:text-amber-400 mt-0.5">
+                    {tp('Site cash balance fell below 25% of the approved ceiling. Please print the detail below and send it to the head-office finance for a new advance.', 'موجودی نقد صندوق ساحه به زیر ۲۵٪ سقف مجاز رسیده است. لطفاً صورت ریز ذیل را چاپ نموده و جهت دریافت وجه جدید به امور مالی دفتر مرکزی ارسال کنید.', 'د ساحې نغدي بیلانس د تصویب شوي حد له ۲۵٪ څخه ټیټ شو. لاندې جزئیات چاپ او مرکزي دفتر مالي برخې ته د نوې تادیې لپاره واستوئ.')}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shrink-0 shadow-xs"
+              >
+                {tp('Print settlement', 'چاپ صورت تسویه', 'تسویه چاپ')}
+              </button>
+            </div>
+          )}
+
+          {/* 4 Imprest KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl bg-surface border border-line shadow-xs">
+              <span className="text-slate-400 font-bold block mb-1">{tp('Approved site imprest ceiling:', 'سقف تنخواه مصوب کارگاه:', 'د ساحې تصویب شوی حد:')}</span>
+              <span className="text-lg font-black font-mono text-ink">
+                {formatNumber(imprestCapAFN, 0)} AFN
+              </span>
+              <span className="block text-[10px] text-slate-400 mt-0.5">{tp('Allocated by head office', 'تخصیص یافته دفتر مرکزی', 'مرکزي دفتر ځانګړی کړی')}</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+              <span className="text-rose-700 dark:text-rose-400 font-bold block mb-1">{tp('Paid expenses (PCVs):', 'مصارف پرداخت‌شده:', 'ورکړل شوي لګښتونه:')}</span>
+              <span className="text-lg font-black font-mono text-rose-700 dark:text-rose-300">
+                {formatNumber(pettyCashSpentAFN, 0)} AFN
+              </span>
+              <span className="block text-[10px] text-rose-600/80 mt-0.5">{pettyCashExpenses.length} {tp('imprest vouchers', 'واچر تنخواه', 'واؤچرونه')}</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold block mb-1">{tp('Current safe cash balance:', 'موجودی نقد فعلی گاوصندوق:', 'په صندوق کې اوسنۍ نغدې:')}</span>
+              <span className="text-lg font-black font-mono text-emerald-700 dark:text-emerald-300">
+                {formatNumber(pettyCashBalanceAFN, 0)} AFN
+              </span>
+              <span className="block text-[10px] text-emerald-600/80 mt-0.5">{tp('Cash available on site', 'نقدینگی در دسترس ساحه', 'په ساحه کې شتې نغدې')}</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-surface border border-line shadow-xs">
+              <span className="text-slate-400 font-bold block mb-1">{tp('Cash left %:', 'درصد نقدینگی باقیمانده:', 'پاتې نغدو سلنه:')}</span>
+              <span className={`text-lg font-black font-mono ${pettyCashBalanceAFN > 25000 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {Math.round((pettyCashBalanceAFN / imprestCapAFN) * 100)}%
+              </span>
+              <span className="block text-[10px] text-slate-400 mt-0.5">{tp('Petty-spend continuity index', 'شاخص استمرار مصارف خرد', 'وړو لګښتونو دوام شاخص')}</span>
+            </div>
+          </div>
+
+          {/* Petty Cash Vouchers Table */}
+          <div className="bg-surface rounded-3xl border border-line shadow-sm overflow-hidden p-5 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-sm sm:text-base text-ink flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-emerald-500" />
+                  <span>{tp('Petty Cash Book', 'دفتر ثبت واچرهای تنخواه‌گردان کارگاه', 'د وړو نغدو کتاب')}</span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {tp('Emergency purchases, hospitality, fares and daily site expenses', 'خریدهای اضطراری، پذیرایی، کرایه و مصارف روزمره معتمد ساحه', 'بېړني پېر، مېلمه‌پالنه، کرایې او ورځني ساحوي لګښتونه')}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-2 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 rounded-xl transition"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-500" />
+                <span>{tp('Print imprest settlement', 'چاپ صورت تسویه تنخواه', 'د صندوق تسویه چاپ')}</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto scroll-touch">
+              <table className="w-full text-xs text-right border-collapse">
+                <thead className="bg-surface-2/60 text-slate-500 font-bold border-b border-line">
+                  <tr>
+                    <th className="py-3 px-3">{tp('Voucher no.', 'شماره واچر', 'د واؤچر شمېره')}</th>
+                    <th className="py-3 px-3">{tp('Date', 'تاریخ', 'نېټه')}</th>
+                    <th className="py-3 px-3">{tp('For / category', 'بابت / دسته‌بندی', 'لپاره / ډله')}</th>
+                    <th className="py-3 px-3">{tp('Petty expense detail', 'شرح دقیق مصرف خرد', 'وړو لګښتونو جزئیات')}</th>
+                    <th className="py-3 px-3">{tp('Payee', 'گیرنده وجه', 'پیسې اخیستونکی')}</th>
+                    <th className="py-3 px-3 text-left">{tp('Voucher amount (AFN)', 'مبلغ واچر (AFN)', 'د واؤچر اندازه (AFN)')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {pettyCashExpenses.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        {tp('No imprest vouchers for this project yet. Use the imprest button in “Quick add”.', 'واچر تنخواهی برای این پروژه ثبت نشده است. از منوی «ثبت سریع» دکمه تنخواه را انتخاب کنید.', 'دې پروژې ته هېڅ واؤچر نه دی ثبت شوی. په «ګړندي ثبت» کې د صندوق تڼۍ وکاروئ.')}
+                      </td>
+                    </tr>
+                  ) : (
+                    pettyCashExpenses.map(exp => (
+                      <tr key={exp.id} className="hover:bg-surface-2/40 transition">
+                        <td className="py-3 px-3 font-mono font-bold text-ink">
+                          {exp.invoiceNumber || `PCV-${exp.id.slice(-4)}`}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-slate-400">{exp.date}</td>
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded-lg bg-surface-2 text-slate-600 dark:text-slate-300 font-semibold">
+                            {tx('category', exp.category)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 font-semibold text-ink max-w-xs truncate">
+                          {exp.title || exp.description || tp('Site petty expense', 'مصرف خرد ساحه', 'ساحوي وړو لګښت')}
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
+                          {exp.recipientName || tp('Site custodian', 'معتمد ساحه', 'ساحوي متعهد')}
+                        </td>
+                        <td className="py-3 px-3 text-left font-mono font-black text-emerald-600">
+                          {formatNumber(expAFN(exp), 0)} AFN
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* ALL EXPENSES VIEW */
+        <div className="space-y-6">
+      <div className="bg-surface rounded-3xl border border-line shadow-sm overflow-hidden">
+        <div className="overflow-x-auto scroll-touch">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-surface-2/60 text-ink-muted font-bold border-b border-line">
+              <tr>
+                <th className="py-3.5 px-4">{t('date') || 'Date'}</th>
+                <th className="py-3.5 px-4">{t('title') || 'Title / Description'}</th>
+                <th className="py-3.5 px-4">{t('category') || 'Category'}</th>
+                <th className="py-3.5 px-4">{t('vendorContractor') || 'Vendor / Contractor'}</th>
+                <th className="py-3.5 px-4">{t('quantity') || 'Quantity / Unit'}</th>
+                <th className="py-3.5 px-4 text-right">{t('amount') || 'Amount'}</th>
+                <th className="py-3.5 px-4 text-center">{t('receipt') || 'Receipt'}</th>
+                <th className="py-3.5 px-4 text-center">{t('actions') || 'Actions'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {filteredExpenses.map(exp => (
+                <tr key={exp.id} className={`transition ${exp.approvalStatus === 'rejected' ? 'bg-rose-500/5 hover:bg-rose-500/10' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'}`}>
+                  <td className="py-3.5 px-4 text-ink-muted whitespace-nowrap">
+                    {exp.date}
+                  </td>
+                  <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-200">
+                    <div>{exp.title}</div>
+                    {exp.invoiceNumber && (
+                      <span className="text-[10px] text-slate-400 font-mono">#{exp.invoiceNumber}</span>
+                    )}
+                    {exp.approvalStatus === 'approved' && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="w-3 h-3" />{tp('Approved', 'تأییدشده', 'تایید شوی')}</span>
+                    )}
+                    {exp.approvalStatus === 'rejected' && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400"><XCircle className="w-3 h-3" />{tp('Rejected — excluded', 'ردشده — خارج از حساب', 'رد شوی — له حساب وتلی')}</span>
+                    )}
+                    {docStateOf(exp) === 'draft' && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">{tp('Draft — not booked', 'پیش‌نویس — خارج از حساب', 'مسوده — له حساب وتلی')}</span>
+                    )}
+                    {exp.docStatus === 'posted' && !exp.reversedBy && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-slate-500"><Lock className="w-3 h-3" />{tp('Posted', 'ثبت نهایی', 'نهایي ثبت')}</span>
+                    )}
+                    {exp.reversedBy && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-violet-600 dark:text-violet-300">{tp('Reversed', 'برگشت‌شده', 'بیرته شوی')}</span>
+                    )}
+                    {exp.reversalOf && (
+                      <span className="ms-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-500 dark:text-rose-300">{tp('Reversal entry', 'سند برگشتی', 'بیرته سند')}</span>
+                    )}
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <span className="px-2.5 py-1 bg-surface-2 rounded-lg text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                      {tx('category', exp.category)}
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                    {exp.recipientName || '—'}
+                  </td>
+                  <td className="py-3.5 px-4 text-ink-muted whitespace-nowrap">
+                    {exp.quantity ? `${exp.quantity} ${tx('unit', exp.unit || '')}` : '—'}
+                  </td>
+                  <td className="py-3.5 px-4 text-right whitespace-nowrap font-bold text-rose-600 dark:text-rose-400">
+                    <div>{formatCurrency(expUSD(exp), 'USD')}</div>
+                    <div className="text-[10px] text-slate-400 font-normal">
+                      {formatNumber(expAFN(exp), 0)} AFN
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4 text-center">
+                    <AttachmentClip refs={exp.attachments} receiptUrl={exp.receiptUrl} section="expenses" onRefsChange={next => updateExpense(exp.id, { attachments: next })} onReceiptRemove={() => updateExpense(exp.id, { receiptUrl: undefined })} />
+                  </td>
+                  <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                    {canApprove && exp.approvalStatus !== 'approved' && (
+                      <button
+                        onClick={() => approveExpense(exp.id)}
+                        className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Approve', 'تأیید', 'تایید')}
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canApprove && exp.approvalStatus !== 'rejected' && (
+                      <button
+                        onClick={() => rejectExpense(exp.id)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Reject (exclude from accounts)', 'رد (خارج از حساب)', 'ردول (له حساب وتل)')}
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canApprove && docStateOf(exp) !== 'posted' && !exp.reversedBy && exp.approvalStatus !== 'rejected' && (
+                      <button
+                        onClick={() => postExpense(exp.id)}
+                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Post (lock)', 'ثبت نهایی (قفل)', 'نهایي ثبت (قفل)')}
+                      >
+                        <Lock className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canApprove && exp.docStatus === 'posted' && !exp.reversedBy && (
+                      <button
+                        onClick={() => unpostExpense(exp.id)}
+                        className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Unpost (unlock for correction)', 'بازگشایی برای تصحیح', 'د سمون لپاره خلاصول')}
+                      >
+                        <LockOpen className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canApprove && !exp.reversedBy && (
+                      <button
+                        onClick={() => { if (confirm(tp('Reverse this expense? A mirror entry will be created; the original is preserved and locked.', 'این مصرف برگشت شود؟ سند آینه‌ای ساخته می‌شود؛ سند اصلی حفظ و قفل می‌گردد.', 'دا لګښت بیرته شي؟ آینه‌يي سند به جوړ شي؛ اصلي سند ساتل کېږي او قفل کېږي.'))) reverseExpense(exp.id); }}
+                        className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Reverse (keeps original)', 'برگشت (با حفظ سند اصلی)', 'بیرته کول (له اصلي سند سره)')}
+                      >
+                        <Undo2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setSelectedDoc({ exp, kind: 'bill' })}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition"
+                      title={tp('Print bill', 'چاپ صورت‌حساب', 'د بل چاپ')}
+                    >
+                      <Printer className="w-4 h-4" />
+                    </button>
+                    {exp.partyType === 'supplier' && (
+                      <button
+                        onClick={() => setSelectedDoc({ exp, kind: 'grn' })}
+                        className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-lg transition"
+                        title={tp('Goods receipt', 'رسید تحویل کالا', 'د مال رسید')}
+                      >
+                        <Package className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(exp.id, exp.title || exp.description || 'Expense')}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition"
+                      title={t('delete') || 'Delete'}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+
+              {filteredExpenses.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
+                    {t('noExpensesFound') || 'No expenses match the current filter'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )}
+
+    </div>
+  );
+};

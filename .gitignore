@@ -1,0 +1,14 @@
+node_modules/
+build/
+dist/
+host_upload/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+# Wave 37: production go-live flags (no secrets inside) are versioned.
+!.env.production
+api/.secrets/*.key
+api/uploads/*
+!api/uploads/.htaccess
