@@ -1,5 +1,5 @@
 /**
- * Wave 55 verification: single identity per username (dedupe + trim-safe matching) + v1.0.14.
+ * Wave 55 verification: single identity per username (dedupe + trim-safe matching) + v1.0.15.
  * Run: npm run test:wave55
  */
 import * as fs from 'fs';
@@ -34,7 +34,7 @@ function main() {
   check('no-raw-ctx', !rawUserField.test(ctx));
   check('modal-guarded', modal.includes("(u.email || '').trim().toLowerCase()") && modal.includes("(u.name || '').trim().toLowerCase()"));
   // Version bump.
-  check('version', loginView.includes('v1.0.14') && pkg.includes('"version": "1.0.14"'));
+  check('version', loginView.includes('v1.0.15') && pkg.includes('"version": "1.0.15"'));
 
   console.log(results.join('\n'));
   console.log(`\nwave55: ${passed} passed, ${failed} failed`);

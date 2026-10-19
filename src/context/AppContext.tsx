@@ -1583,6 +1583,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return undefined;
   }, []);
 
+  // Wave 58: FULLY automatic roster sync — no button needed. Refocus + a
+  // 5-minute timer silently flush the outbox then pull the roster (throttled
+  // to once per 2 minutes, visible tab + live token only, never blocks).
+  const bgSyncPullRef = useRef(pullUsersFromServer);
+  bgSyncPullRef.current = pullUsersFromServer;
+  useEffect(() => {
+    if (TEST_MODE) return undefined;
+    let last = 0;
+    const bgSync = () => {
+      try {
+        const now = Date.now();
+        if (now - last < 2 * 60 * 1000) return;
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+        if (!backendApi.getToken()) return;
+        last = now;
+        backendApi.syncOfflineQueue().catch(() => {}).finally(() => { bgSyncPullRef.current().catch(() => {}); });
+      } catch { /* ignore */ }
+    };
+    const id = window.setInterval(bgSync, 5 * 60 * 1000);
+    window.addEventListener('focus', bgSync);
+    return () => { window.clearInterval(id); window.removeEventListener('focus', bgSync); };
+  }, []);
+
   const login = async (
     usernameOrEmail: string,
     password?: string,
@@ -1762,7 +1786,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }).catch(() => {});
     }
     // Wave 50: a fresh login brings a fresh roster (background, never blocks).
-    pullUsersFromServer().catch(() => {});
+    // Wave 58: flush the outbox first with the fresh token, then pull.
+    backendApi.syncOfflineQueue().catch(() => {}).finally(() => { pullUsersFromServer().catch(() => {}); });
     return { success: true };
   };
 
@@ -2440,6 +2465,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addUser = (userData: Omit<User, 'id' | 'createdAt'>): { success: boolean; error?: string } => {
     if (!guard('users', 'create')) return { success: false, error: 'access-denied' };
+    // Wave 57: owner accounts are minted ONLY from the Office7 panel. An owner
+    // can only create staff (accountant/viewer) for their own company.
+    if (userData.role === 'admin' && !currentUser?.isMasterSuperAdmin) {
+      return { success: false, error: 'فقط دفتر هفت می‌تواند حساب مالک بسازد / Only Office 7 can create owner accounts' };
+    }
     const rawPw = (userData.password || '').trim();
     if (!rawPw) {
       return { success: false, error: 'رمز عبور الزامی است / Password is required' };
@@ -2485,6 +2515,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!selfPasswordOnly && !guard('users', 'edit')) return;
     const target = users.find(u => u.id === id);
     const safe: Partial<User> = { ...updates };
+    // Wave 57: rank changes involving owner accounts are a master-only act.
+    // (Profile edits and staff accountant<->viewer switches still pass.)
+    const roleChanging = safe.role !== undefined && target && safe.role !== target.role;
+    if (!currentUser?.isMasterSuperAdmin && roleChanging && (safe.role === 'admin' || target?.role === 'admin')) return;
     if (typeof safe.password === 'string' && safe.password.trim() && target && !isPasswordHash(safe.password.trim())) {
       safe.password = hashPassword(safe.password.trim(), target.username);
       safe.hashSalt = (target.username || '').trim().toLowerCase();

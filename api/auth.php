@@ -202,6 +202,11 @@ if ($method === 'POST') {
 
         $roleIn = strtolower(trim((string)($p['role'] ?? 'viewer')));
         $role = in_array($roleIn, ['admin', 'accountant', 'viewer'], true) ? $roleIn : 'viewer';
+        // Wave 57: only Office7 mints owner-rank accounts (self profile sync keeps its own rank).
+        if ($role === 'admin' && !$meMaster && !$isSelf) {
+            logSyncReject($db, $me, $username, 'owner-create-denied');
+            jsonResponse(false, null, 'فقط دفتر هفت می‌تواند حساب مالک بسازد.', 403);
+        }
         $planIn = strtolower(trim((string)($p['subscriptionPlan'] ?? 'pro')));
         $plan = $planIn === 'trial' ? 'trial' : ($planIn === 'lifetime' ? 'lifetime' : ($planIn === 'enterprise' ? 'enterprise' : 'pro'));
         $expIn = trim((string)($p['subscriptionExpiresAt'] ?? ''));

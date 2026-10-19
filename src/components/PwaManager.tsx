@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CloudUpload, RefreshCw, WifiOff } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { backendApi } from '../services/backendApi';
@@ -51,52 +51,64 @@ export function PwaManager() {
     };
   }, []);
 
-  // Auto-sync when connectivity returns.
-  useEffect(() => {
-    if (!online || pending === 0 || syncing) return;
+  // Wave 58: FULLY automatic outbox flush — no button needed. One shared
+  // flusher (ref-guarded so overlapping triggers never double-send), fired
+  // by: queue changes (debounced), reconnect, window focus, and a 45s retry
+  // timer. "Send now" stays as an instant-force action but is rarely needed.
+  const tpRef = useRef(tp);
+  tpRef.current = tp;
+  const flushingRef = useRef(false);
+  const flushQueue = useCallback(async (announce: boolean): Promise<void> => {
+    if (flushingRef.current) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    flushingRef.current = true;
     setSyncing(true);
-    backendApi
-      .syncOfflineQueue()
-      .then(r => {
-        if (r.sent > 0) {
-          setSyncMsg(
-            tp(
-              `${r.sent} queued change(s) sent to the server.`,
-              `${r.sent} تغییر ذخیره‌شده به سرور ارسال شد.`,
-              `${r.sent} خوندي شوي بدلونونه سرور ته واستول شول.`,
-            ),
-          );
-          window.setTimeout(() => setSyncMsg(null), 5000);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setSyncing(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [online]);
-
-  const syncNow = () => {
-    if (syncing || !online) return;
-    setSyncing(true);
-    backendApi
-      .syncOfflineQueue()
-      .then(r => {
+    try {
+      const r = await backendApi.syncOfflineQueue();
+      if (announce && (r.sent > 0 || r.failed > 0)) {
+        const t = tpRef.current;
         setSyncMsg(
           r.failed > 0
-            ? tp(
-                `Sent ${r.sent}, ${r.failed} failed — will retry automatically.`,
-                `${r.sent} ارسال شد، ${r.failed} ناموفق — به‌صورت اتومات تلاش مجدد می‌شود.`,
-                `${r.sent} واستول شول، ${r.failed} ناکام — په اتومات ډول به بیا هڅه وشي.`,
+            ? t(
+                `Sent ${r.sent}, ${r.failed} failed \u2014 will retry automatically.`,
+                `${r.sent} \u0627\u0631\u0633\u0627\u0644 \u0634\u062f\u060c ${r.failed} \u0646\u0627\u0645\u0648\u0641\u0642 \u2014 \u0628\u0647\u200c\u0635\u0648\u0631\u062a \u0627\u062a\u0648\u0645\u0627\u062a \u062a\u0644\u0627\u0634 \u0645\u062c\u062f\u062f \u0645\u06cc\u200c\u0634\u0648\u062f.`,
+                `${r.sent} \u0648\u0627\u0633\u062a\u0648\u0644 \u0634\u0648\u0644\u060c ${r.failed} \u0646\u0627\u06a9\u0627\u0645 \u2014 \u067e\u0647 \u0627\u062a\u0648\u0645\u0627\u062a \u0689\u0648\u0644 \u0628\u0647 \u0628\u06cc\u0627 \u0647\u0685\u0647 \u0648\u0634\u064a.`,
               )
-            : tp(
+            : t(
                 `${r.sent} queued change(s) sent to the server.`,
-                `${r.sent} تغییر ذخیره‌شده به سرور ارسال شد.`,
-                `${r.sent} خوندي شوي بدلونونه سرور ته واستول شول.`,
+                `${r.sent} \u062a\u063a\u06cc\u06cc\u0631 \u0630\u062e\u06cc\u0631\u0647\u200c\u0634\u062f\u0647 \u0628\u0647 \u0633\u0631\u0648\u0631 \u0627\u0631\u0633\u0627\u0644 \u0634\u062f.`,
+                `${r.sent} \u062e\u0648\u0646\u062f\u064a \u0634\u0648\u064a \u0628\u062f\u0644\u0648\u0646\u0648\u0646\u0647 \u0633\u0631\u0648\u0631 \u062a\u0647 \u0648\u0627\u0633\u062a\u0648\u0644 \u0634\u0648\u0644.`,
               ),
         );
         window.setTimeout(() => setSyncMsg(null), 5000);
-      })
-      .catch(() => {})
-      .finally(() => setSyncing(false));
+      }
+    } catch { /* stays queued \u2014 the timer retries */ }
+    finally { flushingRef.current = false; setSyncing(false); }
+  }, []);
+
+  // Debounced flush whenever items land in the queue while online.
+  useEffect(() => {
+    if (!online || pending === 0) return undefined;
+    const t = window.setTimeout(() => { flushQueue(false).catch(() => {}); }, 2500);
+    return () => window.clearTimeout(t);
+  }, [online, pending, flushQueue]);
+
+  // Retry timer + refocus flush (silent unless the button asked).
+  useEffect(() => {
+    const kick = () => {
+      backendApi.getOfflinePendingCount().then(n => { if (n > 0) flushQueue(false).catch(() => {}); }).catch(() => {});
+    };
+    const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      kick();
+    }, 45000);
+    window.addEventListener('focus', kick);
+    return () => { window.clearInterval(id); window.removeEventListener('focus', kick); };
+  }, [flushQueue]);
+
+  const syncNow = () => {
+    if (!online) return;
+    flushQueue(true).catch(() => {});
   };
 
   return (

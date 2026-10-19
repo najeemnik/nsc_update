@@ -1,5 +1,5 @@
 /**
- * Wave 54 verification: pull-first sync + master role guard + server-side create + v1.0.14.
+ * Wave 54 verification: pull-first sync + master role guard + server-side create + v1.0.15.
  * Run: npm run test:wave54
  */
 import * as fs from 'fs';
@@ -41,7 +41,7 @@ function main() {
   check('mk-master-safe', helper.includes('password_hash = :h, is_locked = 0'));
   check('mk-form', helper.includes('value="usercreate"') && helper.includes('Create / repair'));
   // Version bump.
-  check('version', loginView.includes('v1.0.14') && pkg.includes('"version": "1.0.14"'));
+  check('version', loginView.includes('v1.0.15') && pkg.includes('"version": "1.0.15"'));
 
   console.log(results.join('\n'));
   console.log(`\nwave54: ${passed} passed, ${failed} failed`);
